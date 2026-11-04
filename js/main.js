@@ -68,20 +68,28 @@ const clouds = Array.from({ length: 9 }, (_, i) => ({
 
 // ---------- collision ----------
 
-function blocked(x0, y0, x1, y1, self) {
+function blocked(x0, y0, x1, y1, self, swim = false) {
   for (let ty = Math.floor(y0 / TILE); ty <= Math.floor((y1 - 0.001) / TILE); ty++) {
     for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x1 - 0.001) / TILE); tx++) {
-      if (!inBounds(tx, ty) || isSolidTile(tileAt(tx, ty))) return true;
+      if (!inBounds(tx, ty)) return true;
+      const t = tileAt(tx, ty);
+      if (t === T.WATER ? !swim : isSolidTile(t)) return true;
     }
   }
   for (const c of colliders) if (!c.off && x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1) return true;
   for (const e of entities) {
     if (e !== self && !e.flying && x1 > e.x - 5 && x0 < e.x + 5 && y1 > e.y - 4 && y0 < e.y) return true;
   }
+  if (swim && !sail) {
+    const [sx0, sy0, sx1, sy1] = shipBox(shipObj.dir, shipObj.x, shipObj.y);
+    if (x1 > sx0 && x0 < sx1 && y1 > sy0 && y0 < sy1) return true;
+  }
   return false;
 }
 
-const canStand = (e, x, y) => !blocked(x - 5, y - 4, x + 5, y, e);
+const canStand = (e, x, y) => !blocked(x - 5, y - 4, x + 5, y, e, e.swimming);
+const onLand = (x, y) => !blocked(x - 5, y - 4, x + 5, y, player);
+const inWater = (x, y) => tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)) === T.WATER;
 
 // Slides the entity sideways when it pushes straight into a corner.
 function nudge(e, dx, dy) {
@@ -139,7 +147,63 @@ function readInput() {
 // ---------- walking ----------
 
 function jump() {
-  if (jumpT < 0) jumpT = 0;
+  if (player.swimming || jumpT >= 0) return;
+  const spot = diveSpot();
+  if (!spot) {
+    jumpT = 0;
+    return;
+  }
+  startHop(spot.x, spot.y, 0, 0, () => {
+    player.flying = false;
+    player.swimming = true;
+    splash(player.x, player.y);
+  });
+}
+
+// Where a jump from the shore edge would land in the sea, or null when not at an edge.
+function diveSpot() {
+  let [vx, vy] = readInput();
+  if (!vx && !vy) [vx, vy] = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[player.dir];
+  for (let d = 2; d <= 56; d += 2) {
+    const x = player.x + vx * d;
+    const y = player.y + vy * d;
+    const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
+    if (t === T.FALL) return null;
+    if (t !== T.CLIFF && t !== T.WATER) {
+      if (d > 12 || colliders.some((c) => !c.off && x + 5 > c.x0 && x - 5 < c.x1 && y > c.y0 && y - 4 < c.y1)) return null;
+      continue;
+    }
+    const wet = [[-5, -4], [5, -4], [-5, 0], [5, 0]].every(([ox, oy]) => inWater(x + ox, y + oy));
+    if (wet && !blocked(x - 5, y - 4, x + 5, y, player, true)) return { x, y };
+  }
+  return null;
+}
+
+function splash(x, y) {
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    particles.push({ type: 'wake', layer: 'water', x, y: y - 2, vx: Math.cos(a) * 26, vy: Math.sin(a) * 9, life: 0, max: 0.7 });
+  }
+  for (let i = 0; i < 12; i++) {
+    particles.push({ type: 'drop', x: x + (Math.random() - 0.5) * 8, y: y - 3, vx: (Math.random() - 0.5) * 50, vy: -40 - Math.random() * 50, life: 0, max: 0.55 });
+  }
+}
+
+function updateSwim(dt) {
+  const [ix, iy] = readInput();
+  if (!ix && !iy) {
+    player.frame = 0;
+    return;
+  }
+  const speed = (boosting() ? 62 : 42) * dt;
+  move(player, ix * speed, iy * speed);
+  faceToward(player, ix, iy);
+  player.anim += dt * 5;
+  player.frame = Math.floor(player.anim) % 4;
+  if (Math.random() < dt * 14) {
+    particles.push({ type: 'wake', layer: 'water', x: player.x - ix * 5, y: player.y - 2 - iy * 3, vx: -ix * 8, vy: -iy * 8, life: 0, max: 0.8 });
+  }
+  if (onLand(player.x, player.y)) player.swimming = false;
 }
 
 function jumpLift() {
@@ -158,6 +222,7 @@ function updateJump(dt) {
 }
 
 function updatePlayer(dt) {
+  if (player.swimming) return updateSwim(dt);
   updateJump(dt);
   const [ix, iy] = readInput();
   if (!ix && !iy) {
@@ -414,6 +479,7 @@ function nearShip() {
 
 function board() {
   const deck = deckPos();
+  player.swimming = false;
   startHop(deck.x, shipObj.y, 0, deck.lift, () => {
     sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };
     shipObj.rider = player.look;
@@ -596,6 +662,7 @@ function updateParticles(dt) {
     if (p.type === 'smoke') p.vx += 2 * dt;
     if (p.type === 'ember') p.vx += Math.sin(time * 5 + p.y) * 10 * dt;
     if (p.type === 'dust' || p.type === 'wake') { p.vx *= Math.exp(-dt * 4); p.vy *= Math.exp(-dt * 4); }
+    if (p.type === 'drop') p.vy += 260 * dt;
   }
 }
 
@@ -705,7 +772,20 @@ function drawObject(o, cx, cy) {
   if (s.after) s.after(ctx, o.x - cx, o.y - cy + dy, time, o);
 }
 
+function drawSwimmer(e, cx, cy) {
+  const x = Math.round(e.x) - cx;
+  const y = Math.round(e.y + Math.sin(time * 3) * 0.8) - cy - 3;
+  ctx.globalAlpha = 0.45;
+  ellipse(ctx, x, y, 7 + Math.sin(time * 4), 2.5, PAL.foam);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(charSprite(e.look, e.dir, e.frame % 2), 0, 0, 16, 14, x - 8, y - 14, 16, 14);
+  ctx.globalAlpha = 0.8;
+  rect(ctx, x - 5, y - 1, 10, 1, PAL.foam);
+  ctx.globalAlpha = 1;
+}
+
 function drawEntity(e, cx, cy, lift = 0) {
+  if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
   ctx.drawImage(charSprite(e.look, e.dir, e.frame), Math.round(e.x) - 8 - cx, Math.round(e.y - lift) - 20 - cy);
 }
 
@@ -764,6 +844,9 @@ function drawParticles(cx, cy, layer) {
       const r = 1 + t * 4;
       ctx.globalAlpha = 0.7 * (1 - t);
       ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.5, PAL.foam);
+    } else if (p.type === 'drop') {
+      ctx.globalAlpha = 1 - t * 0.6;
+      px(ctx, p.x - cx, p.y - cy, t < 0.4 ? '#ffffff' : PAL.foam);
     } else if (p.type === 'wind') {
       ctx.globalAlpha = 0.55 * Math.sin(t * Math.PI);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 12, p.y - cy - p.dy * 12, '#ffffff');
@@ -800,6 +883,7 @@ function render() {
     if (sh) drawShadow(o.x - cx, o.y - cy, sh.rx, sh.ry);
   }
   for (const e of walkers) {
+    if (e.swimming) continue;
     const k = e === player ? jumpLift() / JUMP_HEIGHT : 0;
     drawShadow(Math.round(e.x) - cx, Math.round(e.y) - cy, 5 - k * 2, 2 - k * 0.5);
   }
@@ -853,6 +937,8 @@ function render() {
     setPrompt('SPACE  Board the ship');
   } else if (nearDragon()) {
     setPrompt('SPACE  Ride the dragon');
+  } else if (player.swimming) {
+    setPrompt('Swim to a beach or low shore to climb out');
   } else {
     setPrompt('');
   }
