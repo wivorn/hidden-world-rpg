@@ -5,6 +5,8 @@ const ctx = buffer.getContext('2d');
 const bubbleLayer = document.getElementById('bubbles');
 const hint = document.getElementById('hint');
 const promptEl = document.getElementById('prompt');
+const chatForm = document.getElementById('chat');
+const chatInput = document.getElementById('chat-input');
 
 let baseZoom = 3;
 let flyZoom = 2;
@@ -316,6 +318,29 @@ function talk() {
   best.talkT = 3.5;
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
+}
+
+const playerBubble = document.createElement('div');
+playerBubble.className = 'bubble player';
+bubbleLayer.appendChild(playerBubble);
+let playerSayT = 0;
+
+function say(text) {
+  playerBubble.textContent = text;
+  playerBubble.classList.add('show');
+  playerSayT = 3 + text.length * 0.06;
+}
+
+// Screen point (world pixels) just above the player's head, wherever they are.
+function playerHead() {
+  if (flight) return [flight.x, flight.y - flight.alt - 50];
+  if (sail) {
+    const d = deckPos();
+    return [d.x, shipObj.y - d.lift - 20];
+  }
+  if (hop) return [player.x, player.y - 24 - hop.lift0 - (hop.lift1 - hop.lift0) * hop.t - Math.sin(hop.t * Math.PI) * 16];
+  if (player.swimming && inWater(player.x, player.y)) return [player.x, player.y - 18];
+  return [player.x, player.y - 24 - jumpLift()];
 }
 
 // ---------- dragon riding ----------
@@ -673,6 +698,10 @@ function update(dt) {
   else if (flight) updateFlight(dt);
   else updatePlayer(dt);
   for (const n of npcs) updateNpc(n, dt);
+  if (playerSayT > 0) {
+    playerSayT -= dt;
+    if (playerSayT <= 0) playerBubble.classList.remove('show');
+  }
   for (const c of clouds) c.x += c.v * dt;
   emitParticles(dt);
   updateParticles(dt);
@@ -928,6 +957,11 @@ function render() {
       drawTalkHint(n, cx, cy);
     }
   }
+  if (playerSayT > 0) {
+    const [hx, hy] = playerHead();
+    playerBubble.style.left = `${(Math.round(hx) - cx) * zoom}px`;
+    playerBubble.style.top = `${(Math.round(hy) - cy) * zoom}px`;
+  }
 
   if (flight && flight.mode === 'fly') {
     setPrompt(landingSpot() ? 'SPACE  Land   ·   SHIFT  Boost' : 'Fly over open ground to land   ·   SHIFT  Boost');
@@ -969,9 +1003,29 @@ function resize() {
 const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
 
 window.addEventListener('keydown', (e) => {
+  if (document.activeElement === chatInput) return;
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+    e.preventDefault();
+    chatInput.focus();
+    return;
+  }
   if (BLOCKED_KEYS.has(e.code)) e.preventDefault();
-  if (!e.repeat && (e.code === 'Space' || e.code === 'KeyE' || e.code === 'Enter')) action();
+  if (!e.repeat && (e.code === 'Space' || e.code === 'KeyE')) action();
   keys.add(e.code);
+});
+
+chatInput.addEventListener('focus', () => keys.clear());
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  chatInput.value = '';
+  chatInput.blur();
+});
+chatForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = chatInput.value.trim();
+  if (text) say(text);
+  chatInput.value = '';
+  chatInput.blur();
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());

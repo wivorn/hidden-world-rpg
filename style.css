@@ -34,8 +34,11 @@ body {
   background: #fff8e7;
   color: #3a2414;
   border: 3px solid #3a2414;
-  font: 11px/1.4 'Press Start 2P', monospace;
-  white-space: nowrap;
+  font: 11px/1.6 'Press Start 2P', monospace;
+  width: max-content;
+  max-width: 260px;
+  text-align: center;
+  overflow-wrap: anywhere;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
   opacity: 0;
   transition: opacity 0.2s;
@@ -58,7 +61,7 @@ body {
 #hint {
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  bottom: 68px;
   transform: translateX(-50%);
   padding: 10px 14px;
   background: rgba(40, 24, 12, 0.8);
@@ -77,7 +80,7 @@ body {
 #prompt {
   position: fixed;
   left: 50%;
-  bottom: 80px;
+  bottom: 120px;
   transform: translateX(-50%);
   padding: 10px 14px;
   background: rgba(20, 24, 40, 0.85);
@@ -92,4 +95,55 @@ body {
 
 #prompt.show {
   opacity: 1;
+}
+
+.bubble.player {
+  background: #e8f4ff;
+  border-color: #1d3263;
+  color: #1d3263;
+}
+
+.bubble.player::after {
+  border-top-color: #1d3263;
+}
+
+#chat {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(20, 24, 40, 0.55);
+  border: 3px solid rgba(232, 244, 255, 0.35);
+  font: 10px/1 'Press Start 2P', monospace;
+  color: #e8f4ff;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+#chat:focus-within {
+  background: rgba(20, 24, 40, 0.9);
+  border-color: #7cf05a;
+}
+
+#chat label {
+  color: #7cf05a;
+}
+
+#chat input {
+  width: min(320px, calc(100vw - 110px));
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  user-select: text;
+}
+
+#chat input::placeholder {
+  color: rgba(232, 244, 255, 0.5);
 }

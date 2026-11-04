@@ -13,7 +13,11 @@
   <div class="vignette"></div>
   <div id="bubbles"></div>
   <div id="prompt"></div>
-  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; Ride the dragon or sail from the docks</div>
+  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; Enter to chat</div>
+  <form id="chat" autocomplete="off">
+    <label for="chat-input">SAY</label>
+    <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
+  </form>
 
   <script src="js/pixel.js"></script>
   <script src="js/sprites.js"></script>
