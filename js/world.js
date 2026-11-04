@@ -423,14 +423,14 @@ function addTree(key, tx, ty) {
 }
 
 const VILLAGE_NPCS = [
-  { look: 'chief', x: 32.5, y: 11.6, roam: 1.5, line: 'Welcome to the Hidden World, Eli.' },
-  { look: 'smith', x: 21, y: 19.8, roam: 1.5, line: 'Mind the sparks, lad!' },
+  { look: 'chief', x: 32.5, y: 11.6, roam: 1.5, line: 'Welcome to the Hidden World, {name}.' },
+  { look: 'smith', x: 21, y: 19.8, roam: 1.5, line: 'Mind the sparks, {lad}!' },
   { look: 'merchant', x: 15.5, y: 24.5, fixed: 'down', line: 'Fresh bread! Still warm.' },
-  { look: 'kid', x: 39.5, y: 17.5, roam: 1.5, line: 'The dragon winked at me!' },
+  { look: 'kid', x: 39.5, y: 17.5, roam: 1.5, line: 'I wish I had a dragon!' },
   { look: 'girl', x: 40.5, y: 28, roam: 3, line: 'Lovely day for flying.' },
   { look: 'archer', x: 40, y: 35.5, fixed: 'up', line: "Shh... I'm aiming." },
   { look: 'guard', x: 29.6, y: 43.6, fixed: 'down', line: 'Stay close to the village.' },
-  { look: 'villager', x: 26, y: 27, roam: 4, line: 'Have you seen my sheep?' },
+  { look: 'villager', x: 26, y: 27, roam: 4, line: 'My sheep are back in their pen. Aren\'t they fluffy?' },
   { look: 'fisher', x: 56.9, y: 24, roam: 2, line: "She's yours to sail. Mind the rocks!" },
 ];
 
@@ -438,6 +438,10 @@ const NPCS = [
   ...VILLAGE_NPCS.map((n) => ({ ...n, x: n.x + OX, y: n.y + OY })),
   { look: 'hermit', x: 131, y: 26, roam: 2.5, line: 'Sail south-west to the ancient ruin. A dragon egg sleeps among its stone towers...' },
 ];
+
+// Sheep wander inside the pen's fences.
+const PEN = { x0: (42.2 + OX) * TILE, y0: (16.2 + OY) * TILE, x1: (49.4 + OX) * TILE, y1: (19.6 + OY) * TILE };
+const SHEEP = [[43.5, 17.5], [46.5, 16.8], [48.6, 18.6], [44.8, 19.4]].map(([x, y]) => ({ x: x + OX, y: y + OY }));
 
 const PLAYER_START = { x: 32.5 + OX, y: 27.5 + OY };
 
@@ -474,7 +478,7 @@ function placeObjects() {
   addObj('bannerBlue', 29.5, 20.4);
   addObj('bannerBlue', 35.5, 20.4);
 
-  // dragon pen
+  // sheep pen
   for (let x = 41; x <= 49; x++) {
     addObj('fenceH', x + 0.5, 15);
     addObj('fenceH', x + 0.5, 20);
@@ -485,7 +489,6 @@ function placeObjects() {
     addObj('fenceV', 41.25, y + 1);
     addObj('fenceV', 50.25, y + 1);
   }
-  addObj('dragon', 45.8, 18.9);
 
   // archery range
   addObj('target', 38.5, 32.4);

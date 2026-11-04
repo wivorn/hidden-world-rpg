@@ -159,6 +159,13 @@ const Sfx = (() => {
       tone({ f0: rand(850, 1000), f1: rand(1400, 1700), dur: 0.09, vol: 0.07 * k });
       tone({ f0: rand(1000, 1200), f1: rand(1600, 1900), dur: 0.1, vol: 0.06 * k, delay: 0.12 });
     },
+    baa(k = 1) {
+      const f = rand(380, 460);
+      for (let i = 0; i < 6; i++) {
+        const [a, b] = i % 2 ? [1.05, 1] : [1, 1.05];
+        tone({ type: 'sawtooth', f0: f * a, f1: f * b * (1 - i * 0.02), dur: 0.08, vol: 0.035 * k, delay: i * 0.065, attack: 0.02 });
+      }
+    },
     babble(pitch, text, k = 1) {
       const n = Math.min(12, Math.max(2, Math.round(text.length / 3)));
       for (let i = 0; i < n; i++) {

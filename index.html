@@ -8,17 +8,41 @@
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="title">
   <canvas id="game"></canvas>
   <div class="vignette"></div>
   <div id="bubbles"></div>
   <div id="prompt"></div>
-  <button id="sound" type="button" aria-pressed="true">SOUND ON</button>
-  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; Enter to chat &middot; M for sound</div>
+  <div id="toggles">
+    <button id="hints" class="toggle" type="button" aria-pressed="false">HINTS OFF</button>
+    <button id="sound" class="toggle" type="button" aria-pressed="true">SOUND ON</button>
+  </div>
+  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; Enter to chat &middot; H for hints &middot; M for sound</div>
   <form id="chat" autocomplete="off">
     <label for="chat-input">SAY</label>
     <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
   </form>
+  <div id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
+    <form id="start-form" autocomplete="off">
+      <h1 id="start-title">HIDDEN WORLD</h1>
+      <fieldset class="heroes">
+        <legend>CHOOSE YOUR HERO</legend>
+        <label class="hero">
+          <input type="radio" name="hero" value="male" checked />
+          <canvas width="16" height="24" aria-hidden="true"></canvas>
+          <span>MALE</span>
+        </label>
+        <label class="hero">
+          <input type="radio" name="hero" value="female" />
+          <canvas width="16" height="24" aria-hidden="true"></canvas>
+          <span>FEMALE</span>
+        </label>
+      </fieldset>
+      <label class="name-label" for="hero-name">YOUR NAME</label>
+      <input id="hero-name" maxlength="12" placeholder="Eli" spellcheck="false" />
+      <button type="submit">START</button>
+    </form>
+  </div>
 
   <script src="js/pixel.js"></script>
   <script src="js/sprites.js"></script>

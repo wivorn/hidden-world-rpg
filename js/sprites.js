@@ -285,7 +285,8 @@ function buildPine(dark) {
 }
 
 function buildOak() {
-  return sprite(36, 42, (g) => {
+  return sprite(38, 42, (g) => {
+    g.translate(1, 0);
     rect(g, 15, 28, 6, 12, PAL.woodDark);
     rect(g, 15, 28, 2, 12, PAL.wood);
     const blobs = [[18, 15, 13], [9, 21, 8], [27, 21, 8], [18, 23, 10]];
@@ -355,7 +356,7 @@ function buildDragonEgg(cracks = 0) {
       for (let i = 0; i < pts.length - 1; i++) line(g, ...pts[i], ...pts[i + 1], '#ffe9a8');
     }
   }, false);
-  return sprite(24, 23, (g) => {
+  return sprite(24, 24, (g) => {
     ellipse(g, 12, 18, 10, 3, PAL.woodDeep);
     ellipse(g, 12, 17, 8, 2, PAL.woodDark);
     g.drawImage(egg, 6, 3);
@@ -368,7 +369,7 @@ function buildDragonEgg(cracks = 0) {
   });
 }
 
-// Smaller egg held overhead, with the carrier's hands on either side.
+// Smaller egg held overhead.
 function buildHeldEgg() {
   return sprite(12, 14, (g) => {
     ellipse(g, 6, 7, 4, 5, '#4b2a73');
@@ -380,21 +381,20 @@ function buildHeldEgg() {
     px(g, 4, 3, '#d9b8ff');
     px(g, 8, 9, '#d9b8ff');
     rect(g, 3, 4, 1, 2, '#a77be0');
-    rect(g, 1, 8, 2, 2, PAL.skin);
-    rect(g, 9, 8, 2, 2, PAL.skin);
   });
 }
 
-// Baby dragon, 26x23 with the ground point at (13, 22). Frame 0 folds the wings, frame 1 raises them.
+// Baby night-fury-style dragon, 26x23 with the ground point at (13, 22): black scales, big green
+// slit eyes, ear flaps and one red tail fin. Frame 0 folds the wings, frame 1 raises them.
 function buildBabyDragon() {
-  const B = '#7b4bc0';
-  const D = '#5a3394';
-  const L = '#a77be0';
-  const W = '#c99af0';
-  const BELLY = '#f3dcae';
-  const FIN = '#f08cb4';
-  const HORN = '#f6ead0';
-  const EYE = '#1a1030';
+  const B = '#1e2230';
+  const D = '#12141d';
+  const L = '#3c4560';
+  const W = '#2b3146';
+  const EYE = '#9be35a';
+  const GLINT = '#e6ffb0';
+  const PUPIL = '#0b0d12';
+  const RED = '#c0392b';
   const set = { down: [], up: [], right: [], left: [] };
   const baby = (draw) => sprite(26, 23, (g) => {
     g.translate(1, 0);
@@ -405,12 +405,15 @@ function buildBabyDragon() {
       const P = (dx, dy) => [12 + s * dx, dy];
       const tip = up ? P(10, 4) : P(11, 14);
       poly(g, [P(3, 11), tip, up ? P(9, 10) : P(7, 16), P(4, 15)], W);
-      line(g, ...P(3, 11), ...tip, D);
+      line(g, ...P(3, 11), ...tip, L);
     }
   };
-  const horns = (g) => {
-    poly(g, [[8, 6], [6, 1], [10, 4]], HORN);
-    poly(g, [[16, 6], [18, 1], [14, 4]], HORN);
+  // Two big ear flaps swept out to the sides, two small nubs between them.
+  const ears = (g) => {
+    poly(g, [[8, 5], [2, 2], [5, 6], [8, 8]], B);
+    poly(g, [[16, 5], [22, 2], [19, 6], [16, 8]], B);
+    poly(g, [[10, 4], [9, 1], [11, 3]], B);
+    poly(g, [[14, 4], [15, 1], [13, 3]], B);
   };
 
   for (let f = 0; f < 2; f++) {
@@ -419,61 +422,92 @@ function buildBabyDragon() {
       wings(g, up);
       line(g, 16, 19, 20, 18, B, 2);
       line(g, 20, 18, 21, 15, B);
-      poly(g, [[21, 16], [23, 12], [19, 14]], FIN);
+      poly(g, [[21, 15], [23, 11], [22, 16]], B);
+      poly(g, [[21, 15], [18, 12], [20, 16]], RED);
       ellipse(g, 9, 20, 2, 1, D);
       ellipse(g, 15, 20, 2, 1, D);
       ellipse(g, 12, 16, 5, 4, B);
-      ellipse(g, 12, 17, 3, 3, BELLY);
-      horns(g);
+      ellipse(g, 12, 15, 3, 2, L);
+      ears(g);
       ellipse(g, 12, 8, 6, 5, B);
       ellipse(g, 11, 5, 3, 1, L);
-      ellipse(g, 12, 11, 3, 1.5, L);
-      rect(g, 8, 7, 3, 3, '#ffffff');
-      rect(g, 13, 7, 3, 3, '#ffffff');
-      rect(g, 9, 8, 2, 2, EYE);
-      rect(g, 13, 8, 2, 2, EYE);
-      px(g, 7, 10, FIN);
-      px(g, 17, 10, FIN);
+      rect(g, 7, 7, 3, 4, EYE);
+      rect(g, 14, 7, 3, 4, EYE);
+      rect(g, 8, 8, 1, 2, PUPIL);
+      rect(g, 15, 8, 1, 2, PUPIL);
+      px(g, 7, 7, GLINT);
+      px(g, 14, 7, GLINT);
       px(g, 11, 11, D);
       px(g, 13, 11, D);
+      px(g, 10, 12, L);
+      rect(g, 11, 13, 3, 1, L);
+      px(g, 14, 12, L);
     }));
     set.up.push(baby((g) => {
       ellipse(g, 9, 20, 2, 1, D);
       ellipse(g, 15, 20, 2, 1, D);
       ellipse(g, 12, 16, 5, 4, B);
-      horns(g);
+      ears(g);
       ellipse(g, 12, 8, 6, 5, B);
       ellipse(g, 12, 6, 4, 2, L);
-      for (const y of [12, 14, 16]) px(g, 12, y, FIN);
+      for (const y of [12, 14, 16]) px(g, 12, y, L);
       wings(g, up);
       line(g, 13, 19, 17, 21, B, 2);
-      poly(g, [[17, 21], [21, 20], [18, 19]], FIN);
+      poly(g, [[17, 21], [21, 21], [19, 18]], B);
+      poly(g, [[17, 20], [19, 17], [16, 18]], RED);
     }));
     const side = baby((g) => {
       line(g, 8, 17, 4, 16, B, 2);
       line(g, 4, 16, 2, 12, B);
-      poly(g, [[2, 13], [0, 9], [4, 11]], FIN);
+      poly(g, [[3, 12], [1, 7], [5, 10]], RED);
+      poly(g, [[2, 13], [0, 10], [4, 12]], B);
       ellipse(g, 9, 20, 2, 1, D);
       ellipse(g, 15, 20, 2, 1, D);
       ellipse(g, 11, 16, 6, 4, B);
-      ellipse(g, 13, 17, 3, 2.5, BELLY);
-      px(g, 9, 12, FIN);
-      px(g, 7, 13, FIN);
-      poly(g, [[12, 6], [9, 1], [13, 4]], HORN);
+      ellipse(g, 11, 14, 4, 1, L);
+      px(g, 9, 12, L);
+      px(g, 7, 13, L);
+      poly(g, [[13, 6], [8, 3], [11, 7], [13, 9]], B);
+      poly(g, [[15, 5], [14, 1], [17, 4]], B);
       ellipse(g, 15, 9, 5, 4.5, B);
-      ellipse(g, 14, 6, 3, 1, L);
-      ellipse(g, 19, 11, 3, 2, L);
+      ellipse(g, 15, 6, 3, 1, L);
+      ellipse(g, 19, 11, 3, 2, B);
       px(g, 21, 10, D);
-      rect(g, 15, 7, 3, 3, '#ffffff');
-      rect(g, 16, 8, 2, 2, EYE);
-      px(g, 16, 11, FIN);
+      rect(g, 16, 7, 3, 4, EYE);
+      rect(g, 17, 8, 1, 2, PUPIL);
+      px(g, 16, 7, GLINT);
+      line(g, 18, 13, 21, 12, L);
       poly(g, up ? [[9, 13], [13, 12], [8, 3], [5, 7]] : [[8, 13], [13, 12], [6, 17], [3, 14]], W);
-      line(g, 13, 12, ...(up ? [8, 3] : [6, 17]), D);
+      line(g, 13, 12, ...(up ? [8, 3] : [6, 17]), L);
     });
     set.right.push(side);
     set.left.push(mirror(side));
   }
   return set;
+}
+
+// Sheep, 24x17 with the ground point at (12, 16). Frames: standing, mid-step, grazing.
+function buildSheep() {
+  const WOOL = '#f4f1ea';
+  const SHADE = '#d6cfc2';
+  const FACE = '#3a3030';
+  const frame = (step, graze) => sprite(26, 17, (g) => {
+    g.translate(1, 0);
+    const legs = step ? [[5, 12], [8, 13], [12, 13], [15, 12]] : [[5, 13], [7, 13], [13, 13], [15, 13]];
+    for (const [x, y] of legs) rect(g, x, y, 2, 3, FACE);
+    ellipse(g, 10, 10, 7, 4, SHADE);
+    for (const [x, y, r] of [[5, 8, 3], [9, 6, 3], [13, 7, 3], [14, 10, 3], [10, 9, 5]]) ellipse(g, x, y, r, r * 0.9, WOOL);
+    ellipse(g, 2, 8, 1.5, 1.5, WOOL);
+    const hx = graze ? 20 : 19;
+    const hy = graze ? 12 : 7;
+    if (!graze) rect(g, 16, 8, 2, 3, FACE);
+    ellipse(g, hx, hy, 2, 2.5, FACE);
+    rect(g, hx - 4, hy - 2, 2, 1, FACE);
+    ellipse(g, hx - 1, hy - 3, 1.5, 1, WOOL);
+    px(g, hx + 1, hy - 1, '#ffffff');
+  });
+  const right = [frame(false, false), frame(true, false), frame(false, true)];
+  return { right, left: right.map(mirror) };
 }
 
 function buildMenhir() {
@@ -489,7 +523,8 @@ function buildMenhir() {
 function buildRock(big) {
   const w = big ? 26 : 14;
   const h = big ? 18 : 10;
-  return sprite(w, h, (g) => {
+  return sprite(w + 2, h + 1, (g) => {
+    g.translate(1, 0);
     const cx = w / 2;
     ellipse(g, cx, h / 2 + 1, w / 2 - 2, h / 2 - 2, PAL.rockDark);
     ellipse(g, cx - 1, h / 2, w / 2 - 3, h / 2 - 3, PAL.rock);
@@ -562,7 +597,8 @@ function buildTarget() {
 }
 
 function buildPillar() {
-  return sprite(30, 70, (g) => {
+  return sprite(30, 71, (g) => {
+    g.translate(0, 1);
     rect(g, 9, 22, 12, 46, PAL.wood);
     rect(g, 9, 22, 2, 46, PAL.woodLight);
     rect(g, 18, 22, 3, 46, PAL.woodDark);
@@ -631,7 +667,8 @@ function buildTorchFrames() {
 }
 
 function buildBonfireFrames() {
-  const ring = (front) => sprite(34, 28, (g) => {
+  const ring = (front) => sprite(36, 29, (g) => {
+    g.translate(1, 0);
     if (!front) {
       line(g, 9, 22, 25, 16, PAL.woodDark, 3);
       line(g, 9, 16, 25, 22, PAL.wood, 3);
@@ -650,13 +687,13 @@ function buildBonfireFrames() {
   const front = ring(true);
   const frames = [];
   for (let f = 0; f < 6; f++) {
-    const c = makeCanvas(34, 28);
+    const c = makeCanvas(36, 29);
     const g = c.getContext('2d');
     g.drawImage(back, 0, 0);
     const layers = [['#e5481c', 1, 0], ['#ff9a26', 0.7, 1], ['#ffe066', 0.4, 2]];
     for (const [color, scale, ls] of layers) {
       for (let i = 0; i < 5; i++) {
-        const x = 10 + i * 3.5;
+        const x = 11 + i * 3.5;
         const hgt = (8 + Math.round(hash(i, f, 41 + ls) * 9) + (i === 2 ? 5 : 0)) * scale;
         const lean = (hash(i, f, 51) - 0.5) * 4;
         const bw = 3.5 * (0.6 + scale * 0.4);
@@ -932,8 +969,12 @@ function buildShip() {
 
 // ---------- characters ----------
 
+const PLAYER_LOOKS = {
+  male: { id: 'male', hair: '#6b3e1e', hairStyle: 'short', tunic: '#3e6c99', pants: '#55402c', collar: '#c9ae84' },
+  female: { id: 'female', hair: '#b5541f', hairStyle: 'braids', tunic: '#7a4a8c', pants: '#55402c', collar: '#c9ae84' },
+};
+
 const LOOKS = {
-  eli: { id: 'eli', hair: '#6b3e1e', hairStyle: 'short', tunic: '#3e6c99', pants: '#55402c', collar: '#c9ae84' },
   chief: { id: 'chief', hair: '#e9e5dc', hairStyle: 'short', beard: '#e9e5dc', tunic: '#7a4f2e', collar: '#d0b48a' },
   smith: { id: 'smith', hair: '#d8a13c', hairStyle: 'bald', beard: '#d8a13c', tunic: '#5c4636', pants: '#3a2c22' },
   merchant: { id: 'merchant', hair: '#b8452a', hairStyle: 'long', tunic: '#3f7a4a' },
@@ -951,7 +992,15 @@ const METAL = '#8f9098';
 const METAL_D = '#66676e';
 const BONE = '#efe3c4';
 
-function drawCharacter(g, look, dir, frame) {
+function drawBraid(g, x, y, len, hair, w = 1) {
+  rect(g, x, y, w, len, hair);
+  for (let i = 1; i < len; i += 2) px(g, x, y + i, shade(hair, -0.3));
+  rect(g, x, y + len, w, 1, PAL.gold);
+}
+
+// `carry` raises both arms overhead with the hands at row 1, to hold something above the head.
+// `run` swaps in running frames: 1 and 3 are long strides, 0 and 2 are airborne between them.
+function drawCharacter(g, look, dir, frame, carry = false, run = false) {
   const sk = look.skin || PAL.skin;
   const hair = look.hair;
   const tun = look.tunic;
@@ -959,28 +1008,66 @@ function drawCharacter(g, look, dir, frame) {
   const pants = look.pants || '#4b3a2a';
   const boots = '#33241a';
   const belt = '#5a3a1e';
-  const walking = frame === 1 || frame === 3;
-  const b = walking ? 1 : 0;
+  const stride = frame === 1 || frame === 3;
+  const walking = !run && stride;
+  const b = run ? (stride || carry ? 0 : -1) : walking ? 1 : 0;
   const style = look.hairStyle;
 
   if (dir === 'down' || dir === 'up') {
-    const lUp = frame === 1;
-    const rUp = frame === 3;
-    rect(g, 5, 16, 2, 2, pants);
-    rect(g, 5, lUp ? 17 : 18, 2, 2, boots);
-    rect(g, 9, 16, 2, 2, pants);
-    rect(g, 9, rUp ? 17 : 18, 2, 2, boots);
+    if (run && stride) {
+      // one knee lifted high (foreshortened), the other foot planted wide
+      const [up, down, out] = frame === 1 ? [5, 9, 1] : [9, 5, -1];
+      rect(g, up, 16, 2, 1, pants);
+      rect(g, up - out, 17, 3, 1, boots);
+      rect(g, down, 16, 2, 2, pants);
+      rect(g, down + out, 18, 2, 2, boots);
+    } else if (run) {
+      rect(g, 5, 15, 2, 1, pants);
+      rect(g, 5, 16, 2, 2, boots);
+      rect(g, 9, 15, 2, 1, pants);
+      rect(g, 9, 16, 2, 2, boots);
+    } else {
+      const lUp = frame === 1;
+      const rUp = frame === 3;
+      rect(g, 5, 16, 2, 2, pants);
+      rect(g, 5, lUp ? 17 : 18, 2, 2, boots);
+      rect(g, 9, 16, 2, 2, pants);
+      rect(g, 9, rUp ? 17 : 18, 2, 2, boots);
+    }
     rect(g, 4, 10 + b, 8, 6, tun);
     rect(g, 11, 10 + b, 1, 6, tunD);
     if (look.collar) rect(g, 4, 10 + b, 8, 1, look.collar);
     rect(g, 4, 14 + b, 8, 1, belt);
     if (dir === 'down') px(g, 7, 14 + b, PAL.gold);
-    const la = frame === 1 ? 1 : 0;
-    const ra = frame === 3 ? 1 : 0;
-    rect(g, 3, 11 + b, 1, 3 + la, tunD);
-    px(g, 3, 14 + b + la, sk);
-    rect(g, 12, 11 + b, 1, 3 + ra, tunD);
-    px(g, 12, 14 + b + ra, sk);
+    if (carry) {
+      rect(g, 3, 2 + b, 1, 10, tunD);
+      rect(g, 12, 2 + b, 1, 10, tunD);
+      rect(g, 3, 1 + b, 2, 1, sk);
+      rect(g, 11, 1 + b, 2, 1, sk);
+    } else if (run) {
+      // Each arm pumps opposite its leg: forward puts the fist up in front of the chest.
+      for (const [x, inward, swing] of [[3, 1, frame === 3 ? 1 : frame === 1 ? -1 : 0], [12, -1, frame === 1 ? 1 : frame === 3 ? -1 : 0]]) {
+        if (swing > 0) {
+          rect(g, x, 10 + b, 1, 2, tunD);
+          rect(g, x + inward, 11 + b, 1, 1, tunD);
+          px(g, x + inward * 2, 11 + b, sk);
+        } else if (swing < 0) {
+          rect(g, x, 11 + b, 1, 4, tunD);
+          px(g, x - inward, 15 + b, tunD);
+          px(g, x - inward, 16 + b, sk);
+        } else {
+          rect(g, x, 11 + b, 1, 2, tunD);
+          px(g, x, 13 + b, sk);
+        }
+      }
+    } else {
+      const la = frame === 1 ? 1 : 0;
+      const ra = frame === 3 ? 1 : 0;
+      rect(g, 3, 11 + b, 1, 3 + la, tunD);
+      px(g, 3, 14 + b + la, sk);
+      rect(g, 12, 11 + b, 1, 3 + ra, tunD);
+      px(g, 12, 14 + b + ra, sk);
+    }
 
     rect(g, 5, 3 + b, 6, 7, sk);
     rect(g, 4, 4 + b, 8, 5, sk);
@@ -988,13 +1075,16 @@ function drawCharacter(g, look, dir, frame) {
     if (dir === 'down') {
       px(g, 6, 6 + b, EYE);
       px(g, 9, 6 + b, EYE);
-      if (style === 'short' || style === 'long') {
+      if (style === 'short' || style === 'long' || style === 'braids') {
         rect(g, 5, 2 + b, 6, 1, hair);
         rect(g, 4, 3 + b, 8, 2, hair);
         rect(g, 4, 5 + b, 1, 2, hair);
         rect(g, 11, 5 + b, 1, 2, hair);
         px(g, 5, 5 + b, hair);
         px(g, 9, 5 + b, hair);
+      }
+      if (style === 'braids') {
+        for (const x of [3, 12]) drawBraid(g, x, 5 + b, 6, hair);
       }
       if (style === 'long') {
         rect(g, 3, 4 + b, 1, 8, hair);
@@ -1019,6 +1109,7 @@ function drawCharacter(g, look, dir, frame) {
         rect(g, 5, 2 + b, 6, 1, hair);
         rect(g, 4, 3 + b, 8, 6, hair);
         if (style === 'long') rect(g, 4, 9 + b, 8, 3, hair);
+        if (style === 'braids') for (const x of [4, 11]) drawBraid(g, x, 9 + b, 3, hair);
       }
     }
     if (style === 'helmet') {
@@ -1033,8 +1124,25 @@ function drawCharacter(g, look, dir, frame) {
   }
 
   // facing right (left is mirrored)
-  if (walking) {
-    rect(g, 5, 16, 2, 2, shade(pants, -0.2));
+  const farPants = shade(pants, -0.2);
+  if (run && stride) {
+    // front leg reaching forward, back leg kicked up behind; frame 3 swaps which one is near
+    const [front, back] = frame === 1 ? [pants, farPants] : [farPants, pants];
+    rect(g, 3, 16, 4, 1, back);
+    rect(g, 2, 15, 2, 1, back);
+    rect(g, 1, 13, 2, 2, boots);
+    rect(g, 8, 16, 3, 1, front);
+    rect(g, 10, 17, 2, 1, front);
+    rect(g, 11, 18, 3, 2, boots);
+  } else if (run) {
+    rect(g, 5, 15, 2, 1, farPants);
+    rect(g, 4, 16, 2, 1, farPants);
+    rect(g, 3, 16, 2, 2, boots);
+    rect(g, 7, 15, 3, 1, pants);
+    rect(g, 9, 16, 2, 1, pants);
+    rect(g, 8, 17, 3, 2, boots);
+  } else if (walking) {
+    rect(g, 5, 16, 2, 2, farPants);
     rect(g, 4, 18, 2, 2, boots);
     rect(g, 9, 16, 2, 2, pants);
     rect(g, 9, 18, 3, 2, boots);
@@ -1042,46 +1150,68 @@ function drawCharacter(g, look, dir, frame) {
     rect(g, 6, 16, 4, 2, pants);
     rect(g, 6, 18, 5, 2, boots);
   }
-  rect(g, 5, 10 + b, 6, 6, tun);
-  rect(g, 5, 10 + b, 1, 6, tunD);
-  if (look.collar) rect(g, 5, 10 + b, 6, 1, look.collar);
-  rect(g, 5, 14 + b, 6, 1, belt);
-  const s = walking ? (frame === 1 ? 1 : -1) : 0;
-  rect(g, 7 + s, 11 + b, 2, 3, tunD);
-  rect(g, 7 + s, 14 + b, 2, 1, sk);
-
-  rect(g, 5, 3 + b, 6, 7, sk);
-  rect(g, 4, 4 + b, 8, 5, sk);
-  px(g, 12, 6 + b, sk);
-  px(g, 9, 6 + b, EYE);
-  if (style === 'short' || style === 'long') {
-    rect(g, 5, 2 + b, 6, 1, hair);
-    rect(g, 4, 3 + b, 8, 2, hair);
-    rect(g, 4, 5 + b, 3, 3, hair);
+  // lean the upper body forward when running
+  const lx = run ? 1 : 0;
+  rect(g, 5 + lx, 10 + b, 6, 6, tun);
+  rect(g, 5 + lx, 10 + b, 1, 6, tunD);
+  if (look.collar) rect(g, 5 + lx, 10 + b, 6, 1, look.collar);
+  rect(g, 5 + lx, 14 + b, 6, 1, belt);
+  if (run && !carry) {
+    if (frame === 1) {
+      rect(g, 8 + lx, 11 + b, 2, 2, tunD);
+      rect(g, 10 + lx, 11 + b, 2, 1, sk);
+    } else if (frame === 3) {
+      rect(g, 5 + lx, 11 + b, 2, 2, tunD);
+      rect(g, 3 + lx, 13 + b, 2, 1, sk);
+      px(g, 4 + lx, 12 + b, tunD);
+    } else {
+      rect(g, 7 + lx, 11 + b, 2, 2, tunD);
+      rect(g, 8 + lx, 13 + b, 2, 1, sk);
+    }
+  } else if (!carry) {
+    const s = walking ? (frame === 1 ? 1 : -1) : 0;
+    rect(g, 7 + s, 11 + b, 2, 3, tunD);
+    rect(g, 7 + s, 14 + b, 2, 1, sk);
   }
-  if (style === 'long') rect(g, 3, 4 + b, 3, 8, hair);
-  if (style === 'bald' || style === 'helmet') rect(g, 4, 6 + b, 2, 2, hair);
+
+  rect(g, 5 + lx, 3 + b, 6, 7, sk);
+  rect(g, 4 + lx, 4 + b, 8, 5, sk);
+  px(g, 12 + lx, 6 + b, sk);
+  px(g, 9 + lx, 6 + b, EYE);
+  if (style === 'short' || style === 'long' || style === 'braids') {
+    rect(g, 5 + lx, 2 + b, 6, 1, hair);
+    rect(g, 4 + lx, 3 + b, 8, 2, hair);
+    rect(g, 4 + lx, 5 + b, 3, 3, hair);
+  }
+  if (style === 'long') rect(g, 3 + lx, 4 + b, 3, 8, hair);
+  if (style === 'braids') drawBraid(g, 4 + lx, 8 + b, 4, hair, 2);
+  if (style === 'bald' || style === 'helmet') rect(g, 4 + lx, 6 + b, 2, 2, hair);
   if (look.beard) {
-    rect(g, 8, 7 + b, 4, 3, look.beard);
-    rect(g, 8, 10 + b, 3, 2, look.beard);
+    rect(g, 8 + lx, 7 + b, 4, 3, look.beard);
+    rect(g, 8 + lx, 10 + b, 3, 2, look.beard);
   }
   if (style === 'helmet') {
-    rect(g, 5, 1 + b, 6, 1, METAL);
-    rect(g, 4, 2 + b, 8, 3, METAL);
-    rect(g, 3, 5 + b, 10, 1, METAL_D);
-    px(g, 3, 3 + b, BONE); px(g, 2, 2 + b, BONE); px(g, 2, 1 + b, BONE);
-    px(g, 12, 3 + b, BONE); px(g, 13, 2 + b, BONE); px(g, 13, 1 + b, BONE);
+    rect(g, 5 + lx, 1 + b, 6, 1, METAL);
+    rect(g, 4 + lx, 2 + b, 8, 3, METAL);
+    rect(g, 3 + lx, 5 + b, 10, 1, METAL_D);
+    px(g, 3 + lx, 3 + b, BONE); px(g, 2 + lx, 2 + b, BONE); px(g, 2 + lx, 1 + b, BONE);
+    px(g, 12 + lx, 3 + b, BONE); px(g, 13 + lx, 2 + b, BONE); px(g, 13 + lx, 1 + b, BONE);
+  }
+  if (carry) {
+    rect(g, 7 + lx, 10 + b, 4, 1, tunD);
+    rect(g, 10 + lx, 2 + b, 2, 9, tunD);
+    rect(g, 10 + lx, 1 + b, 2, 1, sk);
   }
 }
 
 const charCache = new Map();
 
-function charSprite(look, dir, frame) {
-  const key = `${look.id}|${dir}|${frame}`;
+function charSprite(look, dir, frame, carry = false, run = false) {
+  const key = `${look.id}|${dir}|${frame}|${carry}|${run}`;
   let c = charCache.get(key);
   if (!c) {
     const d = dir === 'left' ? 'right' : dir;
-    c = sprite(16, 24, (g) => drawCharacter(g, look, d, frame), true);
+    c = sprite(16, 24, (g) => drawCharacter(g, look, d, frame, carry, run), true);
     if (dir === 'left') c = mirror(c);
     charCache.set(key, c);
   }
@@ -1162,6 +1292,7 @@ function buildSprites() {
   });
   SPR.heldEgg = buildHeldEgg();
   SPR.babyDragon = buildBabyDragon();
+  SPR.sheep = buildSheep();
 
   const side = buildShip();
   // seat = where the rider's waist meets the gunwale

@@ -97,10 +97,15 @@ body {
   opacity: 1;
 }
 
-#sound {
+#toggles {
   position: fixed;
   top: 14px;
   right: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.toggle {
   padding: 8px 10px;
   background: rgba(20, 24, 40, 0.6);
   color: #e8f4ff;
@@ -109,11 +114,11 @@ body {
   cursor: pointer;
 }
 
-#sound[aria-pressed='false'] {
+.toggle[aria-pressed='false'] {
   color: rgba(232, 244, 255, 0.5);
 }
 
-#sound:focus-visible {
+.toggle:focus-visible {
   outline: 3px solid #7cf05a;
   outline-offset: 2px;
 }
@@ -167,4 +172,125 @@ body {
 
 #chat input::placeholder {
   color: rgba(232, 244, 255, 0.5);
+}
+
+body.title #hint,
+body.title #chat,
+body.title #toggles,
+body.title #prompt {
+  display: none;
+}
+
+#start {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 20, 38, 0.55);
+  backdrop-filter: blur(2px);
+  font: 10px/1.4 'Press Start 2P', monospace;
+  color: #f6e7c1;
+}
+
+#start-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 32px;
+  background: rgba(40, 24, 12, 0.9);
+  border: 3px solid #e1a03c;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
+}
+
+#start h1 {
+  margin: 0 0 6px;
+  font: 22px/1.2 'Press Start 2P', monospace;
+  color: #ffd36b;
+  text-shadow: 3px 3px 0 #3a2414;
+}
+
+.heroes {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.heroes legend {
+  width: 100%;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(20, 24, 40, 0.5);
+  border: 3px solid rgba(246, 231, 193, 0.25);
+  color: rgba(246, 231, 193, 0.6);
+  cursor: pointer;
+}
+
+.hero input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hero canvas {
+  width: 64px;
+  height: 96px;
+  image-rendering: pixelated;
+}
+
+.hero:has(input:checked) {
+  border-color: #7cf05a;
+  background: rgba(20, 24, 40, 0.85);
+  color: #e8f4ff;
+}
+
+.hero:has(input:focus-visible),
+#hero-name:focus-visible,
+#start button:focus-visible {
+  outline: 3px solid #7cf05a;
+  outline-offset: 2px;
+}
+
+.name-label {
+  margin-top: 4px;
+}
+
+#hero-name {
+  width: 200px;
+  padding: 8px 10px;
+  background: rgba(20, 24, 40, 0.85);
+  border: 3px solid rgba(246, 231, 193, 0.35);
+  color: #e8f4ff;
+  font: inherit;
+  text-align: center;
+  outline: none;
+  user-select: text;
+}
+
+#hero-name::placeholder {
+  color: rgba(232, 244, 255, 0.45);
+}
+
+#start button {
+  margin-top: 6px;
+  padding: 10px 22px;
+  background: #e1a03c;
+  border: 3px solid #3a2414;
+  color: #3a2414;
+  font: inherit;
+  cursor: pointer;
+}
+
+#start button:hover {
+  background: #ffd36b;
 }
