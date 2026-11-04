@@ -201,7 +201,7 @@ function updateSchool(s, dt) {
       seaSplash(s.jump.x + s.jump.dir * 10, s.jump.y, 0.4);
       s.jump = null;
     }
-  } else if ((s.jumpT -= dt) <= 0) {
+  } else if (s.fish.length && (s.jumpT -= dt) <= 0) {
     s.jumpT = 5 + Math.random() * 10;
     const near = earshot(s.x, s.y);
     if (near > 0) {

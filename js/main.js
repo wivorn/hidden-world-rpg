@@ -25,11 +25,10 @@ generateMap();
 placeObjects();
 buildColliders();
 const ground = renderGround();
-// The rideable dragon; there is none in the world until the baby dragon grows up.
-let dragonObj = objects.find((o) => o.key === 'dragon') || null;
 const shipObj = objects.find((o) => o.key === 'ship');
 const seaRocks = objects.filter((o) => o.key === 'rock');
-const eggObj = objects.find((o) => o.key === 'dragonEgg');
+// state: wild, carried, warming or hatched
+const eggs = objects.filter((o) => o.species).map((o) => Object.assign(o, { state: 'wild', crack: 0, hatchT: 0 }));
 const villageFire = objects.find((o) => o.key === 'bonfire');
 initSea();
 
@@ -53,9 +52,12 @@ const FLY_ALT = 46;
 let flight = null;
 let sail = null;
 let hop = null;
-let eggStage = 'ruin'; // ruin, carried, warming, hatched
-let hatchT = 0;
-let baby = null;
+// How far the dragon story has got, for NPC talk: ruin, carried, warming, hatched, grown. Never goes back.
+let eggStage = 'ruin';
+let carried = null;
+// Every hatched dragon; at most one of them, the `follower`, goes along with the player.
+const dragons = [];
+let follower = null;
 const JUMP_TIME = 0.42;
 const JUMP_HEIGHT = 12;
 
@@ -186,7 +188,8 @@ function jump() {
   if (!spot) {
     player.jumpT = 0;
     for (const n of npcs) if (n.followT > 0 && n.jumpT < 0) n.jumpDelay = 0.12 + Math.random() * 0.1;
-    if (baby && !baby.flying && baby.jumpT < 0) baby.jumpDelay = 0.15;
+    const f = follower;
+    if (f && f.stage < GROWN && !f.flying && f.jumpT < 0) f.jumpDelay = 0.15;
     return;
   }
   startHop(spot.x, spot.y, 0, 0, () => {
@@ -253,7 +256,7 @@ function strokeSplash(side) {
 
 function updateSwim(dt) {
   const [ix, iy] = readInput();
-  player.sprinting = !!(ix || iy) && boosting() && eggStage !== 'carried';
+  player.sprinting = !!(ix || iy) && boosting() && !carried;
   if (!ix && !iy) {
     player.frame = 0;
     return;
@@ -420,7 +423,11 @@ function npcSay(n, text) {
     n.bubble.className = 'bubble';
     bubbleLayer.appendChild(n.bubble);
   }
-  text = text.replace(/\{name\}/g, player.name).replace(/\{lad\}/g, player.look.id === 'female' ? 'lass' : 'lad');
+  const pet = follower || dragons[dragons.length - 1];
+  text = text
+    .replace(/\{name\}/g, player.name)
+    .replace(/\{lad\}/g, player.look.id === 'female' ? 'lass' : 'lad')
+    .replace(/\{dragon\}/g, pet ? pet.name : 'your dragon');
   n.bubble.textContent = text;
   n.bubble.classList.add('show');
   n.talkT = 2.5 + text.length * 0.05;
@@ -430,26 +437,62 @@ function npcSay(n, text) {
 // NPCs in earshot react to what the player says: the addressed or nearest one replies, others emote.
 function hear(text) {
   const [lx, ly] = flight ? [flight.x, flight.y] : sail ? [shipObj.x, shipObj.y] : [player.x, player.y];
-  const near = npcs
+  const byDist = (list, r) => list
     .map((n) => [n, Math.hypot(n.x - lx, n.y - ly)])
-    .filter(([, d]) => d < 80)
-    .sort((a, b) => a[1] - b[1])
-    .map(([n]) => n);
-  if (!near.length) return;
+    .filter(([, d]) => d < r)
+    .sort((a, b) => a[1] - b[1]);
+  const nearD = byDist(npcs, 80);
+  const near = nearD.map(([n]) => n);
   const topic = chatTopic(text);
+  if (topic === 'follow' || topic === 'stop') {
+    let pool = topic === 'follow' ? dragons.filter((d) => d !== follower && !(flight && flight.dragon === d)) : [follower].filter(Boolean);
+    const named = pool.filter((d) => SPECIES_NAMES[d.species].test(text) || calledBy(d, text));
+    if (named.length) pool = named;
+    const [hit] = byDist(pool, topic === 'follow' ? 90 : 140);
+    const npcFirst = near.some((n) => addresses(n.look.id, text)) || (nearD.length && nearD[0][1] + 30 < hit?.[1]);
+    if (hit && (named.length || /\bdragons?\b/i.test(text) || !npcFirst)) {
+      commandDragon(hit[0], topic);
+      return;
+    }
+  }
+  if (!near.length) return;
   const speaker = near.find((n) => addresses(n.look.id, text)) || near[0];
   for (const n of near) {
     n.pending = { t: 0.35 + Math.random() * 0.35 + (n === speaker ? 0.25 : 0), topic, reply: n === speaker };
   }
 }
 
+const SPECIES_NAMES = {
+  nightFury: /\b(night ?fury|toothless|fury)\b/i,
+  lightFury: /\b(light ?fury|fury)\b/i,
+  thunderdrum: /\bthunder ?drum\b/i,
+  terribleTerror: /\b(terrible ?)?terror\b/i,
+};
+
+const calledBy = (d, text) => new RegExp(`\\b${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
+
+// "Follow me" makes a dragon the one that comes along (the old one stays put); "stay" sends it home.
+function commandDragon(d, topic) {
+  d.emoteT = 1.8;
+  if (topic === 'follow') {
+    setFollower(d);
+    d.emote = 'heart';
+  } else {
+    setFollower(null);
+    d.emote = 'note';
+  }
+  if (d.stage === GROWN) Sfx.flap(earshot(d.x, d.y));
+  else Sfx.chirp(earshot(d.x, d.y));
+}
+
 // Once the egg leaves the ruin, egg talk (and all of the hermit's hints) moves on with the story.
 function storyTopic(n, topic) {
   if (eggStage === 'ruin') return topic;
-  if (topic === 'dragon' && eggStage === 'hatched') return 'hatched';
+  const born = eggStage === 'hatched' || eggStage === 'grown';
+  if (born && (topic === 'dragon' || (topic === 'fish' && n.look.id === 'fisher'))) return eggStage;
   const hint = n.look.id === 'hermit' && ['help', 'question', 'dragon', 'other'].includes(topic);
   if (topic !== 'egg' && !hint) return topic;
-  return eggStage === 'hatched' ? 'hatched' : 'eggFound';
+  return born ? eggStage : 'eggFound';
 }
 
 function react(n, { topic: heard, reply }) {
@@ -529,7 +572,7 @@ function say(text) {
 // Screen point (world pixels) just above the player's head, wherever they are.
 function playerHead() {
   const [x, y] = headPos();
-  return [x, eggStage === 'carried' ? y - 10 : y];
+  return [x, carried ? y - 10 : y];
 }
 
 function headPos() {
@@ -552,9 +595,17 @@ function boxDist(c) {
   return Math.hypot(dx, dy);
 }
 
+// The grown dragon sitting close enough to climb on, if any.
 function nearDragon() {
-  if (!dragonObj || flight || sail || hop || dragonObj.hidden) return false;
-  return boxDist(dragonObj.col) < 34;
+  if (flight || sail || hop) return null;
+  let best = null;
+  let bd = 34;
+  for (const d of dragons) {
+    if (d.stage !== GROWN || !d.perched) continue;
+    const dist = boxDist(d.obj.col);
+    if (dist < bd) { bd = dist; best = d; }
+  }
+  return best;
 }
 
 // A short jump between the ground and the dragon's back; `lift` is visual height.
@@ -576,15 +627,16 @@ function updateHop(dt) {
   }
 }
 
-function mount() {
-  const d = dragonObj;
+function mount(dragon) {
+  const d = dragon.obj;
   startHop(d.x + 2, d.y, 0, 14, () => {
     d.hidden = true;
     d.col.off = true;
     flight = {
       x: d.x, y: d.y, alt: 0, vx: 0, vy: 0, dir: 'down', flap: 0, mode: 'takeoff', land: null,
-      loop: -1, fireCd: 0, diveT: 0, splashed: false,
+      loop: -1, fireCd: 0, diveT: 0, splashed: false, dragon,
     };
+    PLASMA = DRAGON_SPECIES[dragon.species].breath;
     player.flying = true;
     dust(d.x, d.y);
     Sfx.roar();
@@ -610,7 +662,7 @@ function land() {
 
 function finishLanding() {
   const s = flight.land;
-  const d = dragonObj;
+  const d = flight.dragon.obj;
   d.x = s.x;
   d.y = s.y;
   d.hidden = false;
@@ -698,7 +750,8 @@ function updateFlight(dt) {
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 // Mouth as [ground x offset, ground y offset, height above the dragon's altitude].
 const MOUTH = { right: [30, 0, 18], left: [-30, 0, 18], down: [0, 8, 0], up: [0, -10, 22] };
-const PLASMA = ['#b05cff', '#e7c8ff', '#7a2fd6'];
+// Breath colours of the dragon being ridden.
+let PLASMA = DRAGON_SPECIES.nightFury.breath;
 const fireballs = [];
 
 const flightBob = (f) => (f.mode === 'fly' ? Math.sin(time * 3) * 2 : 0);
@@ -847,13 +900,23 @@ const STORY_LINES = {
   },
   warming: { kid: 'It\'s hatching! It\'s hatching!' },
   hatched: {
-    hermit: 'A dragon of your very own. Be kind to it.',
+    hermit: 'A dragon of your very own. Young dragons grow strong on fish from the open sea.',
     chief: 'A new dragon in our village! This is a great day.',
     kid: 'Your baby dragon is SO cute!',
+    fisher: 'That little dragon keeps eyeing my fish! Sail over a school and give a whistle (F), it\'ll dive right in.',
+  },
+  grown: {
+    hermit: 'It has grown into a true dragon. More eggs sleep on the sandy isles, if you have room for more.',
+    chief: 'A full-grown dragon! Our people will ride the skies again.',
+    kid: '{dragon} is HUGE now! Can I ride too?!',
+    fisher: 'Ha! It ate its fill out there. Mighty beast now!',
   },
 };
 
+const STAGES = ['ruin', 'carried', 'warming', 'hatched', 'grown'];
+
 function setStage(stage) {
+  if (STAGES.indexOf(stage) <= STAGES.indexOf(eggStage)) return;
   eggStage = stage;
   const lines = STORY_LINES[stage];
   for (const n of npcs) if (lines[n.look.id]) n.line = lines[n.look.id];
@@ -862,20 +925,23 @@ function setStage(stage) {
 const grounded = () => !player.flying && !player.swimming;
 
 function nearEgg() {
-  return eggStage === 'ruin' && grounded() && boxDist(eggObj.col) < 14;
+  if (carried || !grounded()) return null;
+  return eggs.find((e) => e.state === 'wild' && boxDist(e.col) < 14) || null;
 }
 
-function pickUpEgg() {
-  eggObj.hidden = true;
-  eggObj.col.off = true;
-  faceToward(player, eggObj.x - player.x, eggObj.y - player.y);
-  burst(eggObj.x, eggObj.y - 10, ['#ffffff', '#fff27a', '#d9b8ff'], 14, 40);
+function pickUpEgg(e) {
+  e.hidden = true;
+  e.col.off = true;
+  e.state = 'carried';
+  carried = e;
+  faceToward(player, e.x - player.x, e.y - player.y);
+  burst(e.x, e.y - 10, ['#ffffff', '#fff27a', DRAGON_SPECIES[e.species].egg.shine], 14, 40);
   Sfx.pickup();
   setStage('carried');
 }
 
 function nearFire() {
-  return eggStage === 'carried' && grounded() && Math.hypot(player.x - villageFire.x, player.y - villageFire.y) < 48;
+  return !!carried && grounded() && Math.hypot(player.x - villageFire.x, player.y - villageFire.y) < 48;
 }
 
 // A free spot on a ring around the fire, as close to the player's side as possible.
@@ -894,39 +960,50 @@ function fireSpot() {
 function placeEgg() {
   const spot = fireSpot();
   if (!spot) return false;
-  Object.assign(eggObj, { x: spot.x, y: spot.y, hidden: false, crack: 0 });
-  eggObj.col.off = false;
-  placeCollider(eggObj);
+  const e = carried;
+  Object.assign(e, { x: spot.x, y: spot.y, hidden: false, crack: 0, hatchT: 0, state: 'warming' });
+  e.col.off = false;
+  placeCollider(e);
+  carried = null;
   faceToward(player, spot.x - player.x, spot.y - player.y);
   dust(spot.x, spot.y);
   Sfx.land();
-  hatchT = 0;
   setStage('warming');
   return true;
 }
 
-function updateEgg(dt) {
-  if (eggStage !== 'warming') return;
-  hatchT += dt;
-  const crack = Math.min(3, Math.floor((hatchT / HATCH_TIME) * 4));
-  if (crack !== eggObj.crack) {
-    eggObj.crack = crack;
-    burst(eggObj.x, eggObj.y - 10, ['#ffe9a8', '#ffffff'], 6, 24);
-    Sfx.crack(earshot(eggObj.x, eggObj.y));
+function updateEggs(dt) {
+  for (const e of eggs) {
+    if (e.state !== 'warming') continue;
+    e.hatchT += dt;
+    const crack = Math.min(3, Math.floor((e.hatchT / HATCH_TIME) * 4));
+    if (crack !== e.crack) {
+      e.crack = crack;
+      burst(e.x, e.y - 10, ['#ffe9a8', '#ffffff'], 6, 24);
+      Sfx.crack(earshot(e.x, e.y));
+    }
+    if (e.hatchT >= HATCH_TIME) hatch(e);
   }
-  if (hatchT >= HATCH_TIME) hatch();
 }
 
-function hatch() {
-  const { x, y } = eggObj;
-  eggObj.hidden = true;
-  eggObj.col.off = true;
-  particles.push({ type: 'flash', layer: 'sky', x, y: y - 10, vx: 0, vy: 0, c: '#d9b8ff', life: 0, max: 0.5 });
-  burst(x, y - 10, ['#4b2a73', '#8a5cc7', '#ffe9a8'], 18, 60);
+function hatch(e) {
+  const { x, y } = e;
+  const ep = DRAGON_SPECIES[e.species].egg;
+  e.hidden = true;
+  e.col.off = true;
+  e.state = 'hatched';
+  particles.push({ type: 'flash', layer: 'sky', x, y: y - 10, vx: 0, vy: 0, c: ep.glow, life: 0, max: 0.5 });
+  burst(x, y - 10, [ep.base, ep.speck, '#ffe9a8'], 18, 60);
   for (let i = 0; i < 12; i++) {
     particles.push({ type: 'sparkle', layer: 'sky', x: x + (Math.random() - 0.5) * 30, y: y - 6 - Math.random() * 26, vx: 0, vy: -10, life: 0, max: 0.6 + Math.random() * 0.6 });
   }
-  baby = { x, y, alt: 0, dir: 'down', anim: 0, frame: 0, flying: false, stuck: 0, jumpT: 0, jumpDelay: 0, emote: 'heart', emoteT: 1.8, chirpT: 4 };
+  const d = {
+    species: e.species, x, y, alt: 0, dir: 'down', anim: 0, frame: 0, flying: false, stuck: 0, jumpT: 0, jumpDelay: 0,
+    emote: 'heart', emoteT: 1.8, chirpT: 4, stage: 0, swoop: null, catchT: 0, home: { x, y }, wanderT: 3,
+    name: DRAGON_SPECIES[e.species].defaultName,
+  };
+  dragons.push(d);
+  setFollower(d);
   for (const n of npcs) {
     if (Math.hypot(n.x - x, n.y - y) > 90) continue;
     n.emote = Math.random() < 0.5 ? 'heart' : 'exclaim';
@@ -935,9 +1012,55 @@ function hatch() {
   }
   Sfx.hatch();
   setStage('hatched');
+  askName(d);
 }
 
-// Where the baby heads: the player on foot, or a spot trailing them in the air.
+// Only one dragon comes along at a time; the one it replaces settles where it is.
+function setFollower(d) {
+  const prev = follower;
+  follower = d;
+  if (prev && prev !== d) settle(prev);
+}
+
+// A young dragon left behind stays where it can stand, or flies back to the village from the sea.
+// A grown one lands on the nearest open ground (see `settleLeader`).
+function settle(d) {
+  d.spot = null;
+  d.swoop = null;
+  d.settleOnLand = false;
+  if (d.stage === GROWN) return;
+  const [x, y] = canStand(d, d.x, d.y) ? [d.x, d.y] : [villageFire.x, villageFire.y + 34];
+  d.home = standSpotNear(d, x, y);
+  d.target = d.home;
+}
+
+function standSpotNear(e, x, y) {
+  for (let r = 0; r <= 72; r += 12) {
+    for (let i = 0; i < (r ? 12 : 1); i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const sx = Math.round(x + Math.cos(a) * r);
+      const sy = Math.round(y + Math.sin(a) * r * 0.7);
+      if (canStand(e, sx, sy)) return { x: sx, y: sy };
+    }
+  }
+  return { x, y };
+}
+
+// Where a dragon that isn't following goes: pottering around its home spot.
+function homeLeader(b, dt) {
+  b.wanderT -= dt;
+  if (b.wanderT <= 0) {
+    b.wanderT = 4 + Math.random() * 5;
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random();
+    const x = b.home.x + Math.cos(a) * 28 * r;
+    const y = b.home.y + Math.sin(a) * 18 * r;
+    if (canStand(b, x, y)) b.target = { x, y };
+  }
+  return { x: b.target.x, y: b.target.y, alt: 0, air: false };
+}
+
+// Where the follower heads: the player on foot, or a spot trailing them in the air.
 function babyLeader() {
   if (flight) {
     const [vx, vy] = DIR_VEC[flight.dir];
@@ -954,12 +1077,22 @@ function babyLeader() {
   return { x: player.x, y: player.y, alt: 0, air: false };
 }
 
-// Walks after the player, and flutters along when they leave the ground or it gets stuck or left behind.
-function updateBaby(dt) {
-  const b = baby;
+// The follower walks after the player, and flutters along when they leave the ground or it gets stuck
+// or left behind. Out at sea it swoops on nearby fish; every fish makes it grow.
+function updateBaby(b, dt) {
   if (b.emoteT > 0) b.emoteT -= dt;
+  if (b.stage === GROWN) {
+    updateGrown(b, dt);
+    return;
+  }
+  if (b.catchT > 0 && (b.catchT -= dt) <= 0) feedBaby(b);
+  if (b.swoop) {
+    updateSwoop(b, dt);
+    return;
+  }
+  const lead = b === follower;
   updateJump(b, dt);
-  const L = babyLeader();
+  const L = lead ? babyLeader() : homeLeader(b, dt);
   const dx = L.x - b.x;
   const dy = L.y - b.y;
   const d = Math.hypot(dx, dy);
@@ -989,8 +1122,8 @@ function updateBaby(dt) {
     return;
   }
 
-  faceToward(b, dx, dy);
-  if (d < 20) {
+  if (lead) faceToward(b, dx, dy);
+  if (d < (lead ? 20 : 3)) {
     b.anim = 0;
     b.chirpT -= dt;
     if (b.chirpT <= 0) {
@@ -1001,7 +1134,8 @@ function updateBaby(dt) {
     }
     return;
   }
-  const sp = (d > 50 ? 125 : 72) * dt;
+  if (!lead) faceToward(b, dx, dy);
+  const sp = (d > 50 ? 125 : lead ? 72 : 40) * dt;
   const ox = b.x;
   const oy = b.y;
   move(b, (dx / d) * sp, (dy / d) * sp);
@@ -1010,19 +1144,214 @@ function updateBaby(dt) {
 }
 
 function babyLift(b) {
+  if (b.stage === GROWN) return b.alt + Math.sin(time * 3) * 1.5;
   if (b.flying) return b.alt + 2 + Math.sin(time * 6) * 1.5;
   return jumpLift(b) + Math.abs(Math.sin(b.anim * Math.PI)) * 2;
 }
 
-function drawBaby(cx, cy) {
-  const img = SPR.babyDragon[baby.dir][baby.jumpT >= 0 ? 1 : baby.frame];
-  ctx.drawImage(img, Math.round(baby.x) - 13 - cx, Math.round(baby.y - babyLift(baby)) - 22 - cy);
+// Hidden while it sits in the world as its `obj` or carries the player as `flight`.
+const babyShown = (b) => !(b.stage === GROWN && (b.perched || (flight && flight.dragon === b)));
+
+function drawBaby(b, cx, cy) {
+  const x = Math.round(b.x) - cx;
+  const y = Math.round(b.y - babyLift(b)) - cy;
+  if (b.stage === GROWN) {
+    const fr = SPR.flyDragon[b.species][b.dir][Math.floor(b.flap) % 4];
+    ctx.drawImage(fr.under, x - 36, y - 40);
+    if (fr.over) ctx.drawImage(fr.over, x - 36, y - 40);
+    return;
+  }
+  const set = SPR.babyDragon[b.species][b.stage];
+  ctx.drawImage(set[b.dir][b.jumpT >= 0 || b.swoop ? 1 : b.frame], x - set.ox, y - set.oy);
+  if (b.catchT > 0 && b.dir !== 'up') {
+    const s = DRAGON_SCALES[b.stage];
+    const mx = x + Math.round((b.dir === 'right' ? 9 : b.dir === 'left' ? -9 : 0) * s);
+    const my = y - Math.round(9 * s);
+    rect(ctx, mx - 3, my - 1, 7, 4, '#22160f');
+    rect(ctx, mx - 2, my, 4, 2, '#dbe7f2');
+    px(ctx, mx + 2, my, '#9fb3c8');
+    px(ctx, mx + 2, my + 1, '#9fb3c8');
+  }
+}
+
+// ---------- feeding & growing up ----------
+
+const GROWN = DRAGON_SCALES.length;
+const FISH_RANGE = 90;
+
+function fishNearShip() {
+  let best = null;
+  let bd = FISH_RANGE;
+  for (const s of seaLife.schools) {
+    if (!s.fish.length) continue;
+    const d = Math.hypot(s.x - shipObj.x, s.y - shipObj.y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+// Dives at the school, snatches a fish off the surface and climbs back to the ship.
+function updateSwoop(b, dt) {
+  const w = b.swoop;
+  w.t += dt;
+  const dx = w.s.x - b.x;
+  const dy = w.s.y - b.y;
+  const k = 1 - Math.exp(-dt * 6);
+  b.x += dx * k;
+  b.y += dy * k;
+  b.alt += (-1 - b.alt) * (1 - Math.exp(-dt * 5));
+  faceToward(b, dx, dy);
+  if (Math.hypot(dx, dy) < 6 && b.alt < 3) {
+    w.s.fish.pop();
+    seaSplash(b.x, b.y, 0.9);
+    Sfx.splash(0.6 * earshot(b.x, b.y));
+    b.alt = 0;
+    b.swoop = null;
+    b.catchT = 0.9;
+  } else if (w.t > 2.5) {
+    b.swoop = null;
+  }
+}
+
+const canFish = (b) => !!b && b.stage < GROWN && sail && b.flying && !b.swoop && b.catchT <= 0;
+
+// F while sailing: the young follower dives for the nearest school, or looks puzzled if there is none.
+function sendFishing() {
+  const b = follower;
+  if (!canFish(b)) return;
+  const s = fishNearShip();
+  if (s) {
+    b.swoop = { s, t: 0 };
+    Sfx.flap(0.5 * earshot(b.x, b.y));
+  } else {
+    b.emote = 'question';
+    b.emoteT = 1.2;
+    Sfx.chirp(0.6 * earshot(b.x, b.y));
+  }
+}
+
+function feedBaby(b) {
+  b.stage++;
+  const lift = babyLift(b);
+  burst(b.x, b.y - lift - 10, ['#ffffff', '#fff27a', DRAGON_SPECIES[b.species].eye], 12, 40);
+  for (let i = 0; i < 10; i++) {
+    particles.push({ type: 'sparkle', layer: 'sky', x: b.x + (Math.random() - 0.5) * 34, y: b.y - lift - Math.random() * 30, vx: 0, vy: -12, life: 0, max: 0.5 + Math.random() * 0.6 });
+  }
+  Sfx.gulp(earshot(b.x, b.y));
+  Sfx.grow(b.stage);
+  b.emote = 'heart';
+  b.emoteT = 1.8;
+  if (b.stage === GROWN) growUp(b);
+}
+
+// The fifth fish: it becomes the full-size dragon, which can be ridden whenever it has landed.
+// It sees the player back to land, then stays there until ridden or asked to follow again.
+function growUp(b) {
+  const o = { key: `dragon_${b.species}`, x: Math.round(b.x), y: Math.round(b.y), phase: 0, hidden: true, col: { off: true } };
+  placeCollider(o);
+  objects.push(o);
+  colliders.push(o.col);
+  Object.assign(b, { obj: o, flying: true, perched: false, flap: 0, spot: null, emote: 'exclaim', settleOnLand: true });
+  particles.push({ type: 'flash', layer: 'sky', x: b.x, y: b.y - b.alt - 10, vx: 0, vy: 0, c: DRAGON_SPECIES[b.species].eye, life: 0, max: 0.5 });
+  Sfx.roar();
+  setStage('grown');
+}
+
+const dragonFits = (x, y) => !blocked(x - 23, y - 12, x + 23, y, null);
+const BESIDE = [[-46, -2], [46, -2], [0, 34], [-40, 28], [40, 28], [0, -30], [-72, 0], [72, 0]];
+const AROUND = [[0, 0]];
+for (const r of [40, 80, 120, 160]) {
+  for (let i = 0; i < 8; i++) AROUND.push([Math.round(Math.cos(i * Math.PI / 4) * r), Math.round(Math.sin(i * Math.PI / 4) * r * 0.7)]);
+}
+
+function perchSpot(cx, cy, offsets) {
+  for (const [dx, dy] of offsets) {
+    const x = Math.round(cx + dx);
+    const y = Math.round(cy + dy);
+    if (dragonFits(x, y)) return { x, y };
+  }
+  return null;
+}
+
+// A grown dragon that isn't following lands on the nearest open ground, or back in the village from the sea.
+function settleLeader(b) {
+  if (!b.spot || !dragonFits(b.spot.x, b.spot.y)) {
+    b.spot = perchSpot(b.x, b.y, AROUND) || perchSpot(villageFire.x, villageFire.y + 40, AROUND);
+  }
+  const near = Math.hypot(b.x - b.spot.x, b.y - b.spot.y) < 40;
+  return { x: b.spot.x, y: b.spot.y, alt: near ? 0 : 40, land: true };
+}
+
+// Flies over the ship or a swimming player; on land it touches down beside the player and waits.
+function grownLeader(b) {
+  if (sail) {
+    const [sx, sy] = sternPos();
+    return { x: sx, y: sy, alt: 52 };
+  }
+  if (player.swimming || player.flying) {
+    const [vx, vy] = DIR_VEC[player.dir];
+    return { x: player.x - vx * 36, y: player.y - vy * 24, alt: 44 };
+  }
+  const s = b.spot;
+  if (!s || Math.hypot(s.x - player.x, s.y - player.y) > 80 || !dragonFits(s.x, s.y)) b.spot = perchSpot(player.x, player.y, BESIDE);
+  if (!b.spot) return { x: player.x, y: player.y - 30, alt: 44 };
+  const near = Math.hypot(b.x - b.spot.x, b.y - b.spot.y) < 40;
+  return { x: b.spot.x, y: b.spot.y, alt: near ? 0 : 36, land: true };
+}
+
+function updateGrown(b, dt) {
+  const d = b.obj;
+  if (flight && flight.dragon === b) {
+    Object.assign(b, { x: flight.x, y: flight.y, alt: flight.alt, dir: flight.dir, ridden: true });
+    return;
+  }
+  if (b.ridden) {
+    b.ridden = false;
+    b.perched = !d.hidden;
+  }
+  if (b.perched) {
+    b.x = d.x;
+    b.y = d.y;
+    if (hop || b !== follower) return;
+    if (sail || player.swimming || flight || Math.hypot(player.x - d.x, player.y - d.y) > 150) {
+      d.hidden = true;
+      d.col.off = true;
+      Object.assign(b, { perched: false, alt: 0, flap: 0, spot: null });
+      dust(d.x, d.y);
+      Sfx.flap(earshot(d.x, d.y));
+    }
+    return;
+  }
+  if (hop) return;
+  const L = b === follower ? grownLeader(b) : settleLeader(b);
+  const dx = L.x - b.x;
+  const dy = L.y - b.y;
+  const k = 1 - Math.exp(-dt * 2.5);
+  b.x += dx * k;
+  b.y += dy * k;
+  b.alt += (L.alt - b.alt) * (1 - Math.exp(-dt * 3));
+  if (Math.hypot(dx, dy) > 3) faceToward(b, dx, dy);
+  const beat = Math.floor(b.flap / 4);
+  b.flap += dt * (b.alt < 12 ? 11 : 7);
+  if (Math.floor(b.flap / 4) !== beat) Sfx.flap(0.4 * earshot(b.x, b.y));
+  if (L.land && Math.hypot(dx, dy) < 3 && b.alt < 1) {
+    Object.assign(d, { x: L.x, y: L.y, hidden: false });
+    d.col.off = false;
+    placeCollider(d);
+    Object.assign(b, { x: L.x, y: L.y, alt: 0, perched: true, spot: null });
+    dust(d.x, d.y);
+    Sfx.land(1.5);
+    if (b.settleOnLand) {
+      b.settleOnLand = false;
+      if (follower === b) follower = null;
+    }
+  }
 }
 
 // `top` is the top edge of the carrier's sprite, in screen pixels. Drawn before the carrier,
 // so the raised hands overlap the egg.
 function drawHeldEgg(x, top) {
-  ctx.drawImage(SPR.heldEgg, Math.round(x) - 6, Math.round(top) - 11);
+  ctx.drawImage(SPR.heldEgg[carried.species], Math.round(x) - 6, Math.round(top) - 11);
 }
 
 // ---------- sheep ----------
@@ -1226,8 +1555,8 @@ function action() {
   }
   if (sail) disembark();
   else if (nearShip()) board();
-  else if (nearDragon()) mount();
-  else if (nearEgg()) pickUpEgg();
+  else if (nearDragon()) mount(nearDragon());
+  else if (nearEgg()) pickUpEgg(nearEgg());
   else if (!(nearFire() && placeEgg()) && !talk() && !petSheep()) jump();
 }
 
@@ -1289,11 +1618,12 @@ function emitParticles(dt) {
       if (Math.random() < 0.12) particles.push({ type: 'smoke', x: o.x, y: o.y - 22, vx: 3 + Math.random() * 4, vy: -12, life: 0, max: 1.8 });
     }
   }
-  eggObj.emitT = (eggObj.emitT ?? 0) - dt;
-  if (!eggObj.hidden && eggObj.emitT <= 0) {
-    const warm = eggStage === 'warming';
-    eggObj.emitT = warm ? 0.08 + Math.random() * 0.1 : 0.35 + Math.random() * 0.4;
-    particles.push({ type: 'sparkle', x: eggObj.x + (Math.random() - 0.5) * (warm ? 24 : 18), y: eggObj.y - 4 - Math.random() * 18, vx: 0, vy: -6, life: 0, max: 0.7 });
+  for (const e of eggs) {
+    e.emitT = (e.emitT ?? 0) - dt;
+    if (e.hidden || e.emitT > 0) continue;
+    const warm = e.state === 'warming';
+    e.emitT = warm ? 0.08 + Math.random() * 0.1 : 0.35 + Math.random() * 0.4;
+    particles.push({ type: 'sparkle', x: e.x + (Math.random() - 0.5) * (warm ? 24 : 18), y: e.y - 4 - Math.random() * 18, vx: 0, vy: -6, life: 0, max: 0.7 });
   }
   mistTimer -= dt;
   if (mistTimer <= 0) {
@@ -1347,8 +1677,8 @@ function update(dt) {
   else updatePlayer(dt);
   for (const n of npcs) updateNpc(n, dt);
   for (const s of sheep) updateSheep(s, dt);
-  updateEgg(dt);
-  if (baby) updateBaby(dt);
+  updateEggs(dt);
+  for (const d of dragons) updateBaby(d, dt);
   if (playerSayT > 0) {
     playerSayT -= dt;
     if (playerSayT <= 0) playerBubble.classList.remove('show');
@@ -1449,7 +1779,7 @@ function drawObject(o, cx, cy) {
   const sy = Math.round(o.y - view.oy - cy + dy);
   ctx.drawImage(img, sx, sy);
   if (o.rider) {
-    const carry = o === shipObj && eggStage === 'carried';
+    const carry = o === shipObj && !!carried;
     if (carry) drawHeldEgg(sx + view.seat[0], sy + view.seat[1] - 15);
     const rider = charSprite(o.rider, o.dir, 0, carry);
     ctx.drawImage(rider, 0, 0, 16, 15, sx + view.seat[0] - 8, sy + view.seat[1] - 15, 16, 15);
@@ -1463,7 +1793,7 @@ function drawSwimmer(e, cx, cy) {
   ctx.globalAlpha = 0.45;
   ellipse(ctx, x, y, 7 + Math.sin(time * 4), 2.5, PAL.foam);
   ctx.globalAlpha = 1;
-  const carry = e === player && eggStage === 'carried';
+  const carry = e === player && !!carried;
   // The far arm in side views passes behind the head.
   const arms = e.sprinting ? [[-1, e.stroke % 1], [1, (e.stroke + 0.5) % 1]].filter(([, p]) => p < 0.5) : [];
   const behind = (side) => side > 0 && (e.dir === 'left' || e.dir === 'right');
@@ -1488,7 +1818,7 @@ function drawEntity(e, cx, cy, lift = 0) {
   if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
   const x = Math.round(e.x) - cx;
   const top = Math.round(e.y - lift) - 20 - cy;
-  const carry = e === player && eggStage === 'carried';
+  const carry = e === player && !!carried;
   const run = e.running && !hop;
   if (carry) drawHeldEgg(x, top);
   ctx.drawImage(charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run), x - 8, top);
@@ -1496,14 +1826,14 @@ function drawEntity(e, cx, cy, lift = 0) {
 
 function drawFlight(cx, cy) {
   const f = flight;
-  const fr = SPR.flyDragon[f.dir][Math.floor(f.flap) % 4];
+  const fr = SPR.flyDragon[f.dragon.species][f.dir][Math.floor(f.flap) % 4];
   const [ox, oy, rot] = loopPose(f);
   ctx.save();
   ctx.translate(Math.round(f.x + ox) - cx, Math.round(f.y - f.alt - flightBob(f) + oy) - 11 - cy);
   if (rot) ctx.rotate(rot);
   ctx.drawImage(fr.under, -36, -29);
-  const carry = eggStage === 'carried';
-  if (carry) ctx.drawImage(SPR.heldEgg, fr.seat[0] - 42, fr.seat[1] - 52);
+  const carry = !!carried;
+  if (carry) ctx.drawImage(SPR.heldEgg[carried.species], fr.seat[0] - 42, fr.seat[1] - 52);
   const rider = charSprite(player.look, f.dir, 0, carry);
   ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
   if (fr.over) ctx.drawImage(fr.over, -36, -29);
@@ -1653,18 +1983,20 @@ function render() {
     const k = flight.alt / FLY_ALT;
     drawShadow(Math.round(flight.x) - cx, Math.round(flight.y) - cy, 18 - k * 6, 5 - k * 1.5, 0.28 - k * 0.08);
   }
-  const babyHigh = baby && babyLift(baby) > 20;
-  if (baby) {
-    const k = Math.min(1, babyLift(baby) / 50);
-    drawShadow(Math.round(baby.x) - cx, Math.round(baby.y) - cy, 6 - k * 2, 2 - k * 0.5, 0.22 - k * 0.06);
+  const shownDragons = dragons.filter((d) => babyShown(d) && onScreen(d.x, d.y, cx, cy, 80));
+  const highDragons = shownDragons.filter((d) => babyLift(d) > 20);
+  for (const d of shownDragons) {
+    const k = Math.min(1, babyLift(d) / 50);
+    const s = d.stage === GROWN ? 3 : DRAGON_SCALES[d.stage];
+    drawShadow(Math.round(d.x) - cx, Math.round(d.y) - cy, (6 - k * 2) * s, (2 - k * 0.5) * s, 0.22 - k * 0.06);
   }
 
   const flock = sheep.filter((s) => s.x > cx - 20 && s.x < cx + viewW + 20 && s.y > cy - 10 && s.y < cy + viewH + 30);
   for (const s of flock) drawShadow(Math.round(s.x) - cx, Math.round(s.y) - cy, 8, 2);
 
-  const babyItem = baby && !babyHigh ? [{ y: baby.y, draw: () => drawBaby(cx, cy) }] : [];
+  const dragonItems = shownDragons.filter((d) => !highDragons.includes(d)).map((d) => ({ y: d.y, draw: () => drawBaby(d, cx, cy) }));
   const sheepItems = flock.map((s) => ({ y: s.y, draw: () => drawSheep(s, cx, cy) }));
-  const list = visible.concat(walkers, seaSprites(cx, cy), babyItem, sheepItems).sort((a, b) => a.y - b.y);
+  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems).sort((a, b) => a.y - b.y);
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -1688,7 +2020,7 @@ function render() {
     player.frame = 1;
     drawEntity(player, cx, cy, lift);
   }
-  if (babyHigh) drawBaby(cx, cy);
+  for (const d of highDragons) drawBaby(d, cx, cy);
   if (flight) drawFlight(cx, cy);
   drawFireballs(cx, cy);
   drawSky(cx, cy);
@@ -1704,7 +2036,11 @@ function render() {
       drawTalkHint(n, cx, cy);
     }
   }
-  if (baby && baby.emoteT > 0) drawEmote(baby, cx, cy, 26 + babyLift(baby));
+  for (const d of dragons) {
+    if (d.emoteT <= 0 || (flight && flight.dragon === d)) continue;
+    const h = d.stage === GROWN ? (d.perched ? 44 : 52) : 26 * DRAGON_SCALES[d.stage];
+    drawEmote(d, cx, cy, h + babyLift(d));
+  }
   for (const s of flock) if (s.emoteT > 0) drawEmote(s, cx, cy, 24);
   if (playerSayT > 0) {
     const [hx, hy] = playerHead();
@@ -1716,22 +2052,24 @@ function render() {
     const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
     setPrompt(`${space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost`);
   } else if (sail) {
-    setPrompt(sail.shore ? 'SPACE  Go ashore   ·   SHIFT  Full sail' : 'Sail close to land to go ashore   ·   SHIFT  Full sail');
+    const shore = sail.shore ? 'SPACE  Go ashore' : 'Sail close to land to go ashore';
+    const fish = canFish(follower) && fishNearShip() ? `   ·   F  Send ${follower.name} fishing` : '';
+    setPrompt(`${shore}   ·   SHIFT  Full sail${fish}`);
   } else if (nearShip()) {
     setPrompt('SPACE  Board the ship');
   } else if (nearDragon()) {
-    setPrompt('SPACE  Ride the dragon');
+    setPrompt(`SPACE  Ride ${nearDragon().name}`);
   } else if (nearEgg()) {
-    setPrompt('SPACE  Pick up the dragon egg');
+    setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
   } else if (nearFire() && fireSpot()) {
     setPrompt('SPACE  Set the egg by the fire');
   } else if (!nearNpc() && nearSheep()) {
     setPrompt('SPACE  Pet the sheep');
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
-  } else if (eggStage === 'carried') {
+  } else if (carried) {
     setPrompt('Carry the egg to the fire in the village to hatch it');
-  } else if (eggStage === 'warming' && Math.hypot(player.x - eggObj.x, player.y - eggObj.y) < 70) {
+  } else if (eggs.some((e) => e.state === 'warming' && Math.hypot(player.x - e.x, player.y - e.y) < 70)) {
     setPrompt('The egg is warming up...');
   } else {
     setPrompt('');
@@ -1793,7 +2131,7 @@ window.addEventListener('pointerdown', () => Sfx.init());
 
 window.addEventListener('keydown', (e) => {
   Sfx.init();
-  if (!started || document.activeElement === chatInput) return;
+  if (!started || naming || document.activeElement === chatInput) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
     chatInput.focus();
@@ -1802,7 +2140,10 @@ window.addEventListener('keydown', (e) => {
   if (BLOCKED_KEYS.has(e.code)) e.preventDefault();
   if (!e.repeat) {
     if (e.code === 'Space' || e.code === 'KeyE') action();
-    if (e.code === 'KeyF') breatheFire();
+    if (e.code === 'KeyF') {
+      if (sail) sendFishing();
+      else breatheFire();
+    }
     if (e.code === 'KeyR') loopTrick();
     if (e.code === 'KeyM') toggleSound();
     if (e.code === 'KeyH') toggleHints();
@@ -1843,6 +2184,58 @@ const endPointer = () => {
 };
 screenCanvas.addEventListener('pointerup', endPointer);
 screenCanvas.addEventListener('pointercancel', endPointer);
+
+// ---------- naming a hatchling ----------
+
+const namingEl = document.getElementById('naming');
+const namingForm = document.getElementById('naming-form');
+const namingTitle = document.getElementById('naming-title');
+const namingPreview = namingEl.querySelector('.dragon-preview');
+const dragonNameInput = document.getElementById('dragon-name');
+const nameQueue = [];
+let naming = null;
+
+function askName(d) {
+  nameQueue.push(d);
+  if (!naming) nextName();
+}
+
+function nextName() {
+  naming = nameQueue.shift() || null;
+  namingEl.hidden = !naming;
+  if (!naming) return;
+  const sp = DRAGON_SPECIES[naming.species];
+  const img = SPR.babyDragon[naming.species][0].down[0];
+  namingTitle.textContent = `A ${sp.name.toUpperCase()} HATCHED!`;
+  dragonNameInput.value = '';
+  dragonNameInput.placeholder = sp.defaultName;
+  namingPreview.width = img.width;
+  namingPreview.height = img.height;
+  namingPreview.style.width = `${img.width * 4}px`;
+  namingPreview.style.height = `${img.height * 4}px`;
+  keys.clear();
+  dragonNameInput.focus();
+}
+
+function drawNamingPreview() {
+  const g = namingPreview.getContext('2d');
+  g.clearRect(0, 0, namingPreview.width, namingPreview.height);
+  g.drawImage(SPR.babyDragon[naming.species][0].down[Math.floor(time * 3) % 2], 0, 0);
+}
+
+namingForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const d = naming;
+  d.name = dragonNameInput.value.trim() || DRAGON_SPECIES[d.species].defaultName;
+  d.emote = 'heart';
+  d.emoteT = 1.8;
+  Sfx.chirp(earshot(d.x, d.y));
+  dragonNameInput.blur();
+  nextName();
+});
+dragonNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') namingForm.requestSubmit();
+});
 
 // ---------- start screen ----------
 
@@ -1902,6 +2295,7 @@ function frame(now) {
   update(dt);
   render();
   if (!started) drawHeroPreviews();
+  if (naming) drawNamingPreview();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

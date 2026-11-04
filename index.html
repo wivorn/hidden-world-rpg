@@ -22,8 +22,17 @@
     <label for="chat-input">SAY</label>
     <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
   </form>
-  <div id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
-    <form id="start-form" autocomplete="off">
+  <div id="naming" class="overlay" role="dialog" aria-modal="true" aria-labelledby="naming-title" hidden>
+    <form id="naming-form" class="panel" autocomplete="off">
+      <h2 id="naming-title">YOUR DRAGON HATCHED!</h2>
+      <canvas class="dragon-preview" aria-hidden="true"></canvas>
+      <label class="name-label" for="dragon-name">NAME YOUR DRAGON</label>
+      <input id="dragon-name" class="name-input" maxlength="12" spellcheck="false" />
+      <button type="submit">OK</button>
+    </form>
+  </div>
+  <div id="start" class="overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
+    <form id="start-form" class="panel" autocomplete="off">
       <h1 id="start-title">HIDDEN WORLD</h1>
       <fieldset class="heroes">
         <legend>CHOOSE YOUR HERO</legend>
@@ -39,7 +48,7 @@
         </label>
       </fieldset>
       <label class="name-label" for="hero-name">YOUR NAME</label>
-      <input id="hero-name" maxlength="12" placeholder="Eli" spellcheck="false" />
+      <input id="hero-name" class="name-input" maxlength="12" placeholder="Eli" spellcheck="false" />
       <button type="submit">START</button>
     </form>
   </div>

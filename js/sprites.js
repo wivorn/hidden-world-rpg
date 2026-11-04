@@ -338,19 +338,48 @@ const EGG_CRACKS = [
   [[1, 8], [3, 9], [4, 10]],
 ];
 
+// Dragon kinds: scale colours (body, dark, light, wing, eye, fin, glint), egg shell
+// (base, light, speck, speckDark, shine, gloss, glow) and breath (core, bright, edge).
+const DRAGON_SPECIES = {
+  nightFury: {
+    name: 'Night Fury', defaultName: 'Toothless',
+    body: '#1e2230', dark: '#12141d', light: '#3c4560', wing: '#2b3146', eye: '#9be35a', fin: '#c0392b', glint: '#e6ffb0',
+    egg: { base: '#4b2a73', light: '#5f3a8f', speck: '#8a5cc7', speckDark: '#3a1f5c', shine: '#d9b8ff', gloss: '#a77be0', glow: '#b98cff' },
+    breath: ['#b05cff', '#e7c8ff', '#7a2fd6'],
+  },
+  lightFury: {
+    name: 'Light Fury', defaultName: 'Luna',
+    body: '#e3e8f1', dark: '#b2bccf', light: '#ffffff', wing: '#ccd4e3', eye: '#4aa8ff', fin: '#9fc4f0', glint: '#ffffff',
+    egg: { base: '#aebcd6', light: '#d6e0f2', speck: '#ffffff', speckDark: '#8796b4', shine: '#ffffff', gloss: '#f2f6ff', glow: '#bfe0ff' },
+    breath: ['#5fc8ff', '#e6f8ff', '#2f7fd6'],
+  },
+  thunderdrum: {
+    name: 'Thunderdrum', defaultName: 'Thornado',
+    body: '#8c6a3a', dark: '#5a4224', light: '#c8a66a', wing: '#3f7f88', eye: '#ffd23a', fin: '#2f9aa6', glint: '#fff6c0',
+    egg: { base: '#2f6f78', light: '#3f8c93', speck: '#c9a86a', speckDark: '#1f4c52', shine: '#bff0f0', gloss: '#6fc0c4', glow: '#6fe0e0' },
+    breath: ['#4fe0d0', '#e0fff8', '#1f9a9a'],
+  },
+  terribleTerror: {
+    name: 'Terrible Terror', defaultName: 'Sharpshot',
+    body: '#5c9a34', dark: '#3a6a1e', light: '#a6d65a', wing: '#e0862a', eye: '#ffe44a', fin: '#e0542a', glint: '#ffffe0',
+    egg: { base: '#4f8a2e', light: '#6aa83a', speck: '#f0a23a', speckDark: '#2f5a1a', shine: '#fff0a0', gloss: '#a8d45a', glow: '#ffc25a' },
+    breath: ['#ff8a2a', '#fff0a0', '#d6421a'],
+  },
+};
+
 // Speckled dragon egg in a twig nest; `cracks` (0-3) adds glowing hatching cracks.
-function buildDragonEgg(cracks = 0) {
+function buildDragonEgg(ep, cracks = 0) {
   const egg = sprite(13, 16, (g) => {
-    ellipse(g, 6, 9, 5.5, 7, '#4b2a73');
-    ellipse(g, 5, 8, 3.5, 5.5, '#5f3a8f');
+    ellipse(g, 6, 9, 5.5, 7, ep.base);
+    ellipse(g, 5, 8, 3.5, 5.5, ep.light);
     for (const [x, y] of [[3, 6], [7, 5], [2, 10], [6, 9], [9, 11], [4, 13], [8, 14]]) {
-      px(g, x, y, '#8a5cc7');
-      px(g, x + 1, y, '#8a5cc7');
-      px(g, x + 1, y + 1, '#3a1f5c');
+      px(g, x, y, ep.speck);
+      px(g, x + 1, y, ep.speck);
+      px(g, x + 1, y + 1, ep.speckDark);
     }
-    for (const [x, y] of [[5, 4], [9, 8], [3, 12], [7, 12]]) px(g, x, y, '#d9b8ff');
-    rect(g, 3, 4, 1, 3, '#a77be0');
-    px(g, 4, 3, '#a77be0');
+    for (const [x, y] of [[5, 4], [9, 8], [3, 12], [7, 12]]) px(g, x, y, ep.shine);
+    rect(g, 3, 4, 1, 3, ep.gloss);
+    px(g, 4, 3, ep.gloss);
     const lines = EGG_CRACKS.slice(0, [0, 1, 3, 5][cracks]);
     for (const pts of lines) {
       for (let i = 0; i < pts.length - 1; i++) line(g, ...pts[i], ...pts[i + 1], '#ffe9a8');
@@ -370,33 +399,38 @@ function buildDragonEgg(cracks = 0) {
 }
 
 // Smaller egg held overhead.
-function buildHeldEgg() {
+function buildHeldEgg(ep) {
   return sprite(12, 14, (g) => {
-    ellipse(g, 6, 7, 4, 5, '#4b2a73');
-    ellipse(g, 5, 6, 2.5, 3.5, '#5f3a8f');
+    ellipse(g, 6, 7, 4, 5, ep.base);
+    ellipse(g, 5, 6, 2.5, 3.5, ep.light);
     for (const [x, y] of [[4, 4], [7, 6], [3, 8], [6, 10]]) {
-      px(g, x, y, '#8a5cc7');
-      px(g, x + 1, y + 1, '#3a1f5c');
+      px(g, x, y, ep.speck);
+      px(g, x + 1, y + 1, ep.speckDark);
     }
-    px(g, 4, 3, '#d9b8ff');
-    px(g, 8, 9, '#d9b8ff');
-    rect(g, 3, 4, 1, 2, '#a77be0');
+    px(g, 4, 3, ep.shine);
+    px(g, 8, 9, ep.shine);
+    rect(g, 3, 4, 1, 2, ep.gloss);
   });
 }
 
-// Baby night-fury-style dragon, 26x23 with the ground point at (13, 22): black scales, big green
-// slit eyes, ear flaps and one red tail fin. Frame 0 folds the wings, frame 1 raises them.
-function buildBabyDragon() {
-  const B = '#1e2230';
-  const D = '#12141d';
-  const L = '#3c4560';
-  const W = '#2b3146';
-  const EYE = '#9be35a';
-  const GLINT = '#e6ffb0';
+// Size of the young dragon after eating 0-4 fish; the fifth fish grows it into the rideable dragon.
+const DRAGON_SCALES = [1, 1.25, 1.5, 1.75, 2];
+
+// Baby fury-style dragon in the species' colours: big slit eyes, ear flaps and one coloured tail fin.
+// Drawn at `s` times its hatchling size (26x23, ground point (13, 22)); `ox`/`oy` give the ground point.
+// Frame 0 folds the wings, frame 1 raises them.
+function buildBabyDragon(pal, s = 1) {
+  const { rect, px, ellipse, poly, line } = scaledPen(s);
+  const B = pal.body;
+  const D = pal.dark;
+  const L = pal.light;
+  const W = pal.wing;
+  const EYE = pal.eye;
+  const GLINT = pal.glint;
   const PUPIL = '#0b0d12';
-  const RED = '#c0392b';
-  const set = { down: [], up: [], right: [], left: [] };
-  const baby = (draw) => sprite(26, 23, (g) => {
+  const RED = pal.fin;
+  const set = { down: [], up: [], right: [], left: [], ox: 1 + Math.round(12 * s), oy: Math.round(21 * s) + 1 };
+  const baby = (draw) => sprite(Math.ceil(24 * s) + 2, set.oy + 1, (g) => {
     g.translate(1, 0);
     draw(g);
   });
@@ -706,16 +740,16 @@ function buildBonfireFrames() {
   return frames;
 }
 
-function buildDragonFrames() {
-  const B = '#191c28';
-  const M = '#262b3d';
-  const L = '#3b4562';
-  const E = '#7cf05a';
+function buildDragonFrames(pal) {
+  const B = pal.body;
+  const M = pal.wing;
+  const L = pal.light;
+  const E = pal.eye;
   const draw = (breath, blink) => sprite(64, 42, (g) => {
     const by = breath;
     const tail = [[44, 32], [52, 31], [57, 27], [59, 32], [55, 37], [46, 39]];
     for (let i = 0; i < tail.length - 1; i++) line(g, ...tail[i], ...tail[i + 1], B, i < 2 ? 4 : 3);
-    poly(g, [[47, 37], [40, 34], [41, 40]], '#b8322f');
+    poly(g, [[47, 37], [40, 34], [41, 40]], pal.fin);
     poly(g, [[34, 23 - by], [55, 11 - by], [50, 26], [41, 31]], M);
     line(g, 34, 23 - by, 55, 11 - by, L);
     ellipse(g, 34, 30 - by, 15, 8 + by, B);
@@ -748,16 +782,16 @@ function buildDragonFrames() {
 
 // Flying dragon, 72x60, with the ground point at (36, 40). Each frame has an
 // `under` layer, an optional `over` layer drawn on top of the rider, and a seat.
-function buildFlyingDragon() {
+function buildFlyingDragon(pal) {
   const W = 72;
   const H = 60;
   const cx = 36;
-  const B = '#191c28';
-  const M = '#272c40';
-  const L = '#3e4866';
-  const D = '#1f2334';
-  const E = '#7cf05a';
-  const FIN = '#b8322f';
+  const B = pal.body;
+  const M = pal.wing;
+  const L = pal.light;
+  const D = pal.dark;
+  const E = pal.eye;
+  const FIN = pal.fin;
   const TIP = [-13, -4, 8, -4];
   const SPAN = [0.85, 1, 0.8, 1];
   const SWAY = [0, 1, 0, -1];
@@ -1231,8 +1265,6 @@ function buildSprites() {
   const hall = sprite(144, 110, (g) => drawLonghouse(g, 144, 110, {
     gableW: 76, doorW: 22, doorH: 28, openDoor: true, banner: true, windows: [16, 38, 96, 118], windowY: 74,
   }));
-  const dragon = buildDragonFrames();
-
   def('house', { img: house, foot: { w: 66, h: 14 } });
   def('houseB', { img: houseB, foot: { w: 66, h: 14 } });
   def('hall', { img: hall, foot: { w: 130, h: 20 } });
@@ -1271,27 +1303,34 @@ function buildSprites() {
     frames: buildBonfireFrames(), fps: 10, foot: { w: 28, h: 9 },
     light: { dx: 0, dy: -10, r: 72, color: '#ff9a3a' },
   });
-  def('dragon', {
-    frames: dragon,
-    foot: { w: 46, h: 12 },
-    shadow: { rx: 24, ry: 4 },
-    pick: (t, o) => dragon[((t + o.phase) % 3.7 < 0.18 ? 2 : 0) + (Math.floor(t * 1.4) % 2)],
-  });
-  SPR.flyDragon = buildFlyingDragon();
+  SPR.flyDragon = {};
+  SPR.heldEgg = {};
+  SPR.babyDragon = {};
+  for (const [id, pal] of Object.entries(DRAGON_SPECIES)) {
+    const frames = buildDragonFrames(pal);
+    def(`dragon_${id}`, {
+      frames,
+      foot: { w: 46, h: 12 },
+      shadow: { rx: 24, ry: 4 },
+      pick: (t, o) => frames[((t + o.phase) % 3.7 < 0.18 ? 2 : 0) + (Math.floor(t * 1.4) % 2)],
+    });
+    const egg = buildDragonEgg(pal.egg);
+    const cracked = [1, 2, 3].map((n) => buildDragonEgg(pal.egg, n));
+    def(`egg_${id}`, {
+      img: egg,
+      pick: (t, o) => (o.crack ? cracked[o.crack - 1] : egg),
+      foot: { w: 14, h: 4 },
+      shadow: { rx: 10, ry: 3 },
+      light: { dx: 0, dy: -10, r: 22, color: pal.egg.glow },
+    });
+    SPR.flyDragon[id] = buildFlyingDragon(pal);
+    SPR.heldEgg[id] = buildHeldEgg(pal.egg);
+    SPR.babyDragon[id] = DRAGON_SCALES.map((s) => buildBabyDragon(pal, s));
+  }
   SPR.clouds = [1, 2, 3, 4].map(buildCloud);
 
   def('palm', { img: buildPalm(), foot: { w: 6, h: 4 }, shadow: { rx: 9, ry: 3 } });
   def('menhir', { img: buildMenhir(), foot: { w: 10, h: 5 }, shadow: { rx: 6, ry: 2 }, light: { dx: 0, dy: -14, r: 14, color: '#6fb6ff' } });
-  def('dragonEgg', {
-    img: buildDragonEgg(),
-    cracked: [1, 2, 3].map(buildDragonEgg),
-    pick: (t, o) => (o.crack ? SPR.dragonEgg.cracked[o.crack - 1] : SPR.dragonEgg.img),
-    foot: { w: 14, h: 4 },
-    shadow: { rx: 10, ry: 3 },
-    light: { dx: 0, dy: -10, r: 22, color: '#b98cff' },
-  });
-  SPR.heldEgg = buildHeldEgg();
-  SPR.babyDragon = buildBabyDragon();
   SPR.sheep = buildSheep();
 
   const side = buildShip();

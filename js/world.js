@@ -529,7 +529,10 @@ function placeObjects() {
     const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
     addAbs('menhir', 16.5 + Math.cos(a) * 3.2, 97.9 + Math.sin(a) * 2.4);
   }
-  addAbs('dragonEgg', 16.5, 98.3);
+  // dragon eggs: night fury in the ruin, the others on the sandy isles
+  for (const [species, x, y] of [['nightFury', 16.5, 98.3], ['lightFury', 21.6, 14.8], ['thunderdrum', 136.8, 92.6], ['terribleTerror', 86.8, 107.6]]) {
+    addAbs(`egg_${species}`, x, y).species = species;
+  }
 
   // sea rocks, kept clear of shores and the ship's mooring
   const seaRng = mulberry32(77);

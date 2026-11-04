@@ -159,6 +159,15 @@ const Sfx = (() => {
       tone({ f0: rand(850, 1000), f1: rand(1400, 1700), dur: 0.09, vol: 0.07 * k });
       tone({ f0: rand(1000, 1200), f1: rand(1600, 1900), dur: 0.1, vol: 0.06 * k, delay: 0.12 });
     },
+    gulp(k = 1) {
+      tone({ f0: 420, f1: 160, dur: 0.12, vol: 0.12 * k });
+      tone({ f0: 300, f1: 110, dur: 0.14, vol: 0.1 * k, delay: 0.14 });
+    },
+    grow(stage) {
+      const base = 392 * 2 ** (stage / 6);
+      [1, 1.25, 1.5, 2].forEach((m, i) => tone({ type: 'triangle', f0: base * m, dur: 0.2, vol: 0.07, delay: 0.1 + i * 0.08 }));
+      noise({ dur: 0.4, vol: 0.08, f0: 3000, f1: 6000, type: 'highpass', attack: 0.1 });
+    },
     baa(k = 1) {
       const f = rand(380, 460);
       for (let i = 0; i < 6; i++) {

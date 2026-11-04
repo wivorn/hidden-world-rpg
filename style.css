@@ -181,7 +181,7 @@ body.title #prompt {
   display: none;
 }
 
-#start {
+.overlay {
   position: fixed;
   inset: 0;
   display: grid;
@@ -192,7 +192,11 @@ body.title #prompt {
   color: #f6e7c1;
 }
 
-#start-form {
+.overlay[hidden] {
+  display: none;
+}
+
+.panel {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -208,6 +212,18 @@ body.title #prompt {
   font: 22px/1.2 'Press Start 2P', monospace;
   color: #ffd36b;
   text-shadow: 3px 3px 0 #3a2414;
+}
+
+.panel h2 {
+  margin: 0;
+  font: 14px/1.4 'Press Start 2P', monospace;
+  color: #ffd36b;
+  text-align: center;
+  text-shadow: 2px 2px 0 #3a2414;
+}
+
+.dragon-preview {
+  image-rendering: pixelated;
 }
 
 .heroes {
@@ -255,8 +271,8 @@ body.title #prompt {
 }
 
 .hero:has(input:focus-visible),
-#hero-name:focus-visible,
-#start button:focus-visible {
+.name-input:focus-visible,
+.panel button:focus-visible {
   outline: 3px solid #7cf05a;
   outline-offset: 2px;
 }
@@ -265,7 +281,7 @@ body.title #prompt {
   margin-top: 4px;
 }
 
-#hero-name {
+.name-input {
   width: 200px;
   padding: 8px 10px;
   background: rgba(20, 24, 40, 0.85);
@@ -277,11 +293,11 @@ body.title #prompt {
   user-select: text;
 }
 
-#hero-name::placeholder {
+.name-input::placeholder {
   color: rgba(232, 244, 255, 0.45);
 }
 
-#start button {
+.panel button {
   margin-top: 6px;
   padding: 10px 22px;
   background: #e1a03c;
@@ -291,6 +307,6 @@ body.title #prompt {
   cursor: pointer;
 }
 
-#start button:hover {
+.panel button:hover {
   background: #ffd36b;
 }

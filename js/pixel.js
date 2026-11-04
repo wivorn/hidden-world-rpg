@@ -97,6 +97,19 @@ function line(g, x0, y0, x1, y1, color, t = 1) {
   }
 }
 
+// Drawing helpers that take coordinates in a design grid `s` times smaller than the canvas,
+// so a sprite can be redrawn at a larger size with crisp 1px detail instead of being stretched.
+function scaledPen(s) {
+  const S = (v) => Math.round(v * s);
+  return {
+    rect: (g, x, y, w, h, c) => rect(g, S(x), S(y), S(x + w) - S(x), S(y + h) - S(y), c),
+    px: (g, x, y, c) => rect(g, S(x), S(y), Math.max(1, S(1)), Math.max(1, S(1)), c),
+    ellipse: (g, cx, cy, rx, ry, c) => ellipse(g, cx * s, cy * s, rx * s, ry * s, c),
+    poly: (g, pts, c) => poly(g, pts.map(([x, y]) => [x * s, y * s]), c),
+    line: (g, x0, y0, x1, y1, c, t = 1) => line(g, x0 * s, y0 * s, x1 * s, y1 * s, c, Math.max(1, S(t))),
+  };
+}
+
 function outline(canvas, color = '#22160f') {
   const g = canvas.getContext('2d');
   const { width: w, height: h } = canvas;
