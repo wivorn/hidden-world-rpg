@@ -28,6 +28,23 @@ const ground = renderGround();
 const dragonObj = objects.find((o) => o.key === 'dragon');
 const shipObj = objects.find((o) => o.key === 'ship');
 const seaRocks = objects.filter((o) => o.key === 'rock');
+initSea();
+
+// 0..1 loudness for a sound at a world position, fading out past the edge of the view.
+function earshot(x, y) {
+  const d = Math.hypot(x - (cam.x + viewW / 2), y - (cam.y + viewH / 2));
+  return Math.max(0, Math.min(1, 1.3 - d / (viewW * 0.6)));
+}
+
+const VOICES = { eli: 330, chief: 150, smith: 120, merchant: 380, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110 };
+
+function surfaceUnder(x, y) {
+  const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
+  if (t === T.WOOD) return 'wood';
+  if (t === T.PATH || t === T.STAIRS) return 'stone';
+  if (t === T.SAND) return 'sand';
+  return 'grass';
+}
 
 const FLY_ALT = 46;
 let flight = null;
@@ -35,10 +52,9 @@ let sail = null;
 let hop = null;
 const JUMP_TIME = 0.42;
 const JUMP_HEIGHT = 12;
-let jumpT = -1;
 
 function makeEntity(look, x, y) {
-  return { isEntity: true, look, x, y, dir: 'down', frame: 0, anim: 0, flying: false };
+  return { isEntity: true, look, x, y, dir: 'down', frame: 0, anim: 0, flying: false, jumpT: -1, jumpDelay: 0 };
 }
 
 const player = makeEntity(LOOKS.eli, PLAYER_START.x * TILE, PLAYER_START.y * TILE);
@@ -149,16 +165,19 @@ function readInput() {
 // ---------- walking ----------
 
 function jump() {
-  if (player.swimming || jumpT >= 0) return;
+  if (player.swimming || player.jumpT >= 0) return;
   const spot = diveSpot();
+  Sfx.jump();
   if (!spot) {
-    jumpT = 0;
+    player.jumpT = 0;
+    for (const n of npcs) if (n.followT > 0 && n.jumpT < 0) n.jumpDelay = 0.12 + Math.random() * 0.1;
     return;
   }
   startHop(spot.x, spot.y, 0, 0, () => {
     player.flying = false;
     player.swimming = true;
     splash(player.x, player.y);
+    Sfx.splash();
   });
 }
 
@@ -200,36 +219,43 @@ function updateSwim(dt) {
   const speed = (boosting() ? 62 : 42) * dt;
   move(player, ix * speed, iy * speed);
   faceToward(player, ix, iy);
+  const prev = Math.floor(player.anim);
   player.anim += dt * 5;
   player.frame = Math.floor(player.anim) % 4;
+  if (Math.floor(player.anim) !== prev && player.frame % 2 === 0) Sfx.swim();
   if (Math.random() < dt * 14) {
     particles.push({ type: 'wake', layer: 'water', x: player.x - ix * 5, y: player.y - 2 - iy * 3, vx: -ix * 8, vy: -iy * 8, life: 0, max: 0.8 });
   }
   if (onLand(player.x, player.y)) player.swimming = false;
 }
 
-function jumpLift() {
-  return jumpT < 0 ? 0 : Math.sin((jumpT / JUMP_TIME) * Math.PI) * JUMP_HEIGHT;
+function jumpLift(e) {
+  return e.jumpT < 0 ? 0 : Math.sin((e.jumpT / JUMP_TIME) * Math.PI) * JUMP_HEIGHT;
 }
 
-function updateJump(dt) {
-  if (jumpT < 0) return;
-  jumpT += dt;
-  if (jumpT < JUMP_TIME) return;
-  jumpT = -1;
+function updateJump(e, dt) {
+  if (e.jumpDelay > 0) {
+    e.jumpDelay -= dt;
+    if (e.jumpDelay <= 0) e.jumpT = 0;
+  }
+  if (e.jumpT < 0) return;
+  e.jumpT += dt;
+  if (e.jumpT < JUMP_TIME) return;
+  e.jumpT = -1;
+  Sfx.land(e === player ? 1 : 0.5 * earshot(e.x, e.y));
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    particles.push({ type: 'dust', x: player.x, y: player.y - 1, vx: Math.cos(a) * 18, vy: Math.sin(a) * 6, life: 0, max: 0.35 });
+    particles.push({ type: 'dust', x: e.x, y: e.y - 1, vx: Math.cos(a) * 18, vy: Math.sin(a) * 6, life: 0, max: 0.35 });
   }
 }
 
 function updatePlayer(dt) {
   if (player.swimming) return updateSwim(dt);
-  updateJump(dt);
+  updateJump(player, dt);
   const [ix, iy] = readInput();
   if (!ix && !iy) {
     player.anim = 0;
-    player.frame = jumpT < 0 ? 0 : 1;
+    player.frame = 0;
     return;
   }
   const running = boosting();
@@ -244,8 +270,10 @@ function updatePlayer(dt) {
     if (player.dir !== h && player.dir !== v) player.dir = v;
   }
   if (player.anim === 0) player.anim = 1;
+  const prev = Math.floor(player.anim);
   player.anim += dt * (running ? 11 : 7);
-  player.frame = jumpT < 0 ? Math.floor(player.anim) % 4 : 1;
+  player.frame = Math.floor(player.anim) % 4;
+  if (Math.floor(player.anim) !== prev && player.frame % 2 === 1 && player.jumpT < 0) Sfx.step(surfaceUnder(player.x, player.y));
 }
 
 function updateNpc(n, dt) {
@@ -253,6 +281,16 @@ function updateNpc(n, dt) {
     n.talkT -= dt;
     if (n.talkT <= 0) n.bubble.classList.remove('show');
   }
+  if (n.emoteT > 0) n.emoteT -= dt;
+  updateJump(n, dt);
+  if (n.pending) {
+    n.pending.t -= dt;
+    if (n.pending.t <= 0) {
+      react(n, n.pending);
+      n.pending = null;
+    }
+  }
+  if (updateReaction(n, dt)) return;
   const near = !player.flying && Math.hypot(player.x - n.x, player.y - n.y) < 30;
   if (near || n.talkT > 0) {
     faceToward(n, player.x - n.x, player.y - n.y);
@@ -304,20 +342,102 @@ function talk() {
   let best = null;
   let bestD = 36;
   for (const n of npcs) {
+    if (n.followT > 0) continue;
     const d = Math.hypot(n.x - player.x, n.y - player.y);
     if (d < bestD) { bestD = d; best = n; }
   }
   if (!best) return false;
-  if (!best.bubble) {
-    best.bubble = document.createElement('div');
-    best.bubble.className = 'bubble';
-    bubbleLayer.appendChild(best.bubble);
-  }
-  best.bubble.textContent = best.line;
-  best.bubble.classList.add('show');
-  best.talkT = 3.5;
+  npcSay(best, best.line);
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
+}
+
+function npcSay(n, text) {
+  if (!n.bubble) {
+    n.bubble = document.createElement('div');
+    n.bubble.className = 'bubble';
+    bubbleLayer.appendChild(n.bubble);
+  }
+  n.bubble.textContent = text;
+  n.bubble.classList.add('show');
+  n.talkT = 2.5 + text.length * 0.05;
+  Sfx.babble(VOICES[n.look.id] || 250, text, earshot(n.x, n.y));
+}
+
+// NPCs in earshot react to what the player says: the addressed or nearest one replies, others emote.
+function hear(text) {
+  const [lx, ly] = flight ? [flight.x, flight.y] : sail ? [shipObj.x, shipObj.y] : [player.x, player.y];
+  const near = npcs
+    .map((n) => [n, Math.hypot(n.x - lx, n.y - ly)])
+    .filter(([, d]) => d < 80)
+    .sort((a, b) => a[1] - b[1])
+    .map(([n]) => n);
+  if (!near.length) return;
+  const topic = chatTopic(text);
+  const speaker = near.find((n) => addresses(n.look.id, text)) || near[0];
+  for (const n of near) {
+    n.pending = { t: 0.35 + Math.random() * 0.35 + (n === speaker ? 0.25 : 0), topic, reply: n === speaker };
+  }
+}
+
+function react(n, { topic, reply }) {
+  faceToward(n, player.x - n.x, player.y - n.y);
+  n.emote = TOPIC_EMOTES[topic];
+  n.emoteT = 1.8;
+  if (topic === 'dance' && !n.fixed) n.danceT = 2.4;
+  if (!reply) return;
+  npcSay(n, npcReply(n.look.id, topic));
+  playerSayT = Math.min(playerSayT, 0.01);
+  if (n.fixed) return;
+  if (topic === 'follow') n.followT = 45;
+  if (topic === 'stop' && n.followT > 0) {
+    n.followT = 0;
+    n.home = { x: n.x, y: n.y };
+  }
+  if (topic === 'insult') n.fleeT = 0.7;
+}
+
+// Dancing, fleeing and following override the usual roaming; returns true when handled.
+function updateReaction(n, dt) {
+  if (n.danceT > 0) {
+    n.danceT -= dt;
+    n.dir = ['down', 'left', 'up', 'right'][Math.floor(time * 7) % 4];
+    n.frame = 1;
+    return true;
+  }
+  if (n.fleeT > 0) {
+    n.fleeT -= dt;
+    const dx = n.x - player.x;
+    const dy = n.y - player.y;
+    const d = Math.hypot(dx, dy) || 1;
+    move(n, (dx / d) * 70 * dt, (dy / d) * 70 * dt);
+    n.anim += dt * 9;
+    n.frame = Math.floor(n.anim) % 4;
+    if (n.fleeT <= 0) n.home = { x: n.x, y: n.y };
+    return true;
+  }
+  if (n.followT > 0) {
+    n.followT -= dt;
+    if (n.followT <= 0) {
+      n.home = { x: n.x, y: n.y };
+      npcSay(n, 'I\'d best stay here.');
+      return true;
+    }
+    const dx = player.x - n.x;
+    const dy = player.y - n.y;
+    const d = Math.hypot(dx, dy);
+    faceToward(n, dx, dy);
+    if (player.flying || player.swimming || d < 24) {
+      n.frame = 0;
+      return true;
+    }
+    const sp = (d > 60 ? 95 : 62) * dt;
+    move(n, (dx / d) * sp, (dy / d) * sp);
+    n.anim += dt * 8;
+    n.frame = Math.floor(n.anim) % 4;
+    return true;
+  }
+  return false;
 }
 
 const playerBubble = document.createElement('div');
@@ -329,6 +449,8 @@ function say(text) {
   playerBubble.textContent = text;
   playerBubble.classList.add('show');
   playerSayT = 3 + text.length * 0.06;
+  Sfx.babble(VOICES.eli, text);
+  hear(text);
 }
 
 // Screen point (world pixels) just above the player's head, wherever they are.
@@ -340,7 +462,7 @@ function playerHead() {
   }
   if (hop) return [player.x, player.y - 24 - hop.lift0 - (hop.lift1 - hop.lift0) * hop.t - Math.sin(hop.t * Math.PI) * 16];
   if (player.swimming && inWater(player.x, player.y)) return [player.x, player.y - 18];
-  return [player.x, player.y - 24 - jumpLift()];
+  return [player.x, player.y - 24 - jumpLift(player)];
 }
 
 // ---------- dragon riding ----------
@@ -356,7 +478,7 @@ function nearDragon() {
 // A short jump between the ground and the dragon's back; `lift` is visual height.
 function startHop(tx, ty, lift0, lift1, done) {
   hop = { fx: player.x, fy: player.y, tx, ty, lift0, lift1, t: 0, done };
-  jumpT = -1;
+  player.jumpT = -1;
   player.flying = true;
   faceToward(player, tx - player.x, ty - player.y);
 }
@@ -377,9 +499,13 @@ function mount() {
   startHop(d.x + 2, d.y, 0, 14, () => {
     d.hidden = true;
     d.col.off = true;
-    flight = { x: d.x, y: d.y, alt: 0, vx: 0, vy: 0, dir: 'down', flap: 0, mode: 'takeoff', land: null };
+    flight = {
+      x: d.x, y: d.y, alt: 0, vx: 0, vy: 0, dir: 'down', flap: 0, mode: 'takeoff', land: null,
+      loop: -1, fireCd: 0, diveT: 0, splashed: false,
+    };
     player.flying = true;
     dust(d.x, d.y);
+    Sfx.roar();
   });
 }
 
@@ -412,6 +538,7 @@ function finishLanding() {
   player.x = s.x;
   player.y = s.y;
   dust(s.x, s.y);
+  Sfx.land(2);
   startHop(s.px, s.py, 14, 0, () => {
     player.flying = false;
     faceToward(player, d.x - player.x, d.y - player.y);
@@ -427,6 +554,18 @@ function updateFlight(dt) {
     f.alt = Math.min(FLY_ALT, f.alt + dt * 45);
     if (f.alt >= FLY_ALT) f.mode = 'fly';
   }
+  if (f.mode === 'dive') {
+    f.diveT = Math.min(1, f.diveT + dt / 1.2);
+    f.alt = FLY_ALT * (1 - Math.sin(f.diveT * Math.PI) * 0.92);
+    if (!f.splashed && f.diveT >= 0.5) {
+      f.splashed = true;
+      splash(f.x, f.y);
+      seaSplash(f.x, f.y - 2, 2.4);
+      Sfx.splash(1.4);
+    }
+    if (f.diveT >= 1) f.mode = 'fly';
+  }
+  updateTricks(f, dt);
 
   if (f.mode === 'landing') {
     const k = 1 - Math.exp(-dt * 6);
@@ -440,7 +579,7 @@ function updateFlight(dt) {
       return;
     }
   } else {
-    const steer = f.mode === 'fly' || f.alt > 16;
+    const steer = f.mode === 'fly' || f.mode === 'dive' || f.alt > 16;
     const max = boost ? 250 : 140;
     const k = 1 - Math.exp(-dt * (steer && (ix || iy) ? 2.5 : 1.8));
     f.vx += ((steer ? ix * max : 0) - f.vx) * k;
@@ -457,7 +596,9 @@ function updateFlight(dt) {
 
   const speed = Math.hypot(f.vx, f.vy);
   if (speed > 20) faceToward(f, f.vx, f.vy);
+  const beat = Math.floor(f.flap / 4);
   f.flap += dt * (f.mode === 'takeoff' ? 13 : boost ? 12 : speed > 20 ? 8 : 6);
+  if (Math.floor(f.flap / 4) !== beat) Sfx.flap(f.mode === 'takeoff' ? 1 : 0.6);
   player.x = f.x;
   player.y = f.y;
   player.dir = f.dir;
@@ -467,6 +608,116 @@ function updateFlight(dt) {
       type: 'wind', layer: 'sky', x: cam.x + Math.random() * viewW, y: cam.y + Math.random() * viewH,
       dx: f.vx / speed, dy: f.vy / speed, vx: 0, vy: 0, life: 0, max: 0.35,
     });
+  }
+}
+
+// ---------- dragon tricks ----------
+
+const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const MOUTH = { right: [30, -18], left: [-30, -18], down: [0, 8], up: [0, -32] };
+const FIREWORK_COLORS = [['#ff5a5a', '#ffd25a'], ['#5ad1ff', '#ffffff'], ['#7cf05a', '#fff27a'], ['#ff7ae0', '#ffd2f5'], ['#ffb03a', '#fff1b0']];
+const fireballs = [];
+
+const flightBob = (f) => (f.mode === 'fly' ? Math.sin(time * 3) * 2 : 0);
+
+// Offset and rotation of the dragon while looping; side views loop vertically, others spin.
+function loopPose(f) {
+  if (f.loop < 0) return [0, 0, 0];
+  const a = f.loop * Math.PI * 2;
+  if (isHorizontal(f.dir)) {
+    const s = f.dir === 'right' ? 1 : -1;
+    return [Math.sin(a) * 18 * s, -(1 - Math.cos(a)) * 18, -a * s];
+  }
+  return [0, -Math.sin(f.loop * Math.PI) * 16, a * (f.dir === 'down' ? 1 : -1)];
+}
+
+// World point at the dragon's body centre, including altitude, bob and loop offset.
+function dragonBody(f) {
+  const [ox, oy] = loopPose(f);
+  return [f.x + ox, f.y - f.alt - flightBob(f) - 11 + oy];
+}
+
+function overWater(f) {
+  return tileAt(Math.floor(f.x / TILE), Math.floor((f.y - 1) / TILE)) === T.WATER;
+}
+
+function breatheFire() {
+  const f = flight;
+  if (!f || f.mode !== 'fly' || f.loop >= 0 || f.fireCd > 0) return;
+  f.fireCd = 0.35;
+  const [mx, my] = MOUTH[f.dir];
+  const [dx, dy] = DIR_VEC[f.dir];
+  fireballs.push({
+    x: f.x + mx, y: f.y - f.alt - flightBob(f) + my,
+    vx: dx * 170 + f.vx * 0.6, vy: dy * 170 + f.vy * 0.6 - (dy ? 0 : 20),
+    t: 0, fuse: 0.45 + Math.random() * 0.15, colors: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
+  });
+  Sfx.fire();
+}
+
+function loopTrick() {
+  const f = flight;
+  if (!f || f.mode !== 'fly' || f.loop >= 0) return;
+  f.loop = 0;
+  Sfx.whoosh();
+}
+
+function splashDive() {
+  const f = flight;
+  if (!f || f.mode !== 'fly' || f.loop >= 0 || !overWater(f)) return;
+  f.mode = 'dive';
+  f.diveT = 0;
+  f.splashed = false;
+  Sfx.whoosh();
+}
+
+function burst(x, y, colors, n, speed) {
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+    const sp = speed * (0.6 + Math.random() * 0.4);
+    particles.push({ type: 'spark', layer: 'sky', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8, c: colors[i % colors.length], c2: colors[(i + 1) % colors.length], life: 0, max: 0.9 + Math.random() * 0.5 });
+  }
+}
+
+function updateTricks(f, dt) {
+  f.fireCd -= dt;
+  if (f.loop >= 0) {
+    f.loop += dt / 0.9;
+    if (f.loop >= 1) f.loop = -1;
+    else {
+      const [bx, by] = dragonBody(f);
+      particles.push({ type: 'sparkle', layer: 'sky', x: bx + (Math.random() - 0.5) * 20, y: by + (Math.random() - 0.5) * 10, vx: 0, vy: 0, life: 0, max: 0.5 });
+    }
+  }
+}
+
+function updateFireballs(dt) {
+  for (let i = fireballs.length - 1; i >= 0; i--) {
+    const b = fireballs[i];
+    b.t += dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.vx *= Math.exp(-dt * 1.5);
+    b.vy *= Math.exp(-dt * 1.5);
+    if (Math.random() < dt * 50) {
+      particles.push({ type: 'ember', layer: 'sky', x: b.x, y: b.y, vx: (Math.random() - 0.5) * 16, vy: (Math.random() - 0.5) * 16, life: 0, max: 0.4 });
+    }
+    if (b.t < b.fuse) continue;
+    fireballs.splice(i, 1);
+    burst(b.x, b.y, b.colors, 60, 135);
+    burst(b.x, b.y, ['#ffffff', b.colors[1]], 16, 50);
+    particles.push({ type: 'flash', layer: 'sky', x: b.x, y: b.y, vx: 0, vy: 0, c: b.colors[0], life: 0, max: 0.25 });
+    Sfx.boom(earshot(b.x, b.y));
+  }
+}
+
+function drawFireballs(cx, cy) {
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of fireballs) ctx.drawImage(glowSprite(10, '#ff9628'), Math.round(b.x - 10 - cx), Math.round(b.y - 10 - cy));
+  ctx.globalCompositeOperation = 'source-over';
+  for (const b of fireballs) {
+    ellipse(ctx, Math.round(b.x - cx), Math.round(b.y - cy), 2.5, 2.5, '#ffb03a');
+    rect(ctx, Math.round(b.x - cx) - 1, Math.round(b.y - cy) - 1, 2, 2, '#fff1b0');
   }
 }
 
@@ -509,6 +760,7 @@ function board() {
     sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };
     shipObj.rider = player.look;
     player.flying = true;
+    Sfx.thunk();
   });
 }
 
@@ -540,7 +792,10 @@ function disembark() {
   sail = null;
   player.x = deck.x;
   player.y = shipObj.y;
-  startHop(spot.x, spot.y, deck.lift, 0, () => { player.flying = false; });
+  startHop(spot.x, spot.y, deck.lift, 0, () => {
+    player.flying = false;
+    Sfx.land();
+  });
 }
 
 function sternPos() {
@@ -603,7 +858,9 @@ function updateSail(dt) {
 function action() {
   if (hop) return;
   if (flight) {
-    if (flight.mode === 'fly') land();
+    if (flight.mode !== 'fly') return;
+    if (landingSpot()) land();
+    else splashDive();
     return;
   }
   if (sail) disembark();
@@ -620,7 +877,7 @@ function applyView() {
 }
 
 function updateZoom(dt) {
-  const target = sail || (flight && flight.mode !== 'landing' && flight.alt > 8) ? flyZoom : baseZoom;
+  const target = sail || (flight && flight.mode !== 'landing' && (flight.alt > 8 || flight.mode === 'dive')) ? flyZoom : baseZoom;
   zoom += (target - zoom) * (1 - Math.exp(-dt * 2.5));
   if (Math.abs(target - zoom) < 0.003) zoom = target;
   applyView();
@@ -688,7 +945,30 @@ function updateParticles(dt) {
     if (p.type === 'ember') p.vx += Math.sin(time * 5 + p.y) * 10 * dt;
     if (p.type === 'dust' || p.type === 'wake') { p.vx *= Math.exp(-dt * 4); p.vy *= Math.exp(-dt * 4); }
     if (p.type === 'drop') p.vy += 260 * dt;
+    if (p.type === 'spark') { p.vy += 40 * dt; p.vx *= Math.exp(-dt * 1.8); p.vy *= Math.exp(-dt * 1.8); }
   }
+}
+
+let seaShare = 0;
+let seaShareT = 0;
+
+// Waves get louder the more sea is on screen; wind rises with flight speed.
+function updateAmbience(dt) {
+  seaShareT -= dt;
+  if (seaShareT <= 0) {
+    seaShareT = 0.5;
+    let wet = 0;
+    for (let j = 0; j < 6; j++) {
+      for (let i = 0; i < 8; i++) {
+        const x = cam.x + ((i + 0.5) / 8) * viewW;
+        const y = cam.y + ((j + 0.5) / 6) * viewH;
+        if (tileAt(Math.floor(x / TILE), Math.floor(y / TILE)) === T.WATER) wet++;
+      }
+    }
+    seaShare = wet / 48;
+  }
+  const air = flight ? (flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) : 0;
+  Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
 }
 
 function update(dt) {
@@ -703,6 +983,9 @@ function update(dt) {
     if (playerSayT <= 0) playerBubble.classList.remove('show');
   }
   for (const c of clouds) c.x += c.v * dt;
+  updateSea(dt);
+  updateFireballs(dt);
+  updateAmbience(dt);
   emitParticles(dt);
   updateParticles(dt);
   updateZoom(dt);
@@ -815,19 +1098,21 @@ function drawSwimmer(e, cx, cy) {
 
 function drawEntity(e, cx, cy, lift = 0) {
   if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
-  ctx.drawImage(charSprite(e.look, e.dir, e.frame), Math.round(e.x) - 8 - cx, Math.round(e.y - lift) - 20 - cy);
+  ctx.drawImage(charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame), Math.round(e.x) - 8 - cx, Math.round(e.y - lift) - 20 - cy);
 }
 
 function drawFlight(cx, cy) {
   const f = flight;
   const fr = SPR.flyDragon[f.dir][Math.floor(f.flap) % 4];
-  const bob = f.mode === 'fly' ? Math.sin(time * 3) * 2 : 0;
-  const sx = Math.round(f.x) - 36 - cx;
-  const sy = Math.round(f.y - f.alt - bob) - 40 - cy;
-  ctx.drawImage(fr.under, sx, sy);
+  const [ox, oy, rot] = loopPose(f);
+  ctx.save();
+  ctx.translate(Math.round(f.x + ox) - cx, Math.round(f.y - f.alt - flightBob(f) + oy) - 11 - cy);
+  if (rot) ctx.rotate(rot);
+  ctx.drawImage(fr.under, -36, -29);
   const rider = charSprite(player.look, f.dir, 0);
-  ctx.drawImage(rider, 0, 0, 16, 15, sx + fr.seat[0] - 8, sy + fr.seat[1] - 12, 16, 15);
-  if (fr.over) ctx.drawImage(fr.over, sx, sy);
+  ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
+  if (fr.over) ctx.drawImage(fr.over, -36, -29);
+  ctx.restore();
 }
 
 function drawSky(cx, cy) {
@@ -854,6 +1139,32 @@ function drawTalkHint(n, cx, cy) {
   for (let i = 0; i < 3; i++) px(ctx, x - 3 + i * 3, y + 3, '#3a2414');
 }
 
+const EMOTE_ICONS = {
+  exclaim: ['..#..', '..#..', '..#..', '.....', '..#..'],
+  question: ['.###.', '...#.', '..#..', '.....', '..#..'],
+  heart: ['.#.#.', '#####', '#####', '.###.', '..#..'],
+  angry: ['.#.#.', '##.##', '.....', '##.##', '.#.#.'],
+  note: ['..##.', '..#.#', '..#..', '###..', '##...'],
+  smile: ['.#.#.', '.#.#.', '.....', '#...#', '.###.'],
+  dots: ['.....', '.....', '#.#.#', '.....', '.....'],
+};
+
+function drawEmote(n, cx, cy) {
+  const icon = EMOTE_ICONS[n.emote];
+  const pop = Math.min(1, (1.8 - n.emoteT) * 8);
+  const x = Math.round(n.x) - cx - 4;
+  const y = Math.round(n.y - 30 - pop * 2 + Math.sin(time * 5)) - cy;
+  const color = n.emote === 'heart' || n.emote === 'angry' ? '#d83a3a' : '#3a2414';
+  ctx.globalAlpha = Math.min(1, n.emoteT * 3);
+  rect(ctx, x, y, 9, 9, '#3a2414');
+  rect(ctx, x + 1, y + 1, 7, 7, '#fff8e7');
+  px(ctx, x + 4, y + 9, '#3a2414');
+  icon.forEach((row, j) => {
+    for (let i = 0; i < 5; i++) if (row[i] === '#') px(ctx, x + 2 + i, y + 2 + j, color);
+  });
+  ctx.globalAlpha = 1;
+}
+
 function drawParticles(cx, cy, layer) {
   for (const p of particles) {
     if ((p.layer || 'world') !== layer) continue;
@@ -873,9 +1184,25 @@ function drawParticles(cx, cy, layer) {
       const r = 1 + t * 4;
       ctx.globalAlpha = 0.7 * (1 - t);
       ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.5, PAL.foam);
+    } else if (p.type === 'spark') {
+      ctx.globalAlpha = 1 - t * t;
+      const s = t < 0.3 ? 2 : 1;
+      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, t < 0.5 ? p.c : p.c2);
+    } else if (p.type === 'sparkle') {
+      ctx.globalAlpha = 1 - t;
+      const x = Math.round(p.x - cx);
+      const y = Math.round(p.y - cy);
+      px(ctx, x, y, '#ffffff');
+      if (t < 0.5) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) px(ctx, x + dx, y + dy, '#fff27a');
+    } else if (p.type === 'flash') {
+      ctx.globalAlpha = 1 - t;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(glowSprite(26, p.c), Math.round(p.x - 26 - cx), Math.round(p.y - 26 - cy));
+      ctx.globalCompositeOperation = 'source-over';
     } else if (p.type === 'drop') {
       ctx.globalAlpha = 1 - t * 0.6;
-      px(ctx, p.x - cx, p.y - cy, t < 0.4 ? '#ffffff' : PAL.foam);
+      const s = p.big && t < 0.7 ? 2 : 1;
+      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, t < 0.4 ? '#ffffff' : PAL.foam);
     } else if (p.type === 'wind') {
       ctx.globalAlpha = 0.55 * Math.sin(t * Math.PI);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 12, p.y - cy - p.dy * 12, '#ffffff');
@@ -904,6 +1231,7 @@ function render() {
   ctx.drawImage(ground, -cx, -cy);
   drawAnimatedTiles(cx, cy);
   drawParticles(cx, cy, 'water');
+  drawSeaUnder(cx, cy);
 
   const visible = objects.filter((o) => !o.hidden && o.x > cx - 90 && o.x < cx + viewW + 90 && o.y > cy - 10 && o.y < cy + viewH + 120);
   const walkers = entities.filter((e) => !e.flying);
@@ -913,7 +1241,7 @@ function render() {
   }
   for (const e of walkers) {
     if (e.swimming) continue;
-    const k = e === player ? jumpLift() / JUMP_HEIGHT : 0;
+    const k = jumpLift(e) / JUMP_HEIGHT;
     drawShadow(Math.round(e.x) - cx, Math.round(e.y) - cy, 5 - k * 2, 2 - k * 0.5);
   }
   if (hop) drawShadow(Math.round(player.x) - cx, Math.round(player.y) - cy, 5, 2);
@@ -922,9 +1250,10 @@ function render() {
     drawShadow(Math.round(flight.x) - cx, Math.round(flight.y) - cy, 18 - k * 6, 5 - k * 1.5, 0.28 - k * 0.08);
   }
 
-  const list = visible.concat(walkers).sort((a, b) => a.y - b.y);
+  const list = visible.concat(walkers, seaSprites(cx, cy)).sort((a, b) => a.y - b.y);
   for (const it of list) {
-    if (it.isEntity) drawEntity(it, cx, cy, it === player ? Math.round(jumpLift()) : 0);
+    if (it.draw) it.draw();
+    else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
     else drawObject(it, cx, cy);
   }
 
@@ -946,6 +1275,7 @@ function render() {
     drawEntity(player, cx, cy, lift);
   }
   if (flight) drawFlight(cx, cy);
+  drawFireballs(cx, cy);
   drawSky(cx, cy);
   drawParticles(cx, cy, 'sky');
 
@@ -953,6 +1283,8 @@ function render() {
     if (n.talkT > 0) {
       n.bubble.style.left = `${(Math.round(n.x) - cx) * zoom}px`;
       n.bubble.style.top = `${(Math.round(n.y) - cy - 24) * zoom}px`;
+    } else if (n.emoteT > 0) {
+      drawEmote(n, cx, cy);
     } else if (!player.flying && Math.hypot(player.x - n.x, player.y - n.y) < 36) {
       drawTalkHint(n, cx, cy);
     }
@@ -964,7 +1296,8 @@ function render() {
   }
 
   if (flight && flight.mode === 'fly') {
-    setPrompt(landingSpot() ? 'SPACE  Land   ·   SHIFT  Boost' : 'Fly over open ground to land   ·   SHIFT  Boost');
+    const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
+    setPrompt(`${space}  ·  F  Fireworks  ·  R  Loop  ·  SHIFT  Boost`);
   } else if (sail) {
     setPrompt(sail.shore ? 'SPACE  Go ashore   ·   SHIFT  Full sail' : 'Sail close to land to go ashore   ·   SHIFT  Full sail');
   } else if (nearShip()) {
@@ -1002,7 +1335,23 @@ function resize() {
 
 const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
 
+const soundBtn = document.getElementById('sound');
+
+function toggleSound() {
+  Sfx.init();
+  const muted = Sfx.toggleMute();
+  soundBtn.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
+  soundBtn.setAttribute('aria-pressed', String(!muted));
+}
+
+soundBtn.addEventListener('click', () => {
+  toggleSound();
+  soundBtn.blur();
+});
+window.addEventListener('pointerdown', () => Sfx.init());
+
 window.addEventListener('keydown', (e) => {
+  Sfx.init();
   if (document.activeElement === chatInput) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
@@ -1010,7 +1359,12 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (BLOCKED_KEYS.has(e.code)) e.preventDefault();
-  if (!e.repeat && (e.code === 'Space' || e.code === 'KeyE')) action();
+  if (!e.repeat) {
+    if (e.code === 'Space' || e.code === 'KeyE') action();
+    if (e.code === 'KeyF') breatheFire();
+    if (e.code === 'KeyR') loopTrick();
+    if (e.code === 'KeyM') toggleSound();
+  }
   keys.add(e.code);
 });
 

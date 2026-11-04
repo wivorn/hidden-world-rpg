@@ -1,0 +1,186 @@
+// Keyword-driven NPC reactions to what the player types.
+
+// First match wins, so more specific topics come first.
+const TOPICS = [
+  ['follow', /\b(follow me|come with me|come along|join me|let'?s go)\b/],
+  ['stop', /\b(stop|stay|wait|go home|leave me)\b/],
+  ['insult', /\b(stupid|idiot|dumb|ugly|hate you|shut up|smelly?|loser|fool|moron)\b/],
+  ['love', /\b(love|beautiful|pretty|cute|handsome|marry|like you)\b/],
+  ['thanks', /\b(thanks|thank you|thx|ty|cheers)\b/],
+  ['bye', /\b(bye|goodbye|farewell|see you|see ya|later|good ?night)\b/],
+  ['name', /\b(who are you|your name|who r u)\b/],
+  ['mood', /\b(how are you|how'?s it going|how are things|you ok|how do you do)\b/],
+  ['joke', /\b(joke|funny|make me laugh)\b/],
+  ['dance', /\b(dance|dancing|party|celebrate)\b/],
+  ['dragon', /\b(dragons?|wyvern|fly|flying)\b/],
+  ['ship', /\b(ship|boat|sail|sailing|sea|ocean|islands?|longship|swim|swimming)\b/],
+  ['forge', /\b(swords?|axes?|hammer|forge|weapons?|armou?r|shields?|anvil)\b/],
+  ['food', /\b(bread|food|hungry|eat|buy|sell|trade|gold|coins?|shop)\b/],
+  ['sheep', /\b(sheep|lamb|wool)\b/],
+  ['fish', /\b(fish|fishing|catch)\b/],
+  ['help', /\b(help|quest|what should i do|what do i do|bored|adventure|explore)\b/],
+  ['greet', /\b(hi|hello|hey|hiya|hail|greetings|yo|howdy|morning|good day|sup)\b/],
+];
+
+const TOPIC_EMOTES = {
+  follow: 'exclaim', stop: 'dots', insult: 'angry', love: 'heart', thanks: 'heart', bye: 'note',
+  name: 'smile', mood: 'smile', joke: 'smile', dance: 'note', dragon: 'exclaim', ship: 'dots',
+  forge: 'dots', food: 'dots', sheep: 'question', fish: 'dots', help: 'dots', greet: 'exclaim',
+  question: 'question', other: 'question',
+};
+
+const NPC_NAMES = {
+  chief: /\b(chief|elder)\b/,
+  smith: /\b(smith|blacksmith)\b/,
+  merchant: /\b(merchant|baker|shopkeeper)\b/,
+  kid: /\b(kid|boy)\b/,
+  girl: /\b(girl|lass)\b/,
+  archer: /\b(archer|hunter)\b/,
+  guard: /\b(guard|soldier)\b/,
+  villager: /\b(villager|farmer|shepherd)\b/,
+  fisher: /\b(fisher|fisherman|sailor)\b/,
+  hermit: /\b(hermit|old man)\b/,
+};
+
+const REPLIES = {
+  default: {
+    follow: ['Lead the way!', 'Right behind you.'],
+    stop: ['Alright, I\'ll stay here.', 'As you wish.'],
+    insult: ['How rude!', 'Watch your tongue!'],
+    love: ['Oh! Well... thank you.', 'You flatter me.'],
+    thanks: ['Any time.', 'You\'re welcome!'],
+    bye: ['Safe travels!', 'Farewell, Eli.'],
+    name: ['Just a humble villager.'],
+    mood: ['Can\'t complain!', 'Well enough, thank you.'],
+    joke: ['Why did the Viking cross the sea? To raid the other side!'],
+    dance: ['Ha! Look at me go!'],
+    dragon: ['That dragon gives me the shivers.', 'Have you flown it yet?'],
+    ship: ['The longship is down at the east docks.', 'The sea goes on forever out there.'],
+    forge: ['The smith can help you with that.'],
+    food: ['The merchant sells fresh bread by the west road.'],
+    sheep: ['Sheep? Ask around the village.'],
+    fish: ['The fisher knows all about that.'],
+    help: ['Ride the dragon, sail the sea... the world is yours!', 'Talk to the chief by the great hall.'],
+    greet: ['Hello there!', 'Hail, Eli!', 'Good day!'],
+    question: ['Hmm, couldn\'t say.', 'Good question...', 'Who knows?'],
+    other: ['Hm?', 'Is that so?', 'Interesting...', 'Aye.'],
+  },
+  chief: {
+    name: ['I am the chief of this village.'],
+    greet: ['Welcome back, Eli.', 'Ah, young Eli.'],
+    help: ['Every island hides a story. Go and find them.', 'Seek the rune stones on the south-west isle.'],
+    insult: ['I have weathered worse storms than you, child.'],
+    dragon: ['That dragon chose you. Treat it well.'],
+    joke: ['I am too old for jokes. ...Fine. Two Vikings walk into a hall. The third ducks.'],
+    follow: ['My place is by the great hall.'],
+    mood: ['My bones ache, but my heart is full.'],
+  },
+  smith: {
+    name: ['Smith. I make things out of hot metal.'],
+    greet: ['Oi.', 'Mind the sparks!'],
+    forge: ['Finest blades this side of the sea!', 'Hand-forged, every one.'],
+    insult: ['Say that again near my hammer.'],
+    love: ['Bah! Go on with you.'],
+    joke: ['A sword walks into a forge. Comes out sharper. ...That\'s it.'],
+    mood: ['Hot. Always hot.'],
+    other: ['Hmph.', 'Busy here.', 'Aye, aye.'],
+  },
+  merchant: {
+    name: ['I sell the best bread in the village!'],
+    greet: ['Welcome! Fresh bread!', 'Hello, dear!'],
+    food: ['Bread, two coins! Honey cake, three!', 'Baked this morning!'],
+    follow: ['And leave my stall? Never!'],
+    insult: ['No bread for you!'],
+    thanks: ['Come back soon!'],
+    other: ['Bread?', 'Fancy some bread?'],
+  },
+  kid: {
+    name: ['I\'m gonna be a dragon rider like you!'],
+    greet: ['Eli! Eli! Hi!', 'Hiiii!'],
+    dragon: ['The dragon winked at me! Really!', 'Can I ride it too? Please?'],
+    follow: ['Yay! An adventure!', 'Wait for me!'],
+    dance: ['Wheee!'],
+    joke: ['What do dragons eat? Fire-flakes! Hahaha!'],
+    insult: ['I\'m telling the chief!'],
+    stop: ['Awww...'],
+    other: ['Whoa!', 'Cool!', 'Huh?'],
+    question: ['I dunno!', 'Ask a grown-up!'],
+  },
+  girl: {
+    name: ['I watch the clouds and dream of flying.'],
+    greet: ['Oh, hello!', 'Hi, Eli!'],
+    dragon: ['Lovely day for flying, isn\'t it?', 'Take me up there one day?'],
+    love: ['Oh my! *blushes*', 'Eli! You\'re sweet.'],
+    dance: ['La la la~'],
+    mood: ['Wonderful! Look at that sky!'],
+    follow: ['Where are we going?'],
+  },
+  archer: {
+    name: ['Best shot in the village.'],
+    greet: ['Shh...', 'Quiet, please.'],
+    follow: ['Can\'t. Practising.'],
+    insult: ['I never miss, you know.'],
+    joke: ['...Shh.'],
+    dance: ['Absolutely not.'],
+    other: ['Shh... I\'m aiming.', 'You made me miss.'],
+  },
+  guard: {
+    name: ['Guard of the southern gate.'],
+    greet: ['Halt! ...Oh, it\'s you.', 'Eli.'],
+    follow: ['I cannot leave my post.'],
+    help: ['Stay close to the village.', 'The cliffs are steep. Mind your step.'],
+    insult: ['Move along.', 'Careful.'],
+    dance: ['Not on duty.'],
+    ship: ['Some jump off the cliffs and swim. Fools.'],
+    other: ['Move along.', 'Hmm.'],
+  },
+  villager: {
+    name: ['A shepherd without sheep, I\'m afraid.'],
+    greet: ['Hello! Have you seen my sheep?'],
+    sheep: ['You\'ve seen them?! ...No? Oh.', 'Fluffy, white, goes baa. Seen any?'],
+    help: ['Help me find my sheep!'],
+    follow: ['Maybe my sheep went that way!'],
+    other: ['Have you seen my sheep?', 'Baa? ...Sorry, habit.'],
+  },
+  fisher: {
+    name: ['I\'ve sailed every wave around here.'],
+    greet: ['Ahoy!', 'Ahoy there, Eli!'],
+    ship: ['She\'s yours to sail. Mind the rocks!', 'Hold Shift for full sail!'],
+    fish: ['Biggest catch? A fish as long as the longship!', 'The deep water is where the big ones hide.'],
+    help: ['Sail north-east. There\'s an old hermit out there.'],
+    joke: ['What\'s a pirate\'s favourite letter? The sea!'],
+    bye: ['Fair winds!'],
+  },
+  hermit: {
+    name: ['A name? I left that on the mainland long ago.'],
+    greet: ['A visitor... how rare.', 'Few sail this far out...'],
+    help: ['The stones in the south-west hum at night...', 'Not all treasure is gold.'],
+    ship: ['The sea brought you. It will take you back.'],
+    follow: ['My feet are rooted here.'],
+    dance: ['Heh. Once, long ago...'],
+    mood: ['Peaceful. Lonely. Both.'],
+    other: ['Hmm...', 'The wind whispers...', 'Indeed...'],
+  },
+};
+
+const lastReply = new Map();
+
+function chatTopic(text) {
+  const t = text.toLowerCase();
+  for (const [id, re] of TOPICS) if (re.test(t)) return id;
+  return t.trim().endsWith('?') ? 'question' : 'other';
+}
+
+function addresses(lookId, text) {
+  const re = NPC_NAMES[lookId];
+  return !!re && re.test(text.toLowerCase());
+}
+
+function npcReply(lookId, topic) {
+  const lines = (REPLIES[lookId] && REPLIES[lookId][topic]) || REPLIES.default[topic];
+  const key = lookId + topic;
+  let i = Math.floor(Math.random() * lines.length);
+  if (lines.length > 1 && i === lastReply.get(key)) i = (i + 1) % lines.length;
+  lastReply.set(key, i);
+  return lines[i];
+}

@@ -97,6 +97,27 @@ body {
   opacity: 1;
 }
 
+#sound {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  padding: 8px 10px;
+  background: rgba(20, 24, 40, 0.6);
+  color: #e8f4ff;
+  border: 3px solid rgba(232, 244, 255, 0.35);
+  font: 9px/1 'Press Start 2P', monospace;
+  cursor: pointer;
+}
+
+#sound[aria-pressed='false'] {
+  color: rgba(232, 244, 255, 0.5);
+}
+
+#sound:focus-visible {
+  outline: 3px solid #7cf05a;
+  outline-offset: 2px;
+}
+
 .bubble.player {
   background: #e8f4ff;
   border-color: #1d3263;
