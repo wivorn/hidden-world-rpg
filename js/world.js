@@ -436,7 +436,7 @@ const VILLAGE_NPCS = [
 
 const NPCS = [
   ...VILLAGE_NPCS.map((n) => ({ ...n, x: n.x + OX, y: n.y + OY })),
-  { look: 'hermit', x: 131, y: 26, roam: 2.5, line: 'Few sail this far out...' },
+  { look: 'hermit', x: 131, y: 26, roam: 2.5, line: 'Sail south-west to the ancient ruin. A dragon egg sleeps among its stone towers...' },
 ];
 
 const PLAYER_START = { x: 32.5 + OX, y: 27.5 + OY };
@@ -526,6 +526,7 @@ function placeObjects() {
     const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
     addAbs('menhir', 16.5 + Math.cos(a) * 3.2, 97.9 + Math.sin(a) * 2.4);
   }
+  addAbs('dragonEgg', 16.5, 98.3);
 
   // sea rocks, kept clear of shores and the ship's mooring
   const seaRng = mulberry32(77);

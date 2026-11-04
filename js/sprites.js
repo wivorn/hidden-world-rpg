@@ -329,6 +329,153 @@ function buildPalm() {
   });
 }
 
+const EGG_CRACKS = [
+  [[6, 3], [5, 5], [7, 7], [6, 9]],
+  [[6, 9], [4, 10], [5, 12]],
+  [[7, 7], [9, 8], [10, 7]],
+  [[5, 12], [7, 13], [9, 12], [10, 10]],
+  [[1, 8], [3, 9], [4, 10]],
+];
+
+// Speckled dragon egg in a twig nest; `cracks` (0-3) adds glowing hatching cracks.
+function buildDragonEgg(cracks = 0) {
+  const egg = sprite(13, 16, (g) => {
+    ellipse(g, 6, 9, 5.5, 7, '#4b2a73');
+    ellipse(g, 5, 8, 3.5, 5.5, '#5f3a8f');
+    for (const [x, y] of [[3, 6], [7, 5], [2, 10], [6, 9], [9, 11], [4, 13], [8, 14]]) {
+      px(g, x, y, '#8a5cc7');
+      px(g, x + 1, y, '#8a5cc7');
+      px(g, x + 1, y + 1, '#3a1f5c');
+    }
+    for (const [x, y] of [[5, 4], [9, 8], [3, 12], [7, 12]]) px(g, x, y, '#d9b8ff');
+    rect(g, 3, 4, 1, 3, '#a77be0');
+    px(g, 4, 3, '#a77be0');
+    const lines = EGG_CRACKS.slice(0, [0, 1, 3, 5][cracks]);
+    for (const pts of lines) {
+      for (let i = 0; i < pts.length - 1; i++) line(g, ...pts[i], ...pts[i + 1], '#ffe9a8');
+    }
+  }, false);
+  return sprite(24, 23, (g) => {
+    ellipse(g, 12, 18, 10, 3, PAL.woodDeep);
+    ellipse(g, 12, 17, 8, 2, PAL.woodDark);
+    g.drawImage(egg, 6, 3);
+    ellipse(g, 12, 19.5, 10, 2, PAL.hayDark);
+    ellipse(g, 12, 19, 9, 1.5, PAL.hay);
+    line(g, 3, 19, 8, 18, PAL.woodDark);
+    line(g, 15, 18, 21, 20, PAL.woodDark);
+    line(g, 9, 21, 14, 20, PAL.woodDark);
+    for (const [x, y] of [[5, 20], [11, 19], [18, 19], [14, 21]]) px(g, x, y, PAL.hayLight);
+  });
+}
+
+// Smaller egg held overhead, with the carrier's hands on either side.
+function buildHeldEgg() {
+  return sprite(12, 14, (g) => {
+    ellipse(g, 6, 7, 4, 5, '#4b2a73');
+    ellipse(g, 5, 6, 2.5, 3.5, '#5f3a8f');
+    for (const [x, y] of [[4, 4], [7, 6], [3, 8], [6, 10]]) {
+      px(g, x, y, '#8a5cc7');
+      px(g, x + 1, y + 1, '#3a1f5c');
+    }
+    px(g, 4, 3, '#d9b8ff');
+    px(g, 8, 9, '#d9b8ff');
+    rect(g, 3, 4, 1, 2, '#a77be0');
+    rect(g, 1, 8, 2, 2, PAL.skin);
+    rect(g, 9, 8, 2, 2, PAL.skin);
+  });
+}
+
+// Baby dragon, 26x23 with the ground point at (13, 22). Frame 0 folds the wings, frame 1 raises them.
+function buildBabyDragon() {
+  const B = '#7b4bc0';
+  const D = '#5a3394';
+  const L = '#a77be0';
+  const W = '#c99af0';
+  const BELLY = '#f3dcae';
+  const FIN = '#f08cb4';
+  const HORN = '#f6ead0';
+  const EYE = '#1a1030';
+  const set = { down: [], up: [], right: [], left: [] };
+  const baby = (draw) => sprite(26, 23, (g) => {
+    g.translate(1, 0);
+    draw(g);
+  });
+  const wings = (g, up) => {
+    for (const s of [-1, 1]) {
+      const P = (dx, dy) => [12 + s * dx, dy];
+      const tip = up ? P(10, 4) : P(11, 14);
+      poly(g, [P(3, 11), tip, up ? P(9, 10) : P(7, 16), P(4, 15)], W);
+      line(g, ...P(3, 11), ...tip, D);
+    }
+  };
+  const horns = (g) => {
+    poly(g, [[8, 6], [6, 1], [10, 4]], HORN);
+    poly(g, [[16, 6], [18, 1], [14, 4]], HORN);
+  };
+
+  for (let f = 0; f < 2; f++) {
+    const up = f === 1;
+    set.down.push(baby((g) => {
+      wings(g, up);
+      line(g, 16, 19, 20, 18, B, 2);
+      line(g, 20, 18, 21, 15, B);
+      poly(g, [[21, 16], [23, 12], [19, 14]], FIN);
+      ellipse(g, 9, 20, 2, 1, D);
+      ellipse(g, 15, 20, 2, 1, D);
+      ellipse(g, 12, 16, 5, 4, B);
+      ellipse(g, 12, 17, 3, 3, BELLY);
+      horns(g);
+      ellipse(g, 12, 8, 6, 5, B);
+      ellipse(g, 11, 5, 3, 1, L);
+      ellipse(g, 12, 11, 3, 1.5, L);
+      rect(g, 8, 7, 3, 3, '#ffffff');
+      rect(g, 13, 7, 3, 3, '#ffffff');
+      rect(g, 9, 8, 2, 2, EYE);
+      rect(g, 13, 8, 2, 2, EYE);
+      px(g, 7, 10, FIN);
+      px(g, 17, 10, FIN);
+      px(g, 11, 11, D);
+      px(g, 13, 11, D);
+    }));
+    set.up.push(baby((g) => {
+      ellipse(g, 9, 20, 2, 1, D);
+      ellipse(g, 15, 20, 2, 1, D);
+      ellipse(g, 12, 16, 5, 4, B);
+      horns(g);
+      ellipse(g, 12, 8, 6, 5, B);
+      ellipse(g, 12, 6, 4, 2, L);
+      for (const y of [12, 14, 16]) px(g, 12, y, FIN);
+      wings(g, up);
+      line(g, 13, 19, 17, 21, B, 2);
+      poly(g, [[17, 21], [21, 20], [18, 19]], FIN);
+    }));
+    const side = baby((g) => {
+      line(g, 8, 17, 4, 16, B, 2);
+      line(g, 4, 16, 2, 12, B);
+      poly(g, [[2, 13], [0, 9], [4, 11]], FIN);
+      ellipse(g, 9, 20, 2, 1, D);
+      ellipse(g, 15, 20, 2, 1, D);
+      ellipse(g, 11, 16, 6, 4, B);
+      ellipse(g, 13, 17, 3, 2.5, BELLY);
+      px(g, 9, 12, FIN);
+      px(g, 7, 13, FIN);
+      poly(g, [[12, 6], [9, 1], [13, 4]], HORN);
+      ellipse(g, 15, 9, 5, 4.5, B);
+      ellipse(g, 14, 6, 3, 1, L);
+      ellipse(g, 19, 11, 3, 2, L);
+      px(g, 21, 10, D);
+      rect(g, 15, 7, 3, 3, '#ffffff');
+      rect(g, 16, 8, 2, 2, EYE);
+      px(g, 16, 11, FIN);
+      poly(g, up ? [[9, 13], [13, 12], [8, 3], [5, 7]] : [[8, 13], [13, 12], [6, 17], [3, 14]], W);
+      line(g, 13, 12, ...(up ? [8, 3] : [6, 17]), D);
+    });
+    set.right.push(side);
+    set.left.push(mirror(side));
+  }
+  return set;
+}
+
 function buildMenhir() {
   return sprite(14, 28, (g) => {
     poly(g, [[3, 26], [2, 8], [5, 2], [9, 2], [12, 8], [11, 26]], PAL.rock);
@@ -1005,6 +1152,16 @@ function buildSprites() {
 
   def('palm', { img: buildPalm(), foot: { w: 6, h: 4 }, shadow: { rx: 9, ry: 3 } });
   def('menhir', { img: buildMenhir(), foot: { w: 10, h: 5 }, shadow: { rx: 6, ry: 2 }, light: { dx: 0, dy: -14, r: 14, color: '#6fb6ff' } });
+  def('dragonEgg', {
+    img: buildDragonEgg(),
+    cracked: [1, 2, 3].map(buildDragonEgg),
+    pick: (t, o) => (o.crack ? SPR.dragonEgg.cracked[o.crack - 1] : SPR.dragonEgg.img),
+    foot: { w: 14, h: 4 },
+    shadow: { rx: 10, ry: 3 },
+    light: { dx: 0, dy: -10, r: 22, color: '#b98cff' },
+  });
+  SPR.heldEgg = buildHeldEgg();
+  SPR.babyDragon = buildBabyDragon();
 
   const side = buildShip();
   // seat = where the rider's waist meets the gunwale

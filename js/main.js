@@ -28,6 +28,8 @@ const ground = renderGround();
 const dragonObj = objects.find((o) => o.key === 'dragon');
 const shipObj = objects.find((o) => o.key === 'ship');
 const seaRocks = objects.filter((o) => o.key === 'rock');
+const eggObj = objects.find((o) => o.key === 'dragonEgg');
+const villageFire = objects.find((o) => o.key === 'bonfire');
 initSea();
 
 // 0..1 loudness for a sound at a world position, fading out past the edge of the view.
@@ -50,6 +52,9 @@ const FLY_ALT = 46;
 let flight = null;
 let sail = null;
 let hop = null;
+let eggStage = 'ruin'; // ruin, carried, warming, hatched
+let hatchT = 0;
+let baby = null;
 const JUMP_TIME = 0.42;
 const JUMP_HEIGHT = 12;
 
@@ -171,6 +176,7 @@ function jump() {
   if (!spot) {
     player.jumpT = 0;
     for (const n of npcs) if (n.followT > 0 && n.jumpT < 0) n.jumpDelay = 0.12 + Math.random() * 0.1;
+    if (baby && !baby.flying && baby.jumpT < 0) baby.jumpDelay = 0.15;
     return;
   }
   startHop(spot.x, spot.y, 0, 0, () => {
@@ -380,7 +386,16 @@ function hear(text) {
   }
 }
 
-function react(n, { topic, reply }) {
+// Once the egg leaves the ruin, egg talk (and all of the hermit's hints) moves on with the story.
+function storyTopic(n, topic) {
+  if (eggStage === 'ruin') return topic;
+  const hint = n.look.id === 'hermit' && ['help', 'question', 'dragon', 'other'].includes(topic);
+  if (topic !== 'egg' && !hint) return topic;
+  return eggStage === 'hatched' ? 'hatched' : 'eggFound';
+}
+
+function react(n, { topic: heard, reply }) {
+  const topic = storyTopic(n, heard);
   faceToward(n, player.x - n.x, player.y - n.y);
   n.emote = TOPIC_EMOTES[topic];
   n.emoteT = 1.8;
@@ -455,6 +470,11 @@ function say(text) {
 
 // Screen point (world pixels) just above the player's head, wherever they are.
 function playerHead() {
+  const [x, y] = headPos();
+  return [x, eggStage === 'carried' ? y - 10 : y];
+}
+
+function headPos() {
   if (flight) return [flight.x, flight.y - flight.alt - 50];
   if (sail) {
     const d = deckPos();
@@ -467,12 +487,16 @@ function playerHead() {
 
 // ---------- dragon riding ----------
 
-function nearDragon() {
-  if (flight || sail || hop || dragonObj.hidden) return false;
-  const c = dragonObj.col;
+// Distance from the player to the nearest edge of a collider box.
+function boxDist(c) {
   const dx = Math.max(c.x0 - player.x, 0, player.x - c.x1);
   const dy = Math.max(c.y0 - player.y, 0, player.y - c.y1);
-  return Math.hypot(dx, dy) < 34;
+  return Math.hypot(dx, dy);
+}
+
+function nearDragon() {
+  if (flight || sail || hop || dragonObj.hidden) return false;
+  return boxDist(dragonObj.col) < 34;
 }
 
 // A short jump between the ground and the dragon's back; `lift` is visual height.
@@ -614,8 +638,9 @@ function updateFlight(dt) {
 // ---------- dragon tricks ----------
 
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-const MOUTH = { right: [30, -18], left: [-30, -18], down: [0, 8], up: [0, -32] };
-const FIREWORK_COLORS = [['#ff5a5a', '#ffd25a'], ['#5ad1ff', '#ffffff'], ['#7cf05a', '#fff27a'], ['#ff7ae0', '#ffd2f5'], ['#ffb03a', '#fff1b0']];
+// Mouth as [ground x offset, ground y offset, height above the dragon's altitude].
+const MOUTH = { right: [30, 0, 18], left: [-30, 0, 18], down: [0, 8, 0], up: [0, -10, 22] };
+const PLASMA = ['#b05cff', '#e7c8ff', '#7a2fd6'];
 const fireballs = [];
 
 const flightBob = (f) => (f.mode === 'fly' ? Math.sin(time * 3) * 2 : 0);
@@ -645,14 +670,39 @@ function breatheFire() {
   const f = flight;
   if (!f || f.mode !== 'fly' || f.loop >= 0 || f.fireCd > 0) return;
   f.fireCd = 0.35;
-  const [mx, my] = MOUTH[f.dir];
+  const [mx, my, mh] = MOUTH[f.dir];
   const [dx, dy] = DIR_VEC[f.dir];
+  const x0 = f.x + mx;
+  const y0 = f.y + my;
   fireballs.push({
-    x: f.x + mx, y: f.y - f.alt - flightBob(f) + my,
-    vx: dx * 170 + f.vx * 0.6, vy: dy * 170 + f.vy * 0.6 - (dy ? 0 : 20),
-    t: 0, fuse: 0.45 + Math.random() * 0.15, colors: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
+    x0, y0, h0: f.alt + flightBob(f) + mh,
+    x1: x0 + dx * 120 + f.vx * 0.45, y1: y0 + dy * 120 + f.vy * 0.45,
+    x: x0, y: y0, h: 0, t: 0, dur: 0.5,
   });
-  Sfx.fire();
+  Sfx.plasma();
+}
+
+function plasmaHit(x, y) {
+  const near = earshot(x, y);
+  particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: PLASMA[0], life: 0, max: 0.3 });
+  if (tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)) === T.WATER) {
+    splash(x, y);
+    seaSplash(x, y - 2, 1.4);
+    for (let i = 0; i < 6; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 10, y: y - 4, vx: (Math.random() - 0.5) * 8, vy: -18 - Math.random() * 10, life: 0, max: 1.2 });
+    Sfx.splash(0.8 * near);
+    Sfx.hiss(near);
+    return;
+  }
+  burst(x, y - 3, PLASMA, 36, 90);
+  particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, life: 0, max: 0.45 });
+  for (let i = 0; i < 5; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 8, y: y - 4, vx: (Math.random() - 0.5) * 10, vy: -14 - Math.random() * 8, life: 0, max: 1.4 });
+  for (const n of npcs) {
+    if (Math.hypot(n.x - x, n.y - y) > 60) continue;
+    n.emote = 'exclaim';
+    n.emoteT = 1.8;
+    faceToward(n, x - n.x, y - n.y);
+  }
+  Sfx.blast(near);
 }
 
 function loopTrick() {
@@ -695,30 +745,225 @@ function updateFireballs(dt) {
   for (let i = fireballs.length - 1; i >= 0; i--) {
     const b = fireballs[i];
     b.t += dt;
-    b.x += b.vx * dt;
-    b.y += b.vy * dt;
-    b.vx *= Math.exp(-dt * 1.5);
-    b.vy *= Math.exp(-dt * 1.5);
-    if (Math.random() < dt * 50) {
-      particles.push({ type: 'ember', layer: 'sky', x: b.x, y: b.y, vx: (Math.random() - 0.5) * 16, vy: (Math.random() - 0.5) * 16, life: 0, max: 0.4 });
+    const u = Math.min(1, b.t / b.dur);
+    b.x = b.x0 + (b.x1 - b.x0) * u;
+    b.y = b.y0 + (b.y1 - b.y0) * u;
+    b.h = b.h0 * (1 - u * u);
+    for (let k = 0; k < 3; k++) {
+      particles.push({ type: 'plasma', layer: 'sky', x: b.x + (Math.random() - 0.5) * 7, y: b.y - b.h + (Math.random() - 0.5) * 7, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, life: 0, max: 0.45 + Math.random() * 0.25 });
     }
-    if (b.t < b.fuse) continue;
+    if (u < 1) continue;
     fireballs.splice(i, 1);
-    burst(b.x, b.y, b.colors, 60, 135);
-    burst(b.x, b.y, ['#ffffff', b.colors[1]], 16, 50);
-    particles.push({ type: 'flash', layer: 'sky', x: b.x, y: b.y, vx: 0, vy: 0, c: b.colors[0], life: 0, max: 0.25 });
-    Sfx.boom(earshot(b.x, b.y));
+    plasmaHit(b.x, b.y);
   }
 }
 
 function drawFireballs(cx, cy) {
+  for (const b of fireballs) {
+    ctx.globalAlpha = 0.25;
+    ellipse(ctx, Math.round(b.x - cx), Math.round(b.y - cy) - 1, 4, 1.5, '#000000');
+  }
+  ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'lighter';
-  for (const b of fireballs) ctx.drawImage(glowSprite(10, '#ff9628'), Math.round(b.x - 10 - cx), Math.round(b.y - 10 - cy));
+  for (const b of fireballs) ctx.drawImage(glowSprite(22, PLASMA[0]), Math.round(b.x - 22 - cx), Math.round(b.y - b.h - 22 - cy));
   ctx.globalCompositeOperation = 'source-over';
   for (const b of fireballs) {
-    ellipse(ctx, Math.round(b.x - cx), Math.round(b.y - cy), 2.5, 2.5, '#ffb03a');
-    rect(ctx, Math.round(b.x - cx) - 1, Math.round(b.y - cy) - 1, 2, 2, '#fff1b0');
+    const x = Math.round(b.x - cx);
+    const y = Math.round(b.y - b.h - cy);
+    const pulse = Math.sin(time * 40) > 0 ? 1 : 0;
+    ellipse(ctx, x, y, 5 + pulse, 5 + pulse, PLASMA[2]);
+    ellipse(ctx, x, y, 4, 4, PLASMA[0]);
+    ellipse(ctx, x, y, 2.5, 2.5, PLASMA[1]);
+    rect(ctx, x - 1, y - 1, 2, 2, '#ffffff');
   }
+}
+
+// ---------- dragon egg & baby dragon ----------
+
+const HATCH_TIME = 6;
+const STORY_LINES = {
+  carried: {
+    hermit: 'You found it! Keep it warm by the fire in your village, and it will hatch.',
+    chief: 'A dragon egg! Set it by the plaza fire, Eli.',
+    kid: 'Is that a DRAGON EGG?! Put it by the fire!',
+  },
+  warming: { kid: 'It\'s hatching! It\'s hatching!' },
+  hatched: {
+    hermit: 'A dragon of your very own. Be kind to it.',
+    chief: 'A new dragon in our village! This is a great day.',
+    kid: 'Your baby dragon is SO cute!',
+  },
+};
+
+function setStage(stage) {
+  eggStage = stage;
+  const lines = STORY_LINES[stage];
+  for (const n of npcs) if (lines[n.look.id]) n.line = lines[n.look.id];
+}
+
+const grounded = () => !player.flying && !player.swimming;
+
+function nearEgg() {
+  return eggStage === 'ruin' && grounded() && boxDist(eggObj.col) < 14;
+}
+
+function pickUpEgg() {
+  eggObj.hidden = true;
+  eggObj.col.off = true;
+  faceToward(player, eggObj.x - player.x, eggObj.y - player.y);
+  burst(eggObj.x, eggObj.y - 10, ['#ffffff', '#fff27a', '#d9b8ff'], 14, 40);
+  Sfx.pickup();
+  setStage('carried');
+}
+
+function nearFire() {
+  return eggStage === 'carried' && grounded() && Math.hypot(player.x - villageFire.x, player.y - villageFire.y) < 48;
+}
+
+// A free spot on a ring around the fire, as close to the player's side as possible.
+function fireSpot() {
+  const f = villageFire;
+  const a0 = Math.atan2(player.y - f.y, player.x - f.x);
+  for (let i = 0; i < 12; i++) {
+    const a = a0 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI / 6);
+    const x = Math.round(f.x + Math.cos(a) * 32);
+    const y = Math.round(f.y - 4 + Math.sin(a) * 20);
+    if (!blocked(x - 7, y - 4, x + 7, y, null)) return { x, y };
+  }
+  return null;
+}
+
+function placeEgg() {
+  const spot = fireSpot();
+  if (!spot) return false;
+  Object.assign(eggObj, { x: spot.x, y: spot.y, hidden: false, crack: 0 });
+  eggObj.col.off = false;
+  placeCollider(eggObj);
+  faceToward(player, spot.x - player.x, spot.y - player.y);
+  dust(spot.x, spot.y);
+  Sfx.land();
+  hatchT = 0;
+  setStage('warming');
+  return true;
+}
+
+function updateEgg(dt) {
+  if (eggStage !== 'warming') return;
+  hatchT += dt;
+  const crack = Math.min(3, Math.floor((hatchT / HATCH_TIME) * 4));
+  if (crack !== eggObj.crack) {
+    eggObj.crack = crack;
+    burst(eggObj.x, eggObj.y - 10, ['#ffe9a8', '#ffffff'], 6, 24);
+    Sfx.crack(earshot(eggObj.x, eggObj.y));
+  }
+  if (hatchT >= HATCH_TIME) hatch();
+}
+
+function hatch() {
+  const { x, y } = eggObj;
+  eggObj.hidden = true;
+  eggObj.col.off = true;
+  particles.push({ type: 'flash', layer: 'sky', x, y: y - 10, vx: 0, vy: 0, c: '#d9b8ff', life: 0, max: 0.5 });
+  burst(x, y - 10, ['#4b2a73', '#8a5cc7', '#ffe9a8'], 18, 60);
+  for (let i = 0; i < 12; i++) {
+    particles.push({ type: 'sparkle', layer: 'sky', x: x + (Math.random() - 0.5) * 30, y: y - 6 - Math.random() * 26, vx: 0, vy: -10, life: 0, max: 0.6 + Math.random() * 0.6 });
+  }
+  baby = { x, y, alt: 0, dir: 'down', anim: 0, frame: 0, flying: false, stuck: 0, jumpT: 0, jumpDelay: 0, emote: 'heart', emoteT: 1.8, chirpT: 4 };
+  for (const n of npcs) {
+    if (Math.hypot(n.x - x, n.y - y) > 90) continue;
+    n.emote = Math.random() < 0.5 ? 'heart' : 'exclaim';
+    n.emoteT = 1.8;
+    faceToward(n, x - n.x, y - n.y);
+  }
+  Sfx.hatch();
+  setStage('hatched');
+}
+
+// Where the baby heads: the player on foot, or a spot trailing them in the air.
+function babyLeader() {
+  if (flight) {
+    const [vx, vy] = DIR_VEC[flight.dir];
+    return { x: flight.x - vx * 40 - vy * 16, y: flight.y - vy * 30, alt: flight.alt + 6, air: true };
+  }
+  if (sail) {
+    const [sx, sy] = sternPos();
+    return { x: sx, y: sy, alt: 30, air: true };
+  }
+  if (player.flying || player.swimming) {
+    const [vx, vy] = DIR_VEC[player.dir];
+    return { x: player.x - vx * 16, y: player.y - vy * 12, alt: 16, air: true };
+  }
+  return { x: player.x, y: player.y, alt: 0, air: false };
+}
+
+// Walks after the player, and flutters along when they leave the ground or it gets stuck or left behind.
+function updateBaby(dt) {
+  const b = baby;
+  if (b.emoteT > 0) b.emoteT -= dt;
+  updateJump(b, dt);
+  const L = babyLeader();
+  const dx = L.x - b.x;
+  const dy = L.y - b.y;
+  const d = Math.hypot(dx, dy);
+  if (!b.flying && (L.air || d > 140 || b.stuck > 0.6)) {
+    b.flying = true;
+    b.jumpT = -1;
+    b.jumpDelay = 0;
+    Sfx.flap(0.3 * earshot(b.x, b.y));
+  }
+
+  if (b.flying) {
+    const k = 1 - Math.exp(-dt * (L.air ? 3 : 4));
+    const reach = L.air ? d : Math.max(0, d - 16);
+    if (d > 0.5) {
+      b.x += (dx / d) * reach * k;
+      b.y += (dy / d) * reach * k;
+    }
+    const landing = !L.air && d < 30 && canStand(b, b.x, b.y);
+    const alt = L.air ? L.alt : landing ? 0 : 18;
+    b.alt += (alt - b.alt) * (1 - Math.exp(-dt * 4));
+    if (d > 2) faceToward(b, dx, dy);
+    b.anim += dt * 12;
+    b.frame = Math.floor(b.anim) % 2;
+    if (landing && b.alt < 1) {
+      Object.assign(b, { flying: false, alt: 0, stuck: 0, anim: 0, frame: 0 });
+    }
+    return;
+  }
+
+  faceToward(b, dx, dy);
+  if (d < 20) {
+    b.anim = 0;
+    b.chirpT -= dt;
+    if (b.chirpT <= 0) {
+      b.chirpT = 7 + Math.random() * 7;
+      b.emote = Math.random() < 0.5 ? 'heart' : 'note';
+      b.emoteT = 1.8;
+      Sfx.chirp(earshot(b.x, b.y));
+    }
+    return;
+  }
+  const sp = (d > 50 ? 125 : 72) * dt;
+  const ox = b.x;
+  const oy = b.y;
+  move(b, (dx / d) * sp, (dy / d) * sp);
+  b.stuck = Math.hypot(b.x - ox, b.y - oy) < sp * 0.3 ? b.stuck + dt : 0;
+  b.anim += dt * 8;
+}
+
+function babyLift(b) {
+  if (b.flying) return b.alt + 2 + Math.sin(time * 6) * 1.5;
+  return jumpLift(b) + Math.abs(Math.sin(b.anim * Math.PI)) * 2;
+}
+
+function drawBaby(cx, cy) {
+  const img = SPR.babyDragon[baby.dir][baby.jumpT >= 0 ? 1 : baby.frame];
+  ctx.drawImage(img, Math.round(baby.x) - 13 - cx, Math.round(baby.y - babyLift(baby)) - 22 - cy);
+}
+
+// `top` is the top edge of the carrier's sprite, in screen pixels.
+function drawHeldEgg(x, top) {
+  ctx.drawImage(SPR.heldEgg, Math.round(x) - 6, Math.round(top) - 10);
 }
 
 // ---------- sailing ----------
@@ -866,7 +1111,8 @@ function action() {
   if (sail) disembark();
   else if (nearShip()) board();
   else if (nearDragon()) mount();
-  else if (!talk()) jump();
+  else if (nearEgg()) pickUpEgg();
+  else if (!(nearFire() && placeEgg()) && !talk()) jump();
 }
 
 // ---------- camera & zoom ----------
@@ -927,6 +1173,12 @@ function emitParticles(dt) {
       if (Math.random() < 0.12) particles.push({ type: 'smoke', x: o.x, y: o.y - 22, vx: 3 + Math.random() * 4, vy: -12, life: 0, max: 1.8 });
     }
   }
+  eggObj.emitT = (eggObj.emitT ?? 0) - dt;
+  if (!eggObj.hidden && eggObj.emitT <= 0) {
+    const warm = eggStage === 'warming';
+    eggObj.emitT = warm ? 0.08 + Math.random() * 0.1 : 0.35 + Math.random() * 0.4;
+    particles.push({ type: 'sparkle', x: eggObj.x + (Math.random() - 0.5) * (warm ? 24 : 18), y: eggObj.y - 4 - Math.random() * 18, vx: 0, vy: -6, life: 0, max: 0.7 });
+  }
   mistTimer -= dt;
   if (mistTimer <= 0) {
     mistTimer = 0.12;
@@ -978,6 +1230,8 @@ function update(dt) {
   else if (flight) updateFlight(dt);
   else updatePlayer(dt);
   for (const n of npcs) updateNpc(n, dt);
+  updateEgg(dt);
+  if (baby) updateBaby(dt);
   if (playerSayT > 0) {
     playerSayT -= dt;
     if (playerSayT <= 0) playerBubble.classList.remove('show');
@@ -1080,6 +1334,7 @@ function drawObject(o, cx, cy) {
   if (o.rider) {
     const rider = charSprite(o.rider, o.dir, 0);
     ctx.drawImage(rider, 0, 0, 16, 15, sx + view.seat[0] - 8, sy + view.seat[1] - 15, 16, 15);
+    if (o === shipObj && eggStage === 'carried') drawHeldEgg(sx + view.seat[0], sy + view.seat[1] - 15);
   }
   if (s.after) s.after(ctx, o.x - cx, o.y - cy + dy, time, o);
 }
@@ -1094,11 +1349,15 @@ function drawSwimmer(e, cx, cy) {
   ctx.globalAlpha = 0.8;
   rect(ctx, x - 5, y - 1, 10, 1, PAL.foam);
   ctx.globalAlpha = 1;
+  if (e === player && eggStage === 'carried') drawHeldEgg(x, y - 14);
 }
 
 function drawEntity(e, cx, cy, lift = 0) {
   if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
-  ctx.drawImage(charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame), Math.round(e.x) - 8 - cx, Math.round(e.y - lift) - 20 - cy);
+  const x = Math.round(e.x) - cx;
+  const top = Math.round(e.y - lift) - 20 - cy;
+  ctx.drawImage(charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame), x - 8, top);
+  if (e === player && eggStage === 'carried') drawHeldEgg(x, top);
 }
 
 function drawFlight(cx, cy) {
@@ -1111,6 +1370,7 @@ function drawFlight(cx, cy) {
   ctx.drawImage(fr.under, -36, -29);
   const rider = charSprite(player.look, f.dir, 0);
   ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
+  if (eggStage === 'carried') ctx.drawImage(SPR.heldEgg, fr.seat[0] - 42, fr.seat[1] - 51);
   if (fr.over) ctx.drawImage(fr.over, -36, -29);
   ctx.restore();
 }
@@ -1149,11 +1409,11 @@ const EMOTE_ICONS = {
   dots: ['.....', '.....', '#.#.#', '.....', '.....'],
 };
 
-function drawEmote(n, cx, cy) {
+function drawEmote(n, cx, cy, above = 30) {
   const icon = EMOTE_ICONS[n.emote];
   const pop = Math.min(1, (1.8 - n.emoteT) * 8);
   const x = Math.round(n.x) - cx - 4;
-  const y = Math.round(n.y - 30 - pop * 2 + Math.sin(time * 5)) - cy;
+  const y = Math.round(n.y - above - pop * 2 + Math.sin(time * 5)) - cy;
   const color = n.emote === 'heart' || n.emote === 'angry' ? '#d83a3a' : '#3a2414';
   ctx.globalAlpha = Math.min(1, n.emoteT * 3);
   rect(ctx, x, y, 9, 9, '#3a2414');
@@ -1188,6 +1448,14 @@ function drawParticles(cx, cy, layer) {
       ctx.globalAlpha = 1 - t * t;
       const s = t < 0.3 ? 2 : 1;
       rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, t < 0.5 ? p.c : p.c2);
+    } else if (p.type === 'plasma') {
+      ctx.globalAlpha = 1 - t;
+      const s = t < 0.4 ? 2 : 1;
+      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, t < 0.4 ? PLASMA[1] : PLASMA[0]);
+    } else if (p.type === 'shock') {
+      const r = 4 + t * 24;
+      ctx.globalAlpha = 0.35 * (1 - t);
+      ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.45, PLASMA[0]);
     } else if (p.type === 'sparkle') {
       ctx.globalAlpha = 1 - t;
       const x = Math.round(p.x - cx);
@@ -1249,8 +1517,14 @@ function render() {
     const k = flight.alt / FLY_ALT;
     drawShadow(Math.round(flight.x) - cx, Math.round(flight.y) - cy, 18 - k * 6, 5 - k * 1.5, 0.28 - k * 0.08);
   }
+  const babyHigh = baby && babyLift(baby) > 20;
+  if (baby) {
+    const k = Math.min(1, babyLift(baby) / 50);
+    drawShadow(Math.round(baby.x) - cx, Math.round(baby.y) - cy, 6 - k * 2, 2 - k * 0.5, 0.22 - k * 0.06);
+  }
 
-  const list = visible.concat(walkers, seaSprites(cx, cy)).sort((a, b) => a.y - b.y);
+  const babyItem = baby && !babyHigh ? [{ y: baby.y, draw: () => drawBaby(cx, cy) }] : [];
+  const list = visible.concat(walkers, seaSprites(cx, cy), babyItem).sort((a, b) => a.y - b.y);
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -1274,6 +1548,7 @@ function render() {
     player.frame = 1;
     drawEntity(player, cx, cy, lift);
   }
+  if (babyHigh) drawBaby(cx, cy);
   if (flight) drawFlight(cx, cy);
   drawFireballs(cx, cy);
   drawSky(cx, cy);
@@ -1289,6 +1564,7 @@ function render() {
       drawTalkHint(n, cx, cy);
     }
   }
+  if (baby && baby.emoteT > 0) drawEmote(baby, cx, cy, 26 + babyLift(baby));
   if (playerSayT > 0) {
     const [hx, hy] = playerHead();
     playerBubble.style.left = `${(Math.round(hx) - cx) * zoom}px`;
@@ -1297,15 +1573,23 @@ function render() {
 
   if (flight && flight.mode === 'fly') {
     const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
-    setPrompt(`${space}  ·  F  Fireworks  ·  R  Loop  ·  SHIFT  Boost`);
+    setPrompt(`${space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost`);
   } else if (sail) {
     setPrompt(sail.shore ? 'SPACE  Go ashore   ·   SHIFT  Full sail' : 'Sail close to land to go ashore   ·   SHIFT  Full sail');
   } else if (nearShip()) {
     setPrompt('SPACE  Board the ship');
   } else if (nearDragon()) {
     setPrompt('SPACE  Ride the dragon');
+  } else if (nearEgg()) {
+    setPrompt('SPACE  Pick up the dragon egg');
+  } else if (nearFire() && fireSpot()) {
+    setPrompt('SPACE  Set the egg by the fire');
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
+  } else if (eggStage === 'carried') {
+    setPrompt('Carry the egg to the fire in the village to hatch it');
+  } else if (eggStage === 'warming' && Math.hypot(player.x - eggObj.x, player.y - eggObj.y) < 70) {
+    setPrompt('The egg is warming up...');
   } else {
     setPrompt('');
   }

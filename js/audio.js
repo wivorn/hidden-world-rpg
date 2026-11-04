@@ -121,14 +121,15 @@ const Sfx = (() => {
       tone({ type: 'sawtooth', f0: 345, f1: 95, dur: 0.9, vol: 0.05, attack: 0.06 });
       noise({ dur: 1.0, vol: 0.12, f0: 900, f1: 300, type: 'bandpass', attack: 0.06 });
     },
-    fire() {
-      noise({ dur: 0.45, vol: 0.18, f0: 1600, f1: 350, type: 'bandpass', q: 0.8, attack: 0.02 });
-      tone({ type: 'sawtooth', f0: 110, f1: 60, dur: 0.4, vol: 0.05 });
+    plasma() {
+      tone({ type: 'square', f0: 1100, f1: 180, dur: 0.28, vol: 0.06 });
+      noise({ dur: 0.35, vol: 0.14, f0: 2400, f1: 500, type: 'bandpass', q: 1.2, attack: 0.01 });
     },
-    boom(k = 1) {
-      noise({ dur: 0.8, vol: 0.32 * k, f0: 1000, f1: 80 });
-      for (let i = 0; i < 9; i++) noise({ dur: 0.03, vol: 0.08 * k, f0: rand(3000, 6000), type: 'highpass', delay: 0.15 + Math.random() * 0.6 });
+    blast(k = 1) {
+      tone({ f0: 140, f1: 40, dur: 0.45, vol: 0.22 * k });
+      noise({ dur: 0.55, vol: 0.28 * k, f0: 900, f1: 90 });
     },
+    hiss(k = 1) { noise({ dur: 0.9, vol: 0.1 * k, f0: 5000, f1: 2500, type: 'highpass', attack: 0.05 }); },
     whoosh() {
       noise({ dur: 0.45, vol: 0.16, f0: 300, f1: 1800, type: 'bandpass', q: 1.5, attack: 0.15 });
       noise({ dur: 0.5, vol: 0.16, f0: 1800, f1: 250, type: 'bandpass', q: 1.5, delay: 0.42, attack: 0.05 });
@@ -140,6 +141,23 @@ const Sfx = (() => {
     whale(k = 1) {
       tone({ f0: 150, f1: 95, dur: 2.6, vol: 0.12 * k, attack: 0.6 });
       tone({ f0: 300, f1: 210, dur: 2.2, vol: 0.04 * k, attack: 0.6, delay: 0.3 });
+    },
+    pickup() {
+      [523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 0.12, vol: 0.08, delay: i * 0.07 }));
+    },
+    crack(k = 1) {
+      noise({ dur: 0.06, vol: 0.2 * k, f0: 3500, type: 'highpass' });
+      tone({ type: 'triangle', f0: 700, f1: 400, dur: 0.05, vol: 0.05 * k, delay: 0.03 });
+    },
+    hatch() {
+      noise({ dur: 0.25, vol: 0.25, f0: 4000, f1: 1200, type: 'highpass' });
+      [784, 988, 1175, 1568].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 0.25, vol: 0.07, delay: 0.15 + i * 0.09 }));
+      tone({ f0: 900, f1: 1500, dur: 0.12, vol: 0.08, delay: 0.6 });
+      tone({ f0: 1100, f1: 1800, dur: 0.14, vol: 0.08, delay: 0.75 });
+    },
+    chirp(k = 1) {
+      tone({ f0: rand(850, 1000), f1: rand(1400, 1700), dur: 0.09, vol: 0.07 * k });
+      tone({ f0: rand(1000, 1200), f1: rand(1600, 1900), dur: 0.1, vol: 0.06 * k, delay: 0.12 });
     },
     babble(pitch, text, k = 1) {
       const n = Math.min(12, Math.max(2, Math.round(text.length / 3)));
