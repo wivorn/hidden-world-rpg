@@ -1,0 +1,95 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1d3263;
+  touch-action: none;
+  user-select: none;
+}
+
+#game {
+  display: block;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(10, 20, 40, 0.35));
+}
+
+#bubbles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bubble {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 8px 10px;
+  background: #fff8e7;
+  color: #3a2414;
+  border: 3px solid #3a2414;
+  font: 11px/1.4 'Press Start 2P', monospace;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.bubble.show {
+  opacity: 1;
+}
+
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #3a2414;
+}
+
+#hint {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 10px 14px;
+  background: rgba(40, 24, 12, 0.8);
+  color: #f6e7c1;
+  border: 3px solid #e1a03c;
+  font: 10px/1.4 'Press Start 2P', monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 1s;
+}
+
+#hint.hide {
+  opacity: 0;
+}
+
+#prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 80px;
+  transform: translateX(-50%);
+  padding: 10px 14px;
+  background: rgba(20, 24, 40, 0.85);
+  color: #e8f4ff;
+  border: 3px solid #7cf05a;
+  font: 10px/1.4 'Press Start 2P', monospace;
+  white-space: pre;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+#prompt.show {
+  opacity: 1;
+}
