@@ -145,6 +145,46 @@ const Sfx = (() => {
     pickup() {
       [523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 0.12, vol: 0.08, delay: i * 0.07 }));
     },
+    reward() {
+      [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: i === 3 ? 0.4 : 0.14, vol: 0.09, delay: i * 0.09 }));
+      tone({ type: 'square', f0: 1047, dur: 0.3, vol: 0.025, delay: 0.27 });
+    },
+    clang(k = 1) {
+      tone({ type: 'square', f0: rand(1150, 1300), f1: 1100, dur: 0.18, vol: 0.04 * k });
+      tone({ f0: rand(2400, 2700), dur: 0.45, vol: 0.05 * k });
+      noise({ dur: 0.04, vol: 0.15 * k, f0: 4000, type: 'highpass' });
+    },
+    chop(k = 1) {
+      tone({ type: 'triangle', f0: rand(200, 240), f1: 110, dur: 0.09, vol: 0.18 * k });
+      noise({ dur: 0.07, vol: 0.22 * k, f0: 1400, type: 'bandpass', q: 2 });
+    },
+    swish(k = 1) { noise({ dur: 0.12, vol: 0.06 * k, f0: 900, f1: 2600, type: 'bandpass', q: 1.5, attack: 0.04 }); },
+    twang() {
+      tone({ type: 'triangle', f0: 520, f1: 300, dur: 0.18, vol: 0.08 });
+      noise({ dur: 0.1, vol: 0.05, f0: 1600, f1: 3200, type: 'bandpass', q: 2 });
+    },
+    munch() {
+      for (let i = 0; i < 3; i++) noise({ dur: 0.06, vol: 0.12, f0: rand(900, 1400), f1: 400, type: 'bandpass', q: 2, delay: i * 0.13 });
+    },
+    timber(k = 1) {
+      tone({ type: 'sawtooth', f0: 95, f1: 60, dur: 0.55, vol: 0.05 * k, attack: 0.1 });
+      noise({ dur: 0.5, vol: 0.06 * k, f0: 600, f1: 300, type: 'bandpass', q: 3, attack: 0.1 });
+    },
+    crash(k = 1) {
+      noise({ dur: 0.6, vol: 0.3 * k, f0: 900, f1: 90 });
+      tone({ f0: 90, f1: 40, dur: 0.4, vol: 0.2 * k });
+      noise({ dur: 0.35, vol: 0.1 * k, f0: 3500, f1: 1500, type: 'highpass', delay: 0.05 });
+    },
+    smash(k = 1) {
+      noise({ dur: 0.3, vol: 0.28 * k, f0: 1400, f1: 200 });
+      tone({ type: 'triangle', f0: 180, f1: 70, dur: 0.18, vol: 0.18 * k });
+      noise({ dur: 0.2, vol: 0.08 * k, f0: 3000, f1: 1200, type: 'bandpass', q: 2, delay: 0.08 });
+    },
+    drop() { tone({ type: 'triangle', f0: 420, f1: 220, dur: 0.1, vol: 0.08 }); },
+    door() {
+      tone({ type: 'sawtooth', f0: 210, f1: 150, dur: 0.22, vol: 0.025, attack: 0.05 });
+      noise({ dur: 0.1, vol: 0.14, f0: 500, f1: 140, delay: 0.2 });
+    },
     crack(k = 1) {
       noise({ dur: 0.06, vol: 0.2 * k, f0: 3500, type: 'highpass' });
       tone({ type: 'triangle', f0: 700, f1: 400, dur: 0.05, vol: 0.05 * k, delay: 0.03 });

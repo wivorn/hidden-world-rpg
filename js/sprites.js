@@ -13,6 +13,12 @@ const PAL = {
   red: '#b3292d', blue: '#2f56a3', cream: '#efe4cc', gold: '#e8b54a',
   leaf: '#3d8a37', leafLight: '#5cae45', leafDark: '#2b6529', leafDeep: '#1e4a20',
   skin: '#f0c08a',
+  snow: '#e6edf6', snowLight: '#ffffff', snowDark: '#c3d0e3', snowDeep: '#93a6c4',
+  ash: '#4c4547', ashLight: '#625a5c', ashDark: '#363032', basalt: '#2a2527',
+  lava: '#ff7a1a', lavaLight: '#ffd24a', lavaDark: '#c2340f',
+  spring: '#4dbab2', springLight: '#8fe2d6', springDeep: '#2d8d8c',
+  ice: '#bfe2f2', iceLight: '#e9f8ff', iceDark: '#8cc0da',
+  jungle: '#2f7d3a', jungleLight: '#4fa648', jungleDark: '#1f5a2b',
 };
 
 const EMBLEM = [
@@ -223,10 +229,12 @@ function buildForge() {
   });
 }
 
-function buildStall() {
+// A market stall: `goods` draws what hangs under the awning and sits on the counter.
+function buildStall(stripe, goods) {
   return sprite(68, 60, (g) => {
     rect(g, 6, 16, 3, 42, PAL.woodDark);
     rect(g, 59, 16, 3, 42, PAL.woodDark);
+    goods(g);
     for (let y = 4; y < 20; y++) {
       const t = (y - 4) / 16;
       const xl = 8 - 6 * t;
@@ -235,25 +243,368 @@ function buildStall() {
       for (let i = 0; i < 8; i++) {
         const a = Math.round(xl + i * sw);
         const b = Math.round(xl + (i + 1) * sw);
-        rect(g, a, y, b - a, 1, i % 2 ? PAL.cream : PAL.red);
+        rect(g, a, y, b - a, 1, i % 2 ? PAL.cream : stripe);
       }
     }
-    for (let i = 0; i < 8; i++) ellipse(g, 6 + i * 8, 20, 3, 2, i % 2 ? PAL.cream : PAL.red);
+    for (let i = 0; i < 8; i++) ellipse(g, 6 + i * 8, 20, 3, 2, i % 2 ? PAL.cream : stripe);
     rect(g, 3, 40, 62, 18, PAL.wood);
     for (let y = 44; y < 58; y += 4) rect(g, 3, y, 62, 1, PAL.woodDark);
     rect(g, 2, 38, 64, 3, PAL.woodLight);
     rect(g, 2, 41, 64, 1, PAL.woodDeep);
-    for (let i = 0; i < 5; i++) {
-      const bx = 12 + i * 11;
-      ellipse(g, bx, 35, 4, 2, '#c98a3c');
-      rect(g, bx - 2, 34, 3, 1, '#ecbd70');
+  });
+}
+
+function breadGoods(g) {
+  for (let i = 0; i < 5; i++) {
+    const bx = 12 + i * 11;
+    ellipse(g, bx, 35, 4, 2, '#c98a3c');
+    rect(g, bx - 2, 34, 3, 1, '#ecbd70');
+  }
+  for (const x of [14, 52]) {
+    line(g, x, 21, x, 25, PAL.woodDeep);
+    ellipse(g, x, 27, 3, 2, '#b87a34');
+    rect(g, x - 1, 26, 2, 1, '#ecbd70');
+  }
+}
+
+const CLOTH_COLORS = ['#b04a6e', '#3d6ca3', '#d8a83a', '#4f8a3c', '#7a4a8c', '#c8553a'];
+
+function garmentGoods(g) {
+  for (let i = 0; i < 5; i++) {
+    const x = 8 + i * 11;
+    const c = CLOTH_COLORS[i];
+    rect(g, x, 32, 8, 6, c);
+    rect(g, x, 32, 8, 1, shade(c, 0.3));
+    rect(g, x + 3, 32, 2, 2, shade(c, -0.25));
+  }
+  for (const [x, c] of [[15, CLOTH_COLORS[1]], [52, CLOTH_COLORS[0]]]) {
+    line(g, x, 20, x, 22, PAL.woodDeep);
+    poly(g, [[x - 2, 22], [x + 3, 22], [x + 5, 31], [x - 4, 31]], c);
+    rect(g, x - 2, 22, 5, 1, shade(c, 0.3));
+    rect(g, x - 3, 26, 7, 1, shade(c, -0.25));
+  }
+}
+
+function clothGoods(g) {
+  for (let row = 0; row < 2; row++) {
+    for (let i = 0; i < 5 - row; i++) {
+      const x = 9 + i * 11 + row * 5;
+      const y = 34 - row * 4;
+      const c = CLOTH_COLORS[(i + row * 2) % CLOTH_COLORS.length];
+      rect(g, x, y, 9, 4, c);
+      rect(g, x, y, 9, 1, shade(c, 0.3));
+      ellipse(g, x + 9, y + 1.5, 1, 1.5, shade(c, 0.45));
     }
+  }
+  for (let i = 0; i < 6; i++) {
+    const x = 13 + i * 8;
+    line(g, x, 21, x, 22 + (i % 2) * 2, PAL.cream);
+    ellipse(g, x, 24 + (i % 2) * 2, 2, 2, CLOTH_COLORS[(i + 3) % CLOTH_COLORS.length]);
+  }
+}
+
+function leatherGoods(g) {
+  const L = '#8a5530';
+  const LD = '#5e3618';
+  for (const x of [9, 30, 47]) {
+    rect(g, x, 30, 3, 7, LD);
+    rect(g, x, 35, 6, 2, LD);
+    rect(g, x + 4, 30, 3, 7, L);
+    rect(g, x + 4, 35, 6, 2, L);
+  }
+  for (const x of [22, 41]) {
+    ellipse(g, x, 34, 3, 2, L);
+    ellipse(g, x, 34, 1, 1, LD);
+  }
+  rect(g, 56, 31, 6, 5, L);
+  rect(g, 56, 31, 6, 1, LD);
+  line(g, 33, 20, 33, 22, PAL.woodDeep);
+  poly(g, [[26, 22], [40, 22], [42, 26], [38, 30], [28, 30], [24, 26]], '#c9a070');
+  px(g, 30, 25, '#a8804f');
+  px(g, 36, 27, '#a8804f');
+}
+
+function buildOven() {
+  return sprite(32, 30, (g) => {
+    rect(g, 2, 22, 28, 6, PAL.rockDark);
+    rect(g, 2, 22, 28, 1, PAL.rockLight);
+    rect(g, 13, 2, 5, 6, PAL.rockDark);
+    rect(g, 13, 2, 5, 1, PAL.rockLight);
+    ellipse(g, 16, 15, 13, 10, '#8a4424');
+    ellipse(g, 15, 14, 12, 9, '#b8643a');
+    ellipse(g, 11, 10, 5, 3, '#d48450');
+    ellipse(g, 16, 19, 5, 3, '#2a140a');
+    rect(g, 11, 19, 11, 4, '#2a140a');
+    rect(g, 12, 20, 9, 2, '#c4501a');
+    rect(g, 14, 21, 5, 1, '#ffd25a');
+  });
+}
+
+function buildSacks() {
+  return sprite(22, 14, (g) => {
+    for (const [x, y] of [[6, 7], [15, 7], [10, 4]]) {
+      ellipse(g, x, y + 2, 5, 4, '#d8c8a0');
+      rect(g, x - 2, y - 2, 4, 1, '#b8a47a');
+      px(g, x - 1, y + 2, '#b8a47a');
+    }
+  });
+}
+
+function buildLoomFrames() {
+  return [5, 9, 13, 17].map((sx) => sprite(28, 34, (g) => {
+    for (const x of [2, 23]) {
+      rect(g, x, 2, 3, 31, PAL.woodDark);
+      rect(g, x, 2, 1, 31, PAL.wood);
+    }
+    rect(g, 2, 2, 24, 3, PAL.woodDark);
+    rect(g, 2, 2, 24, 1, PAL.woodLight);
+    for (let x = 6; x < 23; x += 2) rect(g, x, 5, 1, 14, PAL.cream);
+    for (let y = 19; y < 27; y++) rect(g, 5, y, 18, 1, CLOTH_COLORS[Math.floor((y - 19) / 2) % 4]);
+    rect(g, 2, 27, 24, 3, PAL.woodDark);
+    rect(g, 2, 27, 24, 1, PAL.woodLight);
+    rect(g, sx, 17, 6, 2, PAL.woodLight);
+    px(g, sx + 2, 17, PAL.cream);
+  }));
+}
+
+function buildYarnBasket() {
+  return sprite(18, 13, (g) => {
+    ellipse(g, 6, 5, 3, 3, CLOTH_COLORS[0]);
+    ellipse(g, 11, 4, 3, 3, CLOTH_COLORS[2]);
+    ellipse(g, 9, 6, 3, 2, CLOTH_COLORS[1]);
+    rect(g, 2, 6, 14, 6, '#b8874f');
+    for (let x = 3; x < 16; x += 3) rect(g, x, 6, 1, 6, '#9a6c3b');
+    rect(g, 2, 6, 14, 1, '#cd9e63');
+  });
+}
+
+function buildDressForm() {
+  return sprite(16, 30, (g) => {
+    rect(g, 7, 20, 2, 7, PAL.woodDark);
+    ellipse(g, 8, 27, 5, 1.5, PAL.woodDark);
+    ellipse(g, 8, 3, 2, 1.5, PAL.cream);
+    poly(g, [[4, 5], [12, 5], [11, 12], [14, 21], [2, 21], [5, 12]], CLOTH_COLORS[0]);
+    rect(g, 4, 5, 8, 1, shade(CLOTH_COLORS[0], 0.3));
+    rect(g, 5, 12, 6, 1, PAL.gold);
+    for (const [x, y] of [[4, 15], [11, 17], [8, 19]]) px(g, x, y, '#f0d6a0');
+    px(g, 10, 8, '#dfe3ea');
+  });
+}
+
+function buildHideFrame() {
+  return sprite(28, 32, (g) => {
+    for (const x of [2, 23]) rect(g, x, 3, 3, 28, PAL.woodDark);
+    rect(g, 2, 3, 24, 3, PAL.woodDark);
+    rect(g, 2, 3, 24, 1, PAL.wood);
+    rect(g, 2, 23, 24, 2, PAL.woodDark);
+    const hide = [[7, 8], [14, 7], [21, 9], [20, 15], [21, 21], [14, 20], [7, 21], [8, 15]];
+    for (const [x, y] of hide) line(g, x, y, x < 14 ? 5 : x > 14 ? 23 : x, y < 14 ? 6 : 23, '#d8c8a0');
+    poly(g, hide, '#c9a070');
+    ellipse(g, 14, 14, 4, 3, '#d8b484');
+    for (const [x, y] of [[10, 11], [17, 17], [12, 18]]) px(g, x, y, '#a8804f');
+  });
+}
+
+function buildVat() {
+  return sprite(22, 15, (g) => {
+    rect(g, 2, 5, 18, 8, PAL.woodDark);
+    for (let x = 4; x < 20; x += 4) rect(g, x, 5, 1, 8, PAL.wood);
+    rect(g, 2, 8, 18, 1, PAL.rockDark);
+    ellipse(g, 11, 5, 9, 3, PAL.woodDeep);
+    ellipse(g, 11, 5, 7, 2, '#6a5a2a');
+    px(g, 8, 5, '#8a7a3a');
+  });
+}
+
+// ---------- food ----------
+
+function buildApple() {
+  return sprite(11, 11, (g) => {
+    ellipse(g, 5, 6, 4, 3.5, '#c8322a');
+    ellipse(g, 4, 5, 2, 1.5, '#e2564a');
+    px(g, 3, 4, '#f6a090');
+    rect(g, 5, 1, 1, 2, PAL.woodDark);
+    rect(g, 6, 1, 2, 1, PAL.leaf);
+  });
+}
+
+function buildPear() {
+  return sprite(11, 13, (g) => {
+    ellipse(g, 5, 8, 4, 3.5, '#b6c23e');
+    ellipse(g, 5, 4.5, 2.5, 2.5, '#b6c23e');
+    ellipse(g, 4, 7, 1.5, 2, '#d4dc6a');
+    px(g, 7, 10, '#8f9a2a');
+    rect(g, 5, 1, 1, 2, PAL.woodDark);
+  });
+}
+
+function buildBanana() {
+  return sprite(13, 10, (g) => {
+    poly(g, [[1, 3], [4, 6], [8, 6], [11, 2], [12, 3], [10, 7], [7, 9], [3, 8]], '#f2cf3a');
+    poly(g, [[3, 7], [7, 8], [10, 5], [10, 7], [7, 9], [3, 8]], '#d4a828');
+    rect(g, 1, 2, 1, 2, '#6a4a1a');
+    px(g, 12, 3, '#6a4a1a');
+  });
+}
+
+function buildBerries() {
+  return sprite(12, 11, (g) => {
+    for (const [x, y] of [[4, 6], [7, 6], [5, 8], [8, 8], [6, 4]]) {
+      ellipse(g, x, y, 1.5, 1.5, '#a8264a');
+      px(g, x - 1, y - 1, '#e2607e');
+    }
+    rect(g, 6, 1, 3, 1, PAL.leaf);
+    px(g, 6, 2, PAL.leafDark);
+  });
+}
+
+function buildCoconut() {
+  return sprite(11, 11, (g) => {
+    ellipse(g, 5, 5, 4, 4, '#6b4a2a');
+    ellipse(g, 4, 4, 2, 2, '#8a6438');
+    for (const [x, y] of [[4, 6], [6, 6], [5, 8]]) px(g, x, y, '#3a2414');
+  });
+}
+
+function buildPineapple() {
+  return sprite(11, 16, (g) => {
+    poly(g, [[5, 0], [7, 5], [3, 5]], PAL.leaf);
+    poly(g, [[1, 2], [5, 6], [3, 6]], PAL.leafLight);
+    poly(g, [[9, 2], [7, 6], [5, 6]], PAL.leafLight);
+    ellipse(g, 5, 10, 4, 4.5, '#d8962a');
+    for (let y = 7; y < 15; y += 2) for (let x = 2 + (y % 4 ? 1 : 0); x < 9; x += 2) px(g, x, y, '#9a5c16');
+    px(g, 3, 8, '#f2c45a');
+  });
+}
+
+// ---------- furniture ----------
+
+function buildBed(blanket) {
+  return sprite(26, 36, (g) => {
+    rect(g, 2, 1, 22, 8, PAL.woodDark);
+    rect(g, 2, 1, 22, 1, PAL.wood);
+    for (const x of [2, 22]) rect(g, x, 1, 2, 34, PAL.woodDark);
+    rect(g, 4, 8, 18, 25, PAL.cream);
+    rect(g, 6, 9, 14, 5, '#fbf6ea');
+    rect(g, 6, 13, 14, 1, '#d8ccb0');
+    rect(g, 4, 16, 18, 17, blanket);
+    rect(g, 4, 16, 18, 2, shade(blanket, 0.25));
+    for (let y = 21; y < 33; y += 5) rect(g, 4, y, 18, 1, shade(blanket, -0.25));
+    rect(g, 2, 32, 22, 3, PAL.woodDark);
+    rect(g, 2, 32, 22, 1, PAL.wood);
+  });
+}
+
+function buildHearthFrames() {
+  return [0, 1, 2].map((f) => sprite(34, 34, (g) => {
+    stoneBlocks(g, 2, 6, 30, 27, 61);
+    rect(g, 1, 3, 32, 4, PAL.woodDark);
+    rect(g, 1, 3, 32, 1, PAL.woodLight);
+    ellipse(g, 17, 22, 9, 9, '#1c0f08');
+    rect(g, 8, 22, 19, 10, '#1c0f08');
+    rect(g, 9, 29, 17, 2, PAL.woodDeep);
+    const flick = [0, 1, -1][f];
+    poly(g, [[10, 30], [13, 21 + flick], [16, 25], [18, 18 - flick], [21, 24], [23, 21 + flick], [25, 30]], '#e2591f');
+    poly(g, [[13, 30], [15, 25 - flick], [18, 22 + flick], [20, 26], [22, 30]], '#ffb23a');
+    rect(g, 16, 27, 3, 3, '#fff0a0');
+    rect(g, 16, 9, 2, 6, '#2a2a2e');
+    ellipse(g, 17, 17, 5, 3, '#2f2f34');
+    rect(g, 13, 14, 9, 1, '#4a4a52');
+  }));
+}
+
+function buildTable(w, food) {
+  return sprite(w, 22, (g) => {
+    for (const x of [3, w - 6]) rect(g, x, 13, 3, 8, PAL.woodDark);
+    rect(g, 1, 3, w - 2, 11, PAL.wood);
+    for (let y = 6; y < 14; y += 3) rect(g, 1, y, w - 2, 1, PAL.woodDark);
+    rect(g, 1, 3, w - 2, 1, PAL.woodLight);
+    rect(g, 1, 13, w - 2, 1, PAL.woodDeep);
+    food(g, w);
+  });
+}
+
+const homeFood = (g) => {
+  ellipse(g, 9, 7, 4, 2, '#d8ccb0');
+  ellipse(g, 9, 7, 2, 1, '#c8553a');
+  ellipse(g, 20, 6, 5, 2, '#c8853a');
+  rect(g, 17, 5, 6, 1, '#e8b06a');
+  rect(g, 26, 5, 3, 4, '#8a6a4a');
+};
+
+const feastFood = (g, w) => {
+  for (let x = 8; x < w - 6; x += 12) {
+    ellipse(g, x, 8, 4, 2, '#d8ccb0');
+    rect(g, x + 5, 5, 3, 4, '#8a6a4a');
+  }
+  ellipse(g, w / 2, 7, 7, 3, '#8a4a24');
+  ellipse(g, w / 2 - 1, 6, 5, 2, '#b8643a');
+  rect(g, w / 2 + 5, 4, 2, 3, BONE);
+};
+
+function buildStool() {
+  return sprite(12, 12, (g) => {
+    for (const x of [3, 7]) rect(g, x, 5, 2, 6, PAL.woodDark);
+    ellipse(g, 6, 4, 4, 2, PAL.wood);
+    rect(g, 3, 3, 6, 1, PAL.woodLight);
+  });
+}
+
+function buildBench() {
+  return sprite(36, 10, (g) => {
+    for (const x of [3, 30]) rect(g, x, 5, 3, 4, PAL.woodDark);
+    rect(g, 1, 2, 34, 4, PAL.wood);
+    rect(g, 1, 2, 34, 1, PAL.woodLight);
+  });
+}
+
+function buildChest() {
+  return sprite(20, 16, (g) => {
+    rect(g, 2, 6, 16, 9, PAL.wood);
+    rect(g, 2, 2, 16, 5, PAL.woodLight);
+    rect(g, 2, 6, 16, 1, PAL.woodDeep);
+    for (const x of [4, 14]) rect(g, x, 2, 2, 13, METAL_D);
+    rect(g, 9, 6, 3, 3, PAL.gold);
+  });
+}
+
+function buildThrone() {
+  return sprite(28, 36, (g) => {
+    rect(g, 4, 3, 20, 26, PAL.woodDark);
+    rect(g, 6, 5, 16, 20, PAL.red);
+    rect(g, 6, 5, 16, 2, '#d44a44');
+    glyph(g, EMBLEM, 10, 9, PAL.gold);
+    for (const x of [3, 23]) {
+      rect(g, x, 1, 2, 4, PAL.woodDark);
+      px(g, x, 0, PAL.gold);
+    }
+    rect(g, 2, 22, 24, 6, PAL.woodDark);
+    rect(g, 5, 23, 18, 4, '#d44a44');
+    rect(g, 2, 22, 4, 13, PAL.wood);
+    rect(g, 22, 22, 4, 13, PAL.wood);
+    rect(g, 6, 28, 16, 6, PAL.woodDeep);
+  });
+}
+
+function buildBackpack(s = 1) {
+  const { rect, px } = scaledPen(s);
+  return sprite(14 * s, 15 * s, (g) => {
+    rect(g, 2, 3, 10, 11, '#8a5530');
+    rect(g, 3, 6, 8, 7, '#a8693d');
+    rect(g, 2, 2, 10, 5, '#6e4024');
+    rect(g, 2, 2, 10, 1, '#a8693d');
+    rect(g, 6, 6, 2, 2, PAL.gold);
+    rect(g, 5, 0, 4, 2, '#6e4024');
+    rect(g, 4, 9, 6, 1, '#6e4024');
+    px(g, 3, 13, '#5a3418');
+    px(g, 10, 13, '#5a3418');
   });
 }
 
 // ---------- nature ----------
 
-function buildPine(dark) {
+// `snowy` lays snow along the top of each tier's skirt, just below where the tier above ends.
+function buildPine(dark, snowy = false) {
   const L = dark ? '#357d34' : PAL.leaf;
   const LL = dark ? '#4c9c3e' : PAL.leafLight;
   const LD = dark ? PAL.leafDeep : PAL.leafDark;
@@ -262,10 +613,10 @@ function buildPine(dark) {
     rect(g, cx - 2, 38, 4, 10, PAL.woodDark);
     rect(g, cx - 2, 38, 1, 10, PAL.wood);
     const tiers = [
-      { top: 24, bot: 42, hw: 14 },
-      { top: 16, bot: 34, hw: 12 },
-      { top: 8, bot: 25, hw: 9 },
-      { top: 2, bot: 15, hw: 6 },
+      { top: 24, bot: 42, hw: 14, snow: 34 },
+      { top: 16, bot: 34, hw: 12, snow: 25 },
+      { top: 8, bot: 25, hw: 9, snow: 15 },
+      { top: 2, bot: 15, hw: 6, snow: 1 },
     ];
     for (const { top, bot, hw } of tiers) {
       for (let y = top; y <= bot; y++) {
@@ -281,6 +632,16 @@ function buildPine(dark) {
       }
     }
     for (let i = 0; i < 10; i++) px(g, 8 + hash(i, 1, dark ? 9 : 8) * 16, 6 + hash(i, 2, 8) * 34, LL);
+    if (!snowy) return;
+    for (const { top, bot, hw, snow } of tiers) {
+      for (let y = snow; y < snow + 4; y++) {
+        const half = Math.round(1 + (hw - 1) * ((y - top) / (bot - top)));
+        for (let x = cx - half; x < cx + half; x++) {
+          if (y - snow > 1 + hash(x, top, 41) * 3) continue;
+          px(g, x, y, x < cx + half * 0.3 ? PAL.snowLight : PAL.snowDark);
+        }
+      }
+    }
   });
 }
 
@@ -298,6 +659,17 @@ function buildOak() {
   });
 }
 
+function buildStump(w) {
+  return sprite(w + 6, 9, (g) => {
+    const x = 3;
+    rect(g, x - 1, 6, w + 2, 2, PAL.woodDeep);
+    rect(g, x, 3, w, 4, PAL.woodDark);
+    rect(g, x, 3, 2, 4, PAL.wood);
+    ellipse(g, x + w / 2, 3, w / 2, 1.5, '#d9b07a');
+    rect(g, x + w / 2 - 1, 3, 2, 1, PAL.woodLight);
+  });
+}
+
 function buildBush(flower) {
   return sprite(18, 14, (g) => {
     ellipse(g, 9, 8, 7, 4, PAL.leafDark);
@@ -312,7 +684,32 @@ function buildBush(flower) {
   });
 }
 
-function buildPalm() {
+function buildBushCut() {
+  return sprite(18, 14, (g) => {
+    ellipse(g, 9, 11, 6, 2, PAL.leafDark);
+    for (const [x, h] of [[6, 4], [9, 6], [12, 3]]) rect(g, x, 11 - h, 1, h, PAL.woodDark);
+    px(g, 8, 9, PAL.leaf);
+    px(g, 11, 10, PAL.leafLight);
+  });
+}
+
+function buildBrokenFence(vertical) {
+  return sprite(16, 16, (g) => {
+    if (vertical) {
+      rect(g, 6, 10, 4, 5, PAL.woodDark);
+      px(g, 7, 9, PAL.woodDark);
+      rect(g, 7, 0, 2, 3, PAL.wood);
+    } else {
+      rect(g, 2, 8, 3, 7, PAL.woodDark);
+      px(g, 3, 7, PAL.woodDark);
+      rect(g, 5, 10, 3, 2, PAL.wood);
+      rect(g, 12, 13, 4, 1, PAL.wood);
+      px(g, 9, 14, PAL.woodLight);
+    }
+  });
+}
+
+function buildPalm(nuts = true) {
   return sprite(36, 46, (g) => {
     for (let i = 0; i <= 10; i++) {
       const t = i / 10;
@@ -325,8 +722,221 @@ function buildPalm() {
       for (let i = 0; i < pts.length - 1; i++) line(g, ...pts[i], ...pts[i + 1], PAL.leaf, i < 6 ? 3 : 2);
       for (let i = 0; i < pts.length - 2; i++) line(g, pts[i][0], pts[i][1] - 1, pts[i + 1][0], pts[i + 1][1] - 1, PAL.leafLight);
     }
+    if (!nuts) return;
     ellipse(g, 20, 15, 2, 2, '#6b4a2a');
     ellipse(g, 23, 16, 2, 2, '#5a3d22');
+  });
+}
+
+// ---------- regions ----------
+
+// A mountain seen from the south: lit west face, shaded east face, and `snow` (0..1) reaching
+// down from the summit, furthest along the gullies.
+function buildPeak(w, h, seed, snow) {
+  return sprite(w, h, (g) => {
+    const base = h - 1;
+    const ax = Math.round(w * (0.38 + hash(seed, 1, 50) * 0.24));
+    const H = base - 3;
+    const tops = [];
+    for (let x = 0; x < w; x++) {
+      const t = x <= ax ? x / ax : (w - 1 - x) / (w - 1 - ax);
+      const jag = (hash(x >> 2, seed, 51) - 0.5) * 5 + (hash(x >> 1, seed, 52) - 0.5) * 2;
+      tops.push(Math.round(base - H * t ** 1.45 + jag * Math.min(1, t * 3) * (1 - t * 0.6)));
+    }
+    const apex = tops[ax];
+    const gullies = Array.from({ length: 5 }, (_, k) => ax + (k - 2) * w * 0.13 + (hash(k, seed, 53) - 0.5) * 8);
+    for (let x = 1; x < w - 1; x++) {
+      const t = x <= ax ? x / ax : (w - 1 - x) / (w - 1 - ax);
+      const reach = snow * H * (0.35 + t * 0.65) * (0.7 + hash(x >> 1, seed, 54) * 0.5);
+      for (let y = Math.max(1, tops[x]); y < base; y++) {
+        const spine = ax + (y - apex) * 0.32 + (hash(y >> 2, seed, 55) - 0.5) * 3;
+        const lit = x < spine;
+        const gully = gullies.some((gx) => Math.abs(x - (gx + (y - apex) * (gx < spine ? -0.25 : 0.25))) < 1);
+        const sn = y - tops[x] < reach + (gully ? H * snow * 0.35 : 0);
+        const d = (y - apex) / H;
+        let c;
+        if (sn) c = lit ? (hash(x, y, 56) < 0.08 ? PAL.snow : PAL.snowLight) : (y - tops[x] < 2 ? PAL.snow : PAL.snowDark);
+        else if (gully) c = lit ? PAL.rock : PAL.rockDeep;
+        else if (lit) c = d > 0.8 ? PAL.rock : hash(x >> 1, y >> 1, 57) < 0.18 ? PAL.rock : PAL.rockLight;
+        else c = d > 0.75 ? PAL.rockDeep : hash(x >> 1, y >> 1, 58) < 0.2 ? PAL.rockDeep : PAL.rockDark;
+        px(g, x, y, c);
+      }
+      if (tops[x] < base) px(g, x, Math.max(1, tops[x]), x < ax ? PAL.snowLight : snow ? PAL.snow : PAL.rockLight);
+    }
+    for (let x = 2; x < w - 2; x++) if (hash(x, seed, 59) < 0.5 && tops[x] < base - 2) px(g, x, base - 1, PAL.rockDeep);
+  });
+}
+
+// A smoking cone of black rock with a glowing crater and lava running down the south face.
+function buildVolcano() {
+  const w = 168;
+  const h = 118;
+  return sprite(w, h, (g) => {
+    const base = h - 1;
+    const cx = 84;
+    const rimY = 22;
+    const tops = [];
+    for (let x = 0; x < w; x++) {
+      const t = 1 - Math.min(1, Math.max(0, Math.abs(x - cx) - 16) / (cx - 16));
+      tops.push(Math.round(base - (base - rimY) * t ** 1.6 + (hash(x >> 2, 3, 60) - 0.5) * 4 * t));
+    }
+    for (let x = 1; x < w - 1; x++) {
+      for (let y = Math.max(rimY, tops[x]); y < base; y++) {
+        const lit = x < cx - 6 + (y - rimY) * 0.3;
+        const n = hash(x >> 1, y >> 1, 61);
+        px(g, x, y, lit ? (n < 0.2 ? PAL.ash : '#6a6163') : n < 0.25 ? PAL.basalt : PAL.ashDark);
+      }
+    }
+    ellipse(g, cx, rimY + 1, 18, 5, PAL.ashDark);
+    ellipse(g, cx, rimY + 1, 15, 3.5, PAL.lavaDark);
+    ellipse(g, cx, rimY + 1, 12, 2.5, PAL.lava);
+    ellipse(g, cx - 2, rimY, 6, 1, PAL.lavaLight);
+    rect(g, cx - 18, rimY - 1, 36, 1, '#7a7072');
+    for (const [x0, drift, len] of [[cx - 6, -0.35, 70], [cx + 4, 0.25, 84], [cx + 11, 0.5, 46]]) {
+      let x = x0;
+      for (let y = rimY + 3; y < rimY + len; y++) {
+        x += drift + Math.sin(y * 0.21 + x0) * 0.6;
+        rect(g, Math.round(x) - 1, y, 3, 1, PAL.lavaDark);
+        px(g, Math.round(x), y, y < rimY + len * 0.6 ? PAL.lavaLight : PAL.lava);
+      }
+    }
+  });
+}
+
+function buildJungleTree() {
+  return sprite(44, 58, (g) => {
+    for (let y = 26; y < 56; y++) {
+      const x = 20 + Math.sin(y * 0.12) * 2;
+      rect(g, x, y, 5, 1, '#7a5a34');
+      px(g, x, y, '#9a7448');
+    }
+    const leaves = [[22, 14, 13, 8], [10, 22, 9, 6], [34, 21, 9, 6], [22, 26, 12, 6], [14, 11, 7, 5], [31, 11, 7, 5]];
+    for (const [x, y, rx, ry] of leaves) ellipse(g, x, y + 1, rx, ry, PAL.jungleDark);
+    for (const [x, y, rx, ry] of leaves) ellipse(g, x, y, rx, ry - 1, PAL.jungle);
+    for (const [x, y, rx] of leaves) ellipse(g, x - rx * 0.3, y - 2, rx * 0.5, 2, PAL.jungleLight);
+    for (const x of [9, 17, 30, 36]) for (let y = 26; y < 26 + 4 + (x % 5) * 2; y++) px(g, x + (y % 3 === 0 ? 1 : 0), y, '#3f8f3a');
+    for (const [x, y] of [[12, 19], [29, 9], [36, 24], [19, 27]]) { px(g, x, y, '#ff5a6a'); px(g, x + 1, y, '#ffd0d6'); }
+  });
+}
+
+function buildFern() {
+  return sprite(26, 16, (g) => {
+    for (const [a, len] of [[-2.8, 11], [-2.2, 12], [-1.6, 9], [-1, 12], [-0.35, 11], [-1.9, 7], [-1.3, 7]]) {
+      const x1 = 13 + Math.cos(a) * len;
+      const y1 = 14 + Math.sin(a) * len * 0.75;
+      line(g, 13, 14, x1, y1, PAL.jungleDark, 3);
+      line(g, 13, 13, x1, y1 - 1, a < -1.55 ? PAL.jungleLight : PAL.jungle);
+    }
+  });
+}
+
+// `kind`: grey, snow (capped) or dark (volcanic).
+function buildBoulder(kind) {
+  const [base, light, dark] = kind === 'dark' ? [PAL.ash, '#6a6163', PAL.basalt] : [PAL.rock, PAL.rockLight, PAL.rockDark];
+  return sprite(30, 22, (g) => {
+    ellipse(g, 15, 13, 13, 8, dark);
+    ellipse(g, 14, 12, 12, 7, base);
+    ellipse(g, 11, 9, 6, 3, light);
+    ellipse(g, 22, 14, 4, 3, dark);
+    px(g, 8, 8, kind === 'dark' ? '#8a7f80' : '#c6c5c9');
+    if (kind === 'snow') {
+      ellipse(g, 13, 7, 9, 3, PAL.snow);
+      ellipse(g, 11, 6, 6, 2, PAL.snowLight);
+    } else if (kind === 'grey') {
+      ellipse(g, 18, 6, 4, 1, PAL.grass);
+    } else {
+      px(g, 19, 15, PAL.lava);
+      px(g, 6, 14, PAL.lavaDark);
+    }
+  });
+}
+
+function buildDeadTree() {
+  return sprite(30, 44, (g) => {
+    rect(g, 13, 14, 4, 29, PAL.basalt);
+    rect(g, 13, 14, 1, 29, '#5a5052');
+    for (const [x0, y0, x1, y1] of [[15, 22, 5, 12], [15, 18, 25, 9], [8, 15, 6, 8], [21, 12, 24, 5], [15, 14, 14, 3]]) line(g, x0, y0, x1, y1, PAL.basalt, 2);
+    px(g, 14, 30, PAL.lavaDark);
+  });
+}
+
+function buildColumn() {
+  return sprite(16, 34, (g) => {
+    rect(g, 2, 28, 12, 5, PAL.rockDark);
+    rect(g, 2, 28, 12, 1, PAL.rockLight);
+    rect(g, 4, 8, 8, 20, PAL.rock);
+    for (const x of [5, 8, 11]) rect(g, x, 8, 1, 20, PAL.rockDark);
+    rect(g, 4, 8, 2, 20, PAL.rockLight);
+    poly(g, [[4, 8], [6, 4], [8, 7], [10, 3], [12, 8]], PAL.rock);
+    px(g, 6, 5, PAL.rockLight);
+    rect(g, 3, 20, 3, 2, PAL.grassDark);
+    px(g, 11, 14, PAL.grassDark);
+  });
+}
+
+function buildRuinWall() {
+  return sprite(34, 20, (g) => {
+    stoneBlocks(g, 1, 6, 32, 13, 70);
+    poly(g, [[1, 6], [7, 3], [14, 6], [20, 1], [26, 4], [33, 6]], PAL.rock);
+    rect(g, 1, 17, 32, 2, PAL.rockDeep);
+    for (const [x, y] of [[4, 6], [5, 7], [21, 2], [22, 3], [28, 9]]) px(g, x, y, PAL.grass);
+  });
+}
+
+function buildNest() {
+  return sprite(26, 12, (g) => {
+    ellipse(g, 13, 7, 11, 4, '#6a4a2a');
+    ellipse(g, 13, 6, 8, 2, '#3a2414');
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const x = 13 + Math.cos(a) * 10;
+      const y = 7 + Math.sin(a) * 3.5;
+      line(g, x - 2, y, x + 2, y + (i % 2 ? 1 : -1), i % 3 ? '#9a7448' : '#c9a36a');
+    }
+  });
+}
+
+function buildCairn() {
+  return sprite(16, 22, (g) => {
+    for (const [y, rx, ry] of [[18, 6, 2.5], [13, 5, 2.5], [9, 4, 2], [5, 3, 2], [2, 2, 1.5]]) {
+      ellipse(g, 8, y, rx, ry, PAL.rockDark);
+      ellipse(g, 7, y - 1, rx - 1, ry - 1, PAL.rockLight);
+    }
+  });
+}
+
+function buildLogPile() {
+  return sprite(32, 18, (g) => {
+    for (const [x, y] of [[6, 13], [16, 13], [26, 13], [11, 7], [21, 7], [16, 2]]) {
+      rect(g, x - 5, y - 1, 9, 8, PAL.woodDark);
+      ellipse(g, x + 3, y + 3, 3, 4, '#d9b07a');
+      px(g, x + 3, y + 3, PAL.woodDark);
+    }
+  });
+}
+
+function buildIceCrystal() {
+  return sprite(20, 26, (g) => {
+    for (const [x, top, w] of [[5, 10, 4], [10, 2, 5], [15, 9, 4], [8, 14, 3]]) {
+      poly(g, [[x - w / 2, 24], [x, top], [x + w / 2, 24]], PAL.iceDark);
+      poly(g, [[x - w / 2, 24], [x, top], [x, 24]], PAL.ice);
+      line(g, x - 1, top + 4, x - 1, 22, PAL.iceLight);
+    }
+    rect(g, 2, 23, 16, 2, PAL.snowDark);
+  });
+}
+
+function buildScarecrow() {
+  return sprite(20, 30, (g) => {
+    rect(g, 9, 8, 2, 21, PAL.woodDark);
+    rect(g, 2, 11, 16, 2, PAL.woodDark);
+    rect(g, 6, 10, 8, 9, '#7a4a8c');
+    rect(g, 6, 10, 8, 1, '#9a6aac');
+    for (const x of [2, 17]) rect(g, x - 1, 12, 2, 3, PAL.hay);
+    ellipse(g, 10, 6, 4, 4, '#e8cfa0');
+    poly(g, [[3, 4], [10, -1], [17, 4]], PAL.hayDark);
+    px(g, 8, 6, PAL.woodDeep);
+    px(g, 11, 6, PAL.woodDeep);
   });
 }
 
@@ -413,110 +1023,270 @@ function buildHeldEgg(ep) {
   });
 }
 
-// Size of the young dragon after eating 0-4 fish; the fifth fish grows it into the rideable dragon.
-const DRAGON_SCALES = [1, 1.25, 1.5, 1.75, 2];
+// Proportions of the young dragon after eating 0, 1 and 2 fish, then of the grown dragon (the third
+// fish): overall size, then head, wing, tail, neck and snout length and body depth relative to it.
+// `eye` and `ew` are the eye's height and width in pixels.
+const DRAGON_AGES = [
+  { size: 0.35, head: 2.4, wing: 0.7, tail: 0.6, neck: 0.2, snout: 0.35, chub: 1.4, eye: 4, ew: 3 },
+  { size: 0.55, head: 1.6, wing: 0.8, tail: 0.8, neck: 0.5, snout: 0.6, chub: 1.2, eye: 3, ew: 2 },
+  { size: 0.78, head: 1.22, wing: 0.9, tail: 0.92, neck: 0.8, snout: 0.85, chub: 1.08, eye: 2, ew: 2 },
+  { size: 1, head: 1, wing: 1, tail: 1, neck: 1, snout: 1, chub: 1, eye: 2, ew: 2 },
+];
+// Size of the young dragon after eating 0-2 fish, as a fraction of the grown dragon's.
+const DRAGON_SCALES = DRAGON_AGES.slice(0, -1).map((a) => a.size);
+// Wing beat of the flying dragon: wingtip height, span and tail sway per frame.
+const DRAGON_FLAP = { tip: [-13, -4, 8, -4], span: [0.85, 1, 0.8, 1], sway: [0, 1, 0, -1] };
 
-// Baby fury-style dragon in the species' colours: big slit eyes, ear flaps and one coloured tail fin.
-// Drawn at `s` times its hatchling size (26x23, ground point (13, 22)); `ox`/`oy` give the ground point.
-// Frame 0 folds the wings, frame 1 raises them.
-function buildBabyDragon(pal, s = 1) {
-  const { rect, px, ellipse, poly, line } = scaledPen(s);
-  const B = pal.body;
-  const D = pal.dark;
-  const L = pal.light;
-  const W = pal.wing;
-  const EYE = pal.eye;
-  const GLINT = pal.glint;
-  const PUPIL = '#0b0d12';
-  const RED = pal.fin;
-  const set = { down: [], up: [], right: [], left: [], ox: 1 + Math.round(12 * s), oy: Math.round(21 * s) + 1 };
-  const baby = (draw) => sprite(Math.ceil(24 * s) + 2, set.oy + 1, (g) => {
-    g.translate(1, 0);
-    draw(g);
-  });
-  const wings = (g, up) => {
-    for (const s of [-1, 1]) {
-      const P = (dx, dy) => [12 + s * dx, dy];
-      const tip = up ? P(10, 4) : P(11, 14);
-      poly(g, [P(3, 11), tip, up ? P(9, 10) : P(7, 16), P(4, 15)], W);
-      line(g, ...P(3, 11), ...tip, L);
+// Draws a dragon in proportions `a` (see DRAGON_AGES), laid out like the grown flying dragon scaled
+// by a.size, with its ground point at (gx, gy). `view` is 'down', 'up', 'right', 'se' or 'ne'; `f` is
+// the wing beat frame (0-3) or -1 for folded wings; `stand` puts the feet on the ground point.
+// Returns where its mouth is, or null when it faces away.
+function drawDragon(g, pal, a, view, f, stand, gx, gy) {
+  const { body: B, wing: M, light: L, dark: D, eye: E, fin: FIN, glint: GLINT } = pal;
+  const PUPIL = '#05070a';
+  const S = a.size;
+  const HS = S * a.head;
+  const sn = a.snout;
+  const fold = f < 0;
+  const tip = fold ? 0 : DRAGON_FLAP.tip[f] * a.wing;
+  const span = fold ? 0 : DRAGON_FLAP.span[f] * a.wing;
+  const sw = fold ? 0 : DRAGON_FLAP.sway[f];
+  const ly = 5 * a.chub + 1;
+  const cx = gx;
+  const cy = gy - (ly + (stand ? 2 : 5)) * S;
+  const P = (x, y) => [cx + x * S, cy + y * S];
+  const T = (t) => Math.max(1, Math.round(t * S * a.chub));
+  const ell = (x, y, rx, ry, c) => ellipse(g, cx + x * S, cy + y * S, rx * S, ry * S, c);
+  const legs = (...xs) => { for (const x of xs) ell(x * a.chub, ly, 2 * a.chub, 2, B); };
+
+  // Head parts are laid out around the head's centre and scaled by a.head on top of a.size.
+  let hx = 0;
+  let hy = 0;
+  const head = ([x, y], dx, dy) => { hx = x + dx * HS; hy = y + dy * HS; };
+  const H = (x, y) => [hx + x * HS, hy + y * HS];
+  const round = 1 + (a.head - 1) * 0.25;
+  const young = a.head - 1;
+  const lift = young * 1.5;
+  const hell = (x, y, rx, ry, c) => ellipse(g, hx + x * HS, hy + y * HS, rx * HS, ry * HS * round, c);
+  const hpoly = (pts, c) => poly(g, pts.map(([x, y]) => H(x, y)), c);
+  // Pixel-exact so the eyes stay crisp at every size; young eyes get a pupil and a glint.
+  const eye = (x, y, narrow) => {
+    const [ex, ey] = H(x, y).map(Math.round);
+    const w = narrow ? Math.max(1, a.ew - 1) : a.ew;
+    rect(g, ex, ey, w, a.eye, E);
+    if (a.eye > 2) {
+      rect(g, ex + (w >> 1), ey + 1, 1, Math.max(1, a.eye - 2), PUPIL);
+      px(g, ex, ey, GLINT);
+    } else if (view === 'right') {
+      px(g, ex, ey, PUPIL);
     }
   };
-  // Two big ear flaps swept out to the sides, two small nubs between them.
-  const ears = (g) => {
-    poly(g, [[8, 5], [2, 2], [5, 6], [8, 8]], B);
-    poly(g, [[16, 5], [22, 2], [19, 6], [16, 8]], B);
-    poly(g, [[10, 4], [9, 1], [11, 3]], B);
-    poly(g, [[14, 4], [15, 1], [13, 3]], B);
+  const nostril = (x, y) => px(g, ...H(x, y), PUPIL);
+
+  const tail = (x, y, segs) => {
+    const pts = [P(x, y)];
+    for (const [dx, dy] of segs) {
+      const [x0, y0] = pts[pts.length - 1];
+      pts.push([x0 + dx * S * a.tail, y0 + dy * S * a.tail]);
+    }
+    for (let i = 0; i < pts.length - 1; i++) line(g, ...pts[i], ...pts[i + 1], B, T(4 - i));
+    return pts[pts.length - 1];
+  };
+  const fins = ([x, y], ...shapes) => {
+    for (const pts of shapes) poly(g, pts.map(([dx, dy]) => [x + dx * S * a.chub, y + dy * S * a.chub]), FIN);
+  };
+  // A wing rooted at body point (x, y) spreading along the screen direction `[ax, ay]`, with its
+  // membrane running along `[vx, vy]`; folded, it lies along the flank with its tip towards `[bx, by]`.
+  const wing = (x, y, [ax, ay], [vx, vy], [bx, by], lift = 1) => {
+    const [rx, ry] = P(x, y);
+    if (fold) {
+      const F = (u, back) => [rx + (ax * u + bx * back * a.wing) * S, ry + (ay * u + by * back * a.wing) * S];
+      poly(g, [F(3, -4), F(8, -1), F(9, 10), F(5, 7), F(3, 4)], M);
+      line(g, ...F(8, -1), ...F(9, 10), L);
+      return;
+    }
+    // u along the span, v across the membrane, z (wingtip lift) straight up the screen.
+    const Q = (u, v, z) => [rx + (ax * u + vx * v) * S, ry + (ay * u + vy * v + z * lift) * S];
+    const sp = span;
+    poly(g, [Q(4, -5, 0), Q(33 * sp, -9, tip), Q(26 * sp, 2, tip * 0.6), Q(17 * sp, 0, tip * 0.35), Q(10 * sp, 5, tip * 0.15), Q(4, 4, 0)], M);
+    line(g, ...Q(4, -5, 0), ...Q(33 * sp, -9, tip), L, T(2));
+    line(g, ...Q(14 * sp, -6, tip * 0.4), ...Q(26 * sp, 2, tip * 0.6), D);
+    line(g, ...Q(11 * sp, -5, tip * 0.3), ...Q(17 * sp, 0, tip * 0.35), D);
+  };
+  // Side view: the far wing rises above the back, the near one hangs over the flank.
+  const sideWing = (near) => {
+    const y0 = near ? 3 : -3;
+    const W = (x, y) => P(2 + (x - 2) * a.wing, y0 + (y - y0) * a.wing);
+    let pts;
+    if (fold) {
+      pts = near ? [W(-4, 1), W(8, 0), W(-14, -3), W(-11, 2)] : [W(-4, -3), W(8, -3), W(-14, -9), W(-10, -4)];
+    } else {
+      const k = near ? [0.35, 0.75, 1, 0.75][f] : -[1, 0.75, 0.45, 0.75][f];
+      pts = [W(-4, y0), W(8, y0), W(-6, y0 + (near ? 20 : 22) * k), W(-14, y0 + (near ? 11 : 13) * k)];
+    }
+    poly(g, pts, near ? M : D);
+    line(g, ...pts[1], ...pts[2], L, T(2));
   };
 
-  for (let f = 0; f < 2; f++) {
-    const up = f === 1;
-    set.down.push(baby((g) => {
-      wings(g, up);
-      line(g, 16, 19, 20, 18, B, 2);
-      line(g, 20, 18, 21, 15, B);
-      poly(g, [[21, 15], [23, 11], [22, 16]], B);
-      poly(g, [[21, 15], [18, 12], [20, 16]], RED);
-      ellipse(g, 9, 20, 2, 1, D);
-      ellipse(g, 15, 20, 2, 1, D);
-      ellipse(g, 12, 16, 5, 4, B);
-      ellipse(g, 12, 15, 3, 2, L);
-      ears(g);
-      ellipse(g, 12, 8, 6, 5, B);
-      ellipse(g, 11, 5, 3, 1, L);
-      rect(g, 7, 7, 3, 4, EYE);
-      rect(g, 14, 7, 3, 4, EYE);
-      rect(g, 8, 8, 1, 2, PUPIL);
-      rect(g, 15, 8, 1, 2, PUPIL);
-      px(g, 7, 7, GLINT);
-      px(g, 14, 7, GLINT);
-      px(g, 11, 11, D);
-      px(g, 13, 11, D);
-      px(g, 10, 12, L);
-      rect(g, 11, 13, 3, 1, L);
-      px(g, 14, 12, L);
-    }));
-    set.up.push(baby((g) => {
-      ellipse(g, 9, 20, 2, 1, D);
-      ellipse(g, 15, 20, 2, 1, D);
-      ellipse(g, 12, 16, 5, 4, B);
-      ears(g);
-      ellipse(g, 12, 8, 6, 5, B);
-      ellipse(g, 12, 6, 4, 2, L);
-      for (const y of [12, 14, 16]) px(g, 12, y, L);
-      wings(g, up);
-      line(g, 13, 19, 17, 21, B, 2);
-      poly(g, [[17, 21], [21, 21], [19, 18]], B);
-      poly(g, [[17, 20], [19, 17], [16, 18]], RED);
-    }));
-    const side = baby((g) => {
-      line(g, 8, 17, 4, 16, B, 2);
-      line(g, 4, 16, 2, 12, B);
-      poly(g, [[3, 12], [1, 7], [5, 10]], RED);
-      poly(g, [[2, 13], [0, 10], [4, 12]], B);
-      ellipse(g, 9, 20, 2, 1, D);
-      ellipse(g, 15, 20, 2, 1, D);
-      ellipse(g, 11, 16, 6, 4, B);
-      ellipse(g, 11, 14, 4, 1, L);
-      px(g, 9, 12, L);
-      px(g, 7, 13, L);
-      poly(g, [[13, 6], [8, 3], [11, 7], [13, 9]], B);
-      poly(g, [[15, 5], [14, 1], [17, 4]], B);
-      ellipse(g, 15, 9, 5, 4.5, B);
-      ellipse(g, 15, 6, 3, 1, L);
-      ellipse(g, 19, 11, 3, 2, B);
-      px(g, 21, 10, D);
-      rect(g, 16, 7, 3, 4, EYE);
-      rect(g, 17, 8, 1, 2, PUPIL);
-      px(g, 16, 7, GLINT);
-      line(g, 18, 13, 21, 12, L);
-      poly(g, up ? [[9, 13], [13, 12], [8, 3], [5, 7]] : [[8, 13], [13, 12], [6, 17], [3, 14]], W);
-      line(g, 13, 12, ...(up ? [8, 3] : [6, 17]), L);
-    });
-    set.right.push(side);
-    set.left.push(mirror(side));
+  if (view === 'right') {
+    sideWing(false);
+    fins(tail(-10, 1, [[-10, sw], [-8, -3 - 2 * sw], [-4, -5 + sw]]), [[0, 1], [-3, -5], [3, -1]], [[0, 1], [-3, 5], [3, 3]]);
+    legs(-5, 5);
+    ell(0, 0, 11, 6 * a.chub, B);
+    ell(0, -3 * a.chub, 8, 2, M);
+    const neck = P(9 + 7 * a.neck, -2 - 5 * a.neck);
+    line(g, ...P(9, -2), ...neck, B, T(5));
+    head(neck, 4, -1 - lift);
+    hpoly([[-4, -3], [-11 + 2 * young, -8 - 1.5 * young], [-1, -1]], B);
+    hell(0, 0, 6, 4, B);
+    hpoly([[2, -2], [2 + 8 * sn, 0], [1 + 8 * sn, 3], [2, 4]], B);
+    hell(-1, -2, 3, 1, M);
+    eye(2 - (1 - sn) * 2, -1 - (a.eye - 2));
+    nostril(2 + 6 * sn, 1);
+    sideWing(true);
+    return H(2 + 8 * sn, 2);
   }
+  if (view === 'down') {
+    fins(tail(0, -6, [[sw, -8], [-2 * sw, -6], [sw, -4]]), [[0, 2], [-5, -2], [-1, 5]], [[0, 2], [5, -2], [1, 5]]);
+    if (!fold) for (const s of [-1, 1]) wing(0, -2, [s, 0], [0, 1], [0, -1]);
+    legs(-5, 5);
+    ell(0, 0, 7 * a.chub, 10, B);
+    ell(0, -3, 4, 6, M);
+    // Folded, the wings hang at its sides like little arms.
+    for (const s of fold ? [-1, 1] : []) {
+      const x0 = 6 * a.chub * s;
+      const k = a.wing;
+      const pts = [P(x0 - s, -6), P(x0 + 6 * k * s, 2 * k), P(x0 + 3 * k * s, 6 * k), P(x0 - s, 3)];
+      poly(g, pts, M);
+      line(g, ...pts[0], ...pts[1], L);
+    }
+    const nk = 6 + 4 * a.neck;
+    if (stand) {
+      head(P(0, -2), 0, -5 * round);
+    } else {
+      ell(0, nk, 4 * a.chub, 4, B);
+      head(P(0, nk), 0, 5);
+    }
+    for (const s of [-1, 1]) hpoly([[4 * s, -2], [(9 + young) * s, -7 + young], [2 * s, -4]], B);
+    hell(0, 0, 6, 5, B);
+    hell(0, -2, 4, 2, M);
+    const ey = -(a.eye - 2) / HS;
+    eye(-4 - (a.ew - 2) / HS, ey);
+    eye(2, ey);
+    nostril(-2, 3 + sn);
+    nostril(1, 3 + sn);
+    return H(0, 4);
+  }
+  if (view === 'up') {
+    const nk = 6 + 4 * a.neck;
+    if (stand) legs(-5, 5);
+    ell(0, -nk, 4 * a.chub, 4, B);
+    head(P(0, -nk), 0, -6);
+    for (const s of [-1, 1]) hpoly([[4 * s, 0], [9 * s, 6], [2 * s, 3]], B);
+    hell(0, 0, 6, 5, B);
+    hell(0, -1, 4, 2, M);
+    if (!fold) for (const s of [-1, 1]) wing(0, -2, [s, 0], [0, 1], [0, 1]);
+    ell(0, 0, 7 * a.chub, 10, B);
+    ell(0, 2, 4, 6, M);
+    if (fold) for (const s of [-1, 1]) wing(0, -4, [s, 0], [0, 1], [0.4 * s, 1]);
+    fins(tail(0, 8, [[sw, 8], [-2 * sw, 6], [sw, 4]]), [[0, -1], [-5, 3], [-1, -4]], [[0, -1], [5, 3], [1, -4]]);
+    return null;
+  }
+  if (view === 'se') {
+    fins(tail(-6, -4, [[-6, -5 + sw], [-5, -5 - sw], [-4, -4]]), [[0, 0], [-5, -2], [-1, 3]], [[0, 0], [-1, -5], [3, -1]]);
+    wing(2, -4, [0.75, -0.45], [-0.6, -0.5], [-0.8, -0.6]);
+    legs(-4, 5);
+    ell(0, 0, 9, 7 * a.chub, B);
+    ell(-2, -2, 5, 3, M);
+    wing(-2, 2, [-0.75, 0.45], [0.2, 0.9], [-0.8, -0.6], 0.5);
+    const neck = P(6 + 5 * a.neck, 1 + 4 * a.neck);
+    line(g, ...P(6, 1), ...neck, B, T(5));
+    head(neck, 3, 2 - lift);
+    hpoly([[-3, -2], [-10, -7], [-2, -4]], B);
+    hpoly([[1, -4], [-2, -10], [3, -3]], B);
+    hell(0, 0, 6, 5, B);
+    hpoly([[1, -1], [1 + 7 * sn, 2], [6 * sn, 5], [-1, 4]], B);
+    hell(-1, -2, 3, 2, M);
+    eye(-3, -(a.eye - 2));
+    eye(2, -2 - (a.eye - 2), 1);
+    nostril(1 + 6 * sn, 2);
+    return H(1 + 5 * sn, 4);
+  }
+  wing(-2, -3, [-0.75, -0.45], [-0.6, 0.5], [-0.8, 0.6]);
+  const neck = P(6 + 5 * a.neck, -3 - 6 * a.neck);
+  line(g, ...P(6, -3), ...neck, B, T(5));
+  head(neck, 3, -3 - lift);
+  hpoly([[1, -2], [2 + 6 * sn, -2 - 5 * sn], [4 + 6 * sn, -5 * sn], [4, 1]], B);
+  hell(0, 0, 6, 5, B);
+  hpoly([[-3, 1], [-9, 6], [-1, 3]], B);
+  hpoly([[1, 1], [-1, 7], [3, 2]], B);
+  hell(-2, -2, 3, 1.5, M);
+  eye(4, -1, 1);
+  legs(-4, 4);
+  ell(0, 0, 9, 7 * a.chub, B);
+  ell(-1, -1, 5, 4, M);
+  wing(2, 1, [0.75, 0.45], [-0.2, 0.9], [-0.8, 0.6], 0.5);
+  fins(tail(-5, 3, [[-7, 4 + sw], [-6, 4 - sw], [-4, 4]]), [[0, 0], [-5, 1], [-2, -3]], [[0, 0], [1, 5], [-3, 2]]);
+  return null;
+}
+
+const DRAGON_VIEWS = ['down', 'up', 'right', 'se', 'ne'];
+const DRAGON_MIRRORS = [['right', 'left'], ['se', 'sw'], ['ne', 'nw']];
+
+// Mouth positions relative to the ground point for each of the eight facings (null: facing away).
+function dragonMouths(pal, a, stand) {
+  const g = makeCanvas(1, 1).getContext('2d');
+  const m = {};
+  for (const view of DRAGON_VIEWS) {
+    const p = drawDragon(g, pal, a, view, 0, stand, 0, 0);
+    m[view] = p && p.map(Math.round);
+  }
+  for (const [from, to] of DRAGON_MIRRORS) m[to] = m[from] && [-m[from][0], m[from][1]];
+  return m;
+}
+
+// Bounding box [x, y, w, h] of the opaque pixels of same-sized canvases.
+function opaqueBox(...cs) {
+  const { width: w, height: h } = cs[0];
+  let [x0, y0, x1, y1] = [w, h, 0, 0];
+  for (const c of cs) {
+    const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    for (let i = 3; i < d.length; i += 4) {
+      if (!d[i]) continue;
+      const x = ((i - 3) / 4) % w;
+      const y = Math.floor((i - 3) / 4 / w);
+      [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x + 1), Math.max(y1, y + 1)];
+    }
+  }
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
+// The young dragon after eating `stage` fish, drawn in DRAGON_AGES[stage] in all eight facings, with
+// frames: standing, standing with raised wings, and two wing beats in the air. `ox`/`oy` give the
+// ground point, `top` how far its front views reach above it, `mouth` where it holds a catch and
+// `box` the bounds of the standing front view.
+function buildBabyDragon(pal, stage) {
+  const a = DRAGON_AGES[stage];
+  const ox = Math.ceil(38 * a.size) + 2;
+  const oy = Math.ceil(42 * a.size) + 2;
+  const frame = (view, f, stand) => sprite(ox * 2, oy + Math.ceil(16 * a.size) + 2, (g) => drawDragon(g, pal, a, view, f, stand, ox, oy));
+  const set = { ox, oy, mouth: dragonMouths(pal, a, false) };
+  for (const view of DRAGON_VIEWS) set[view] = [frame(view, -1, true), frame(view, 0, true), frame(view, 0, false), frame(view, 2, false)];
+  for (const [from, to] of DRAGON_MIRRORS) set[to] = set[from].map(mirror);
+  set.box = opaqueBox(set.down[0], set.down[1]);
+  set.top = oy - opaqueBox(...set.down)[1];
+  return set;
+}
+
+// Diagonal facings for the flying dragon (72x60, ground point (36, 40), like buildFlyingDragon)
+// when it flies without a rider, plus mouth positions for all facings.
+function addFlyingDiagonals(set, pal) {
+  const a = DRAGON_AGES[DRAGON_AGES.length - 1];
+  for (const [from, to] of DRAGON_MIRRORS.slice(1)) {
+    set[from] = DRAGON_FLAP.tip.map((_, f) => ({ under: sprite(72, 60, (g) => drawDragon(g, pal, a, from, f, false, 36, 40)), over: null }));
+    set[to] = set[from].map((fr) => ({ under: mirror(fr.under), over: null }));
+  }
+  set.mouth = dragonMouths(pal, a, false);
   return set;
 }
 
@@ -615,6 +1385,250 @@ function buildAnvil() {
     rect(g, 3, 2, 12, 1, '#8b8b94');
     rect(g, 7, 5, 6, 4, '#45454c');
     rect(g, 5, 9, 10, 2, '#56565e');
+  });
+}
+
+// Held upright: the grip is at (4, 13) and the blade faces right.
+function buildAxe() {
+  return sprite(10, 15, (g) => {
+    rect(g, 3, 2, 2, 12, PAL.woodLight);
+    rect(g, 4, 2, 1, 12, PAL.wood);
+    rect(g, 5, 1, 2, 5, '#8b8b94');
+    rect(g, 7, 1, 2, 6, '#c9ccd4');
+    px(g, 8, 0, '#c9ccd4');
+    px(g, 8, 7, '#c9ccd4');
+    rect(g, 2, 2, 1, 3, '#56565e');
+  });
+}
+
+function buildLog() {
+  return sprite(13, 9, (g) => {
+    rect(g, 1, 2, 9, 5, PAL.wood);
+    rect(g, 1, 2, 9, 1, PAL.woodLight);
+    rect(g, 1, 6, 9, 1, PAL.woodDark);
+    px(g, 4, 4, PAL.woodDark);
+    px(g, 7, 3, PAL.woodDark);
+    ellipse(g, 10, 4.5, 2, 2.5, '#d9b07a');
+    px(g, 10, 4, PAL.woodDark);
+  });
+}
+
+function buildPebble() {
+  return sprite(9, 7, (g) => {
+    ellipse(g, 4, 3.5, 3.5, 2.5, PAL.rock);
+    ellipse(g, 3, 2.5, 2, 1.2, PAL.rockLight);
+    rect(g, 2, 5, 5, 1, PAL.rockDark);
+    px(g, 2, 2, '#c8c7cb');
+  });
+}
+
+// A parchment chart hung from a rod; drawn on the hall's back wall.
+function buildWallMap() {
+  return sprite(28, 22, (g) => {
+    rect(g, 3, 3, 22, 16, '#e6d3a3');
+    rect(g, 3, 3, 22, 1, '#f4e6c0');
+    rect(g, 3, 18, 22, 1, '#c4ab78');
+    ellipse(g, 10, 10, 5, 3.5, '#9cbf6a');
+    ellipse(g, 19, 13, 3, 2, '#9cbf6a');
+    px(g, 21, 7, '#9cbf6a');
+    for (const [x, y] of [[6, 14], [13, 15], [16, 8], [22, 10]]) px(g, x, y, '#7fa6c8');
+    line(g, 12, 9, 17, 12, '#8a5a3a');
+    rect(g, 17, 12, 1, 1, '#c8322a');
+    px(g, 16, 11, '#c8322a');
+    px(g, 18, 13, '#c8322a');
+    rect(g, 1, 1, 26, 2, PAL.woodDark);
+    rect(g, 1, 19, 26, 2, PAL.woodDark);
+    rect(g, 13, 0, 2, 1, PAL.woodDark);
+  });
+}
+
+function buildWool() {
+  return sprite(13, 11, (g) => {
+    for (const [x, y, r] of [[4, 6, 3], [8, 6, 3], [6, 4, 3], [6, 7, 3]]) ellipse(g, x, y, r, r - 0.5, '#e8e2d4');
+    for (const [x, y] of [[4, 4], [7, 3], [9, 5], [5, 7]]) px(g, x, y, '#ffffff');
+    for (const [x, y] of [[3, 8], [8, 8], [10, 7]]) px(g, x, y, '#bfb6a2');
+  });
+}
+
+function buildHammer() {
+  return sprite(12, 14, (g) => {
+    rect(g, 5, 4, 2, 9, PAL.woodLight);
+    rect(g, 6, 4, 1, 9, PAL.wood);
+    rect(g, 1, 1, 10, 4, '#8b8b94');
+    rect(g, 1, 1, 10, 1, '#c9ccd4');
+    rect(g, 1, 4, 10, 1, '#56565e');
+    rect(g, 4, 1, 1, 4, '#56565e');
+  });
+}
+
+function buildBow() {
+  return sprite(10, 17, (g) => {
+    line(g, 3, 1, 6, 4, PAL.wood, 2);
+    line(g, 6, 4, 6, 12, PAL.wood, 2);
+    line(g, 6, 12, 3, 15, PAL.wood, 2);
+    rect(g, 6, 7, 2, 3, PAL.woodDark);
+    line(g, 3, 1, 3, 15, '#e8e0c8');
+  });
+}
+
+function buildSword() {
+  return sprite(14, 14, (g) => {
+    line(g, 4, 9, 11, 2, '#c9ccd4', 2);
+    line(g, 5, 9, 11, 3, '#8b8b94');
+    px(g, 12, 1, '#e8eaf0');
+    line(g, 2, 7, 6, 11, '#c89a3a', 2);
+    line(g, 2, 12, 4, 10, PAL.woodDark, 2);
+    px(g, 1, 13, '#c89a3a');
+  });
+}
+
+function buildShield() {
+  return sprite(14, 14, (g) => {
+    ellipse(g, 7, 7, 6, 6, PAL.wood);
+    poly(g, [[7, 1], [13, 7], [7, 7]], '#b8342a');
+    poly(g, [[1, 7], [7, 13], [7, 7]], '#b8342a');
+    ellipse(g, 7, 7, 2, 2, '#8b8b94');
+    px(g, 6, 6, '#c9ccd4');
+  });
+}
+
+function buildSpear() {
+  return sprite(16, 16, (g) => {
+    line(g, 1, 14, 11, 4, PAL.woodLight, 2);
+    line(g, 2, 14, 11, 5, PAL.wood);
+    poly(g, [[10, 3], [14, 1], [12, 5]], '#c9ccd4');
+    px(g, 13, 1, '#e8eaf0');
+    rect(g, 10, 4, 2, 2, '#56565e');
+  });
+}
+
+function buildRod() {
+  return sprite(14, 16, (g) => {
+    line(g, 2, 14, 11, 2, PAL.woodLight, 2);
+    line(g, 3, 14, 11, 3, PAL.wood);
+    rect(g, 3, 10, 3, 3, '#56565e');
+    px(g, 4, 11, '#c9ccd4');
+    line(g, 12, 2, 12, 9, '#e8e0c8');
+    px(g, 12, 10, '#c9ccd4');
+    rect(g, 11, 7, 3, 2, '#c8322a');
+    px(g, 11, 7, '#f6e7c1');
+  });
+}
+
+function buildFish() {
+  return sprite(14, 9, (g) => {
+    poly(g, [[10, 4], [13, 1], [13, 7]], '#5f7fa6');
+    ellipse(g, 6, 4, 5, 3, '#7fa6c8');
+    ellipse(g, 6, 5.5, 3.5, 1.2, '#cfdceb');
+    rect(g, 3, 2, 6, 1, '#5f7fa6');
+    px(g, 6, 1, '#5f7fa6');
+    px(g, 3, 3, '#10141c');
+  });
+}
+
+function buildPickaxe() {
+  return sprite(15, 15, (g) => {
+    line(g, 2, 13, 10, 5, PAL.woodLight, 2);
+    line(g, 3, 13, 10, 6, PAL.wood);
+    line(g, 4, 2, 9, 4, '#8b8b94', 2);
+    line(g, 10, 4, 13, 10, '#8b8b94', 2);
+    px(g, 4, 2, '#c9ccd4');
+    px(g, 13, 11, '#c9ccd4');
+    rect(g, 9, 4, 2, 2, '#56565e');
+  });
+}
+
+function buildIron() {
+  return sprite(13, 9, (g) => {
+    poly(g, [[3, 1], [10, 1], [12, 7], [1, 7]], '#7a7f8c');
+    rect(g, 3, 1, 7, 1, '#c9ccd4');
+    rect(g, 2, 3, 9, 1, '#9aa0ac');
+    rect(g, 1, 7, 12, 1, '#4a4d58');
+    px(g, 5, 2, '#e8eaf0');
+  });
+}
+
+// A lump of black rock shot through with rusty iron veins.
+function buildOre(spent) {
+  return sprite(24, 16, (g) => {
+    if (spent) {
+      for (const [x, y, r] of [[6, 12, 3], [12, 13, 4], [18, 12, 3], [9, 10, 2], [15, 10, 2]]) ellipse(g, x, y, r, r * 0.6, '#3e3a40');
+      for (const [x, y] of [[6, 11], [12, 12], [17, 11]]) px(g, x, y, '#5e5860');
+      px(g, 10, 13, '#8a4a2e');
+      return;
+    }
+    ellipse(g, 12, 9.5, 10.5, 6, '#4e444a');
+    ellipse(g, 10, 7.5, 7.5, 4.5, '#6a5e64');
+    ellipse(g, 15, 10, 6, 3.5, '#5a4e54');
+    rect(g, 6, 3, 6, 1, '#84767c');
+    rect(g, 3, 14, 18, 1, '#2e282c');
+    line(g, 4, 10, 9, 5, '#b0603a', 2);
+    line(g, 9, 5, 13, 8, '#b0603a', 2);
+    line(g, 12, 12, 19, 8, '#b0603a', 2);
+    for (const [x, y] of [[5, 9], [10, 5], [13, 7], [16, 9], [18, 8], [13, 11]]) px(g, x, y, '#e8964e');
+    for (const [x, y] of [[7, 7], [12, 6], [15, 10]]) rect(g, x, y, 2, 2, '#f4c890');
+    for (const [x, y] of [[7, 7], [12, 6], [17, 9]]) px(g, x, y, '#ffffff');
+  });
+}
+
+// Upright versions of the tools for swinging; the grip sits 2px above the bottom.
+function buildHeldPickaxe() {
+  const c = sprite(14, 15, (g) => {
+    rect(g, 6, 3, 2, 11, PAL.woodLight);
+    rect(g, 7, 3, 1, 11, PAL.wood);
+    line(g, 1, 4, 4, 1, '#8b8b94', 2);
+    rect(g, 4, 1, 6, 2, '#8b8b94');
+    line(g, 10, 1, 13, 4, '#8b8b94', 2);
+    px(g, 1, 5, '#c9ccd4');
+    px(g, 13, 5, '#c9ccd4');
+    rect(g, 6, 1, 2, 3, '#56565e');
+  });
+  c.hx = 7;
+  return c;
+}
+
+// Swung toward or away from the camera the axe head is seen edge-on, its edge in line with the handle.
+function buildAxeFront() {
+  return sprite(8, 15, (g) => {
+    rect(g, 3, 4, 2, 10, PAL.woodLight);
+    rect(g, 4, 4, 1, 10, PAL.wood);
+    rect(g, 2, 2, 4, 3, '#8b8b94');
+    rect(g, 5, 2, 1, 3, '#56565e');
+    rect(g, 2, 4, 4, 1, '#56565e');
+    rect(g, 3, 0, 2, 2, '#c9ccd4');
+    px(g, 3, 0, '#e8eaf0');
+  });
+}
+
+function buildHeldSword() {
+  return sprite(8, 16, (g) => {
+    rect(g, 3, 1, 2, 10, '#c9ccd4');
+    rect(g, 4, 1, 1, 10, '#8b8b94');
+    px(g, 3, 0, '#e8eaf0');
+    rect(g, 1, 11, 6, 1, '#c89a3a');
+    rect(g, 3, 12, 2, 2, PAL.woodDark);
+    rect(g, 3, 14, 2, 1, '#c89a3a');
+  });
+}
+
+function buildHeldHammer() {
+  return sprite(10, 15, (g) => {
+    rect(g, 3, 4, 2, 10, PAL.woodLight);
+    rect(g, 4, 4, 1, 10, PAL.wood);
+    rect(g, 0, 1, 8, 4, '#8b8b94');
+    rect(g, 0, 1, 8, 1, '#c9ccd4');
+    rect(g, 0, 4, 8, 1, '#56565e');
+  });
+}
+
+function buildHeldSpear() {
+  return sprite(8, 22, (g) => {
+    rect(g, 3, 5, 2, 16, PAL.woodLight);
+    rect(g, 4, 5, 1, 16, PAL.wood);
+    rect(g, 3, 0, 2, 1, '#e8eaf0');
+    rect(g, 2, 1, 4, 3, '#c9ccd4');
+    rect(g, 4, 1, 2, 3, '#8b8b94');
+    rect(g, 3, 4, 2, 1, '#56565e');
   });
 }
 
@@ -792,9 +1806,7 @@ function buildFlyingDragon(pal) {
   const D = pal.dark;
   const E = pal.eye;
   const FIN = pal.fin;
-  const TIP = [-13, -4, 8, -4];
-  const SPAN = [0.85, 1, 0.8, 1];
-  const SWAY = [0, 1, 0, -1];
+  const { tip: TIP, span: SPAN, sway: SWAY } = DRAGON_FLAP;
   const set = { down: [], up: [], right: [], left: [] };
 
   const wingPair = (g, f, y) => {
@@ -962,29 +1974,119 @@ function buildShipVertical(down) {
   });
 }
 
+// Three-quarter views of the longship heading up-right (NE) or down-right (SE), 104x100.
+// Ship-local u runs stern->bow, v across toward the viewer, z up; (cx, cy) is mid-deck.
+function buildShipDiagonal(down) {
+  return sprite(104, 100, (g) => {
+    const cx = 52;
+    const cy = 64;
+    const K = 0.6;
+    const f = down ? [0.71, 0.71] : [0.71, -0.71];
+    const n = down ? [-0.71, 0.71] : [0.71, 0.71];
+    const P = (u, v, z = 0) => [cx + u * f[0] + v * n[0], cy + (u * f[1] + v * n[1]) * K - z];
+    const L = 44;
+    const N = 22;
+    const us = Array.from({ length: N + 1 }, (_, i) => -L + (2 * L * i) / N);
+    const w = (u) => 14 * Math.pow(Math.max(0, 1 - (u / L) ** 2), 0.6);
+    const depth = (u) => 19 * Math.pow(Math.max(0, 1 - (u / L) ** 2), 0.7);
+    const near = us.map((u) => P(u, w(u)));
+    const keel = us.map((u) => P(u * 0.9, w(u) * 0.75, -depth(u)));
+    const polyline = (pts, c, t = 1) => pts.slice(1).forEach((p, i) => line(g, ...pts[i], ...p, c, t));
+
+    const stays = () => {
+      line(g, ...P(0, 0, 58), ...P(L - 2, 0, 2), '#3a2a1c');
+      line(g, ...P(0, 0, 58), ...P(-L + 2, 0, 2), '#3a2a1c');
+    };
+    const bow = () => {
+      const [x0, y0] = P(L, 0, 0);
+      const [x1, y1] = P(L + 4, 0, 14);
+      const [x2, y2] = P(L + 2, 0, 24);
+      line(g, x0, y0, x1, y1, PAL.woodDark, 4);
+      line(g, x1, y1, x2, y2, PAL.woodDark, 4);
+      ellipse(g, x2 + 1, y2 - 3, 4, 3, PAL.trim);
+      rect(g, x2 + 3, y2 - (down ? 1 : 4), 5, 2, PAL.trim);
+      px(g, x2 + 1, y2 - 4, '#c62b2b');
+    };
+    const stern = () => {
+      const [x0, y0] = P(-L, 0, 0);
+      const [x1, y1] = P(-L - 4, 0, 14);
+      line(g, x0, y0, x1, y1, PAL.woodDark, 4);
+      ellipse(g, x1 - 1, y1 - 3, 3, 3, PAL.woodDark);
+      px(g, x1 - 1, y1 - 3, PAL.trim);
+    };
+    // whichever end is farther from the viewer goes behind the sail
+    stays();
+    if (down) stern();
+    else bow();
+
+    poly(g, [...us.map((u) => P(u, w(u))), ...us.slice().reverse().map((u) => P(u, -w(u)))], PAL.woodDark);
+    const deck = [...us.map((u) => P(u * 0.9, w(u) * 0.8, -3)), ...us.slice().reverse().map((u) => P(u * 0.9, -w(u) * 0.8, -3))];
+    poly(g, deck, PAL.wood);
+    g.save();
+    g.beginPath();
+    deck.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.closePath();
+    g.clip();
+    for (let v = -10; v <= 10; v += 4) line(g, ...P(-L, v, -3), ...P(L, v, -3), PAL.woodDark);
+    g.restore();
+
+    poly(g, [...near, ...keel.slice().reverse()], PAL.wood);
+    for (const t of [0.3, 0.55, 0.8]) polyline(near.map(([x, y], i) => [x + (keel[i][0] - x) * t, y + (keel[i][1] - y) * t]).slice(2, -2), PAL.woodDark);
+    polyline(near, PAL.woodLight, 2);
+    const cols = [[PAL.red, PAL.cream], [PAL.cream, PAL.blue], [PAL.blue, PAL.cream]];
+    for (let i = 0; i < 6; i++) {
+      const u = -26 + i * 10.4;
+      const [x, y] = P(u, w(u) + 1, -6);
+      drawShield(g, Math.round(x), Math.round(y), 4, ...cols[i % 3]);
+    }
+
+    const [mx, my] = P(0, 0, -3);
+    rect(g, mx - 2, my - 61, 4, 61, PAL.woodDark);
+    const hw = 24;
+    const sl = down ? -0.3 : 0.3;
+    const top = my - 52;
+    for (let x = -hw; x <= hw; x++) {
+      const t = (x + hw) / (2 * hw);
+      const y0 = Math.round(top + x * sl);
+      const y1 = y0 + 38 + Math.round(Math.sin(t * Math.PI) * 3);
+      let c = Math.min(6, Math.floor(t * 7)) % 2 ? PAL.red : PAL.cream;
+      if (!down) c = shade(c, -0.18);
+      rect(g, mx + x, y0, 1, y1 - y0 - 4, c);
+      rect(g, mx + x, y1 - 4, 1, 4, shade(c, -0.15));
+    }
+    line(g, mx - hw - 3, top - 2 - (hw + 3) * sl, mx + hw + 3, top - 2 + (hw + 3) * sl, PAL.woodDark, 3);
+    line(g, mx - hw - 3, top - 3 - (hw + 3) * sl, mx + hw + 3, top - 3 + (hw + 3) * sl, PAL.wood);
+    if (down) {
+      ellipse(g, mx, top + 18, 10, 10, PAL.cream);
+      glyph(g, EMBLEM, mx - 7, top + 13, PAL.red, 2);
+    }
+
+    if (down) bow();
+    else stern();
+  });
+}
+
 function buildShip() {
   return sprite(104, 94, (g) => {
     rect(g, 50, 4, 4, 60, PAL.woodDark);
     line(g, 52, 5, 95, 61, '#3a2a1c');
     line(g, 52, 5, 9, 61, '#3a2a1c');
-    for (let y = 11; y < 56; y++) {
-      const t = (y - 11) / 45;
-      const bulge = Math.sin(t * Math.PI) * 3;
-      const xl = 22 - bulge - t * 2;
-      const xr = 82 + bulge + t * 2;
-      const sw = (xr - xl) / 7;
-      for (let i = 0; i < 7; i++) {
-        const a = Math.round(xl + i * sw);
-        const b = Math.round(xl + (i + 1) * sw);
-        let c = i % 2 ? PAL.red : PAL.cream;
-        if (y > 50) c = shade(c, -0.15);
-        rect(g, a, y, b - a, 1, c);
+    // Sail across the keel, seen nearly edge-on: s runs along the yard from its near (low, sternward) end.
+    const yard = (s) => [45 + s * 14, 12 - s * 5];
+    const H = 43;
+    const belly = (s, t) => Math.sin(t * Math.PI) * (3 + Math.sin(s * Math.PI)) + t * 1.5;
+    for (let s = 1; s >= 0; s -= 1 / 64) {
+      let c = Math.min(4, Math.floor(s * 5)) % 2 ? PAL.red : PAL.cream;
+      if (s > 0.72) c = shade(c, -0.25);
+      const [x, y] = yard(s);
+      for (let t = 0; t <= 1; t += 1 / 128) {
+        px(g, Math.round(x + belly(s, t)), Math.round(y + 1 + t * H), t > 0.88 ? shade(c, -0.15) : c);
       }
     }
-    rect(g, 18, 8, 68, 3, PAL.woodDark);
-    rect(g, 18, 8, 68, 1, PAL.wood);
-    ellipse(g, 52, 32, 11, 11, PAL.cream);
-    glyph(g, EMBLEM, 45, 26, PAL.red, 2);
+    line(g, 47, 56, 41, 61, '#3a2a1c');
+    line(g, 60, 51, 70, 61, '#3a2a1c');
+    line(g, 43, 13, 61, 6, PAL.woodDark, 3);
+    line(g, 43, 12, 61, 5, PAL.wood);
     poly(g, [[6, 62], [98, 62], [92, 76], [80, 84], [24, 84], [12, 76]], PAL.wood);
     for (const [y, a, b] of [[67, 8, 96], [72, 10, 94], [77, 15, 89], [81, 21, 83]]) rect(g, a, y, b - a, 1, PAL.woodDark);
     rect(g, 6, 61, 92, 2, PAL.woodLight);
@@ -1011,7 +2113,10 @@ const PLAYER_LOOKS = {
 const LOOKS = {
   chief: { id: 'chief', hair: '#e9e5dc', hairStyle: 'short', beard: '#e9e5dc', tunic: '#7a4f2e', collar: '#d0b48a' },
   smith: { id: 'smith', hair: '#d8a13c', hairStyle: 'bald', beard: '#d8a13c', tunic: '#5c4636', pants: '#3a2c22' },
-  merchant: { id: 'merchant', hair: '#b8452a', hairStyle: 'long', tunic: '#3f7a4a' },
+  baker: { id: 'baker', hair: '#b8452a', hairStyle: 'long', tunic: '#3f7a4a', apron: '#f4efe4', kerchief: '#f4efe4' },
+  weaver: { id: 'weaver', hair: '#a59c92', hairStyle: 'braids', tunic: '#3d7d78', kerchief: '#d8a83a' },
+  seamstress: { id: 'seamstress', hair: '#2b1a12', hairStyle: 'long', tunic: '#b04a6e', collar: '#f0d6a0' },
+  tanner: { id: 'tanner', hair: '#4a2c18', hairStyle: 'short', beard: '#4a2c18', tunic: '#6e6a3a', pants: '#3a2c22', apron: '#8a5530' },
   kid: { id: 'kid', hair: '#5a3418', hairStyle: 'short', tunic: '#8a7550' },
   girl: { id: 'girl', hair: '#f2d064', hairStyle: 'long', tunic: '#3c6ca3', pants: '#3d4f6e' },
   archer: { id: 'archer', hair: '#3d2414', hairStyle: 'short', tunic: '#55703c' },
@@ -1019,12 +2124,16 @@ const LOOKS = {
   villager: { id: 'villager', hair: '#2e1e12', hairStyle: 'short', tunic: '#8f3b2e' },
   fisher: { id: 'fisher', hair: '#8a7b6a', hairStyle: 'short', beard: '#8a7b6a', tunic: '#3b5c6c' },
   hermit: { id: 'hermit', hair: '#b9b4ab', hairStyle: 'long', beard: '#b9b4ab', tunic: '#5b5a3a', collar: '#8a7a5a' },
+  mom: { id: 'mom', hair: '#7a4320', hairStyle: 'long', tunic: '#7b5a8f', apron: '#e9dcc0', collar: '#c9ae84' },
 };
 
 const EYE = '#2a1a10';
 const METAL = '#8f9098';
 const METAL_D = '#66676e';
 const BONE = '#efe3c4';
+const PACK = '#8a5530';
+const PACK_D = '#5a3418';
+const PACK_ROLL = '#c9ae84';
 
 function drawBraid(g, x, y, len, hair, w = 1) {
   rect(g, x, y, w, len, hair);
@@ -1073,6 +2182,11 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
     if (look.collar) rect(g, 4, 10 + b, 8, 1, look.collar);
     rect(g, 4, 14 + b, 8, 1, belt);
     if (dir === 'down') px(g, 7, 14 + b, PAL.gold);
+    if (look.pack && dir === 'down') for (const x of [5, 10]) rect(g, x, 10 + b, 1, 4, PACK_D);
+    if (look.apron && dir === 'down') {
+      rect(g, 5, 11 + b, 6, 6, look.apron);
+      rect(g, 5, 16 + b, 6, 1, shade(look.apron, -0.2));
+    }
     if (carry) {
       rect(g, 3, 2 + b, 1, 10, tunD);
       rect(g, 12, 2 + b, 1, 10, tunD);
@@ -1146,6 +2260,11 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
         if (style === 'braids') for (const x of [4, 11]) drawBraid(g, x, 9 + b, 3, hair);
       }
     }
+    if (look.kerchief) {
+      rect(g, 5, 1 + b, 6, 1, look.kerchief);
+      rect(g, 4, 2 + b, 8, 2, look.kerchief);
+      if (dir === 'up') rect(g, 7, 4 + b, 2, 2, shade(look.kerchief, -0.2));
+    }
     if (style === 'helmet') {
       rect(g, 5, 1 + b, 6, 1, METAL);
       rect(g, 4, 2 + b, 8, 3, METAL);
@@ -1153,6 +2272,14 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
       if (dir === 'down') rect(g, 7, 6 + b, 2, 2, METAL);
       px(g, 2, 3 + b, BONE); px(g, 2, 2 + b, BONE); px(g, 1, 1 + b, BONE);
       px(g, 13, 3 + b, BONE); px(g, 13, 2 + b, BONE); px(g, 14, 1 + b, BONE);
+    }
+    if (look.pack && dir === 'up') {
+      rect(g, 4, 10 + b, 8, 2, PACK_ROLL);
+      for (const x of [4, 11]) px(g, x, 10 + b, shade(PACK_ROLL, -0.25));
+      rect(g, 5, 12 + b, 6, 4, PACK);
+      rect(g, 5, 12 + b, 6, 1, PACK_D);
+      px(g, 7, 13 + b, PAL.gold);
+      px(g, 8, 13 + b, PAL.gold);
     }
     return;
   }
@@ -1190,6 +2317,10 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
   rect(g, 5 + lx, 10 + b, 1, 6, tunD);
   if (look.collar) rect(g, 5 + lx, 10 + b, 6, 1, look.collar);
   rect(g, 5 + lx, 14 + b, 6, 1, belt);
+  if (look.apron) {
+    rect(g, 8 + lx, 11 + b, 3, 6, look.apron);
+    rect(g, 8 + lx, 16 + b, 3, 1, shade(look.apron, -0.2));
+  }
   if (run && !carry) {
     if (frame === 1) {
       rect(g, 8 + lx, 11 + b, 2, 2, tunD);
@@ -1224,12 +2355,24 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
     rect(g, 8 + lx, 7 + b, 4, 3, look.beard);
     rect(g, 8 + lx, 10 + b, 3, 2, look.beard);
   }
+  if (look.kerchief) {
+    rect(g, 5 + lx, 1 + b, 6, 1, look.kerchief);
+    rect(g, 4 + lx, 2 + b, 8, 2, look.kerchief);
+    rect(g, 3 + lx, 4 + b, 2, 2, shade(look.kerchief, -0.2));
+  }
   if (style === 'helmet') {
     rect(g, 5 + lx, 1 + b, 6, 1, METAL);
     rect(g, 4 + lx, 2 + b, 8, 3, METAL);
     rect(g, 3 + lx, 5 + b, 10, 1, METAL_D);
     px(g, 3 + lx, 3 + b, BONE); px(g, 2 + lx, 2 + b, BONE); px(g, 2 + lx, 1 + b, BONE);
     px(g, 12 + lx, 3 + b, BONE); px(g, 13 + lx, 2 + b, BONE); px(g, 13 + lx, 1 + b, BONE);
+  }
+  if (look.pack) {
+    rect(g, 2 + lx, 10 + b, 3, 6, PACK);
+    rect(g, 2 + lx, 10 + b, 3, 2, PACK_D);
+    rect(g, 2 + lx, 9 + b, 3, 1, PACK_ROLL);
+    px(g, 2 + lx, 13 + b, PAL.gold);
+    rect(g, 6 + lx, 10 + b, 2, 1, PACK_D);
   }
   if (carry) {
     rect(g, 7 + lx, 10 + b, 4, 1, tunD);
@@ -1241,7 +2384,7 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
 const charCache = new Map();
 
 function charSprite(look, dir, frame, carry = false, run = false) {
-  const key = `${look.id}|${dir}|${frame}|${carry}|${run}`;
+  const key = `${look.id}|${!!look.pack}|${dir}|${frame}|${carry}|${run}`;
   let c = charCache.get(key);
   if (!c) {
     const d = dir === 'left' ? 'right' : dir;
@@ -1262,15 +2405,27 @@ function buildSprites() {
 
   const house = sprite(80, 78, (g) => drawLonghouse(g, 80, 78, { axes: true, shield: true }));
   const houseB = sprite(80, 78, (g) => drawLonghouse(g, 80, 78, { shieldL: true }));
+  const withRoof = ([roof, roofLight, roofDark, roofDeep], fn) => {
+    const keep = { roof: PAL.roof, roofLight: PAL.roofLight, roofDark: PAL.roofDark, roofDeep: PAL.roofDeep };
+    Object.assign(PAL, { roof, roofLight, roofDark, roofDeep });
+    const c = fn();
+    Object.assign(PAL, keep);
+    return c;
+  };
+  const houseC = withRoof(['#c79a4a', '#e3bd6a', '#9a7232', '#6e4f22'], () => sprite(80, 78, (g) => drawLonghouse(g, 80, 78, {})));
+  const houseD = withRoof(['#a8452f', '#cc6448', '#7f3020', '#5a2016'], () => sprite(80, 78, (g) => drawLonghouse(g, 80, 78, { shield: true })));
   const hall = sprite(144, 110, (g) => drawLonghouse(g, 144, 110, {
     gableW: 76, doorW: 22, doorH: 28, openDoor: true, banner: true, windows: [16, 38, 96, 118], windowY: 74,
   }));
-  def('house', { img: house, foot: { w: 66, h: 14 } });
-  def('houseB', { img: houseB, foot: { w: 66, h: 14 } });
-  def('hall', { img: hall, foot: { w: 130, h: 20 } });
+  def('house', { img: house, foot: { w: 66, h: 14 }, door: { dx: 0, w: 12 } });
+  def('houseB', { img: houseB, foot: { w: 66, h: 14 }, door: { dx: 0, w: 12 } });
+  def('houseC', { img: houseC, foot: { w: 66, h: 14 }, door: { dx: 0, w: 12 } });
+  def('houseD', { img: houseD, foot: { w: 66, h: 14 }, door: { dx: 0, w: 12 } });
+  def('hall', { img: hall, foot: { w: 130, h: 20 }, door: { dx: 0, w: 22 } });
   def('forge', {
     img: buildForge(),
     foot: { w: 96, h: 14 },
+    door: { dx: 18, w: 10 },
     light: { dx: -27, dy: -12, r: 34, color: '#ff8a2a' },
     after: (g, x, y, t) => {
       g.globalAlpha = 0.55 + 0.45 * Math.sin(t * 13) * Math.sin(t * 7.3);
@@ -1279,10 +2434,51 @@ function buildSprites() {
       g.globalAlpha = 1;
     },
   });
-  def('stall', { img: buildStall(), foot: { w: 64, h: 14 } });
+  def('stall', { img: buildStall(PAL.red, breadGoods), foot: { w: 64, h: 14 } });
+  def('stallWeaver', { img: buildStall('#3d7d78', clothGoods), foot: { w: 64, h: 14 } });
+  def('stallSeamstress', { img: buildStall('#d86a9a', garmentGoods), foot: { w: 64, h: 14 } });
+  def('stallTanner', { img: buildStall('#7a4a26', leatherGoods), foot: { w: 64, h: 14 } });
+  def('oven', { img: buildOven(), foot: { w: 26, h: 7 }, shadow: { rx: 14, ry: 3 }, light: { dx: 0, dy: -8, r: 22, color: '#ff8a2a' } });
+  def('sacks', { img: buildSacks(), foot: { w: 18, h: 5 } });
+  const loom = buildLoomFrames();
+  def('loom', { frames: loom, foot: { w: 24, h: 4 }, pick: (t, o) => (o.active ? loom[Math.floor(t * 5) % 4] : loom[0]) });
+  def('yarnBasket', { img: buildYarnBasket(), foot: { w: 14, h: 4 } });
+  def('dressForm', { img: buildDressForm(), foot: { w: 10, h: 3 }, shadow: { rx: 6, ry: 2 } });
+  def('hideFrame', { img: buildHideFrame(), foot: { w: 24, h: 4 } });
+  def('vat', { img: buildVat(), foot: { w: 18, h: 5 }, shadow: { rx: 9, ry: 2 } });
   def('pine', { img: buildPine(false), foot: { w: 8, h: 5 }, shadow: { rx: 10, ry: 3 } });
   def('pine2', { img: buildPine(true), foot: { w: 8, h: 5 }, shadow: { rx: 10, ry: 3 } });
   def('oak', { img: buildOak(), foot: { w: 10, h: 5 }, shadow: { rx: 13, ry: 4 } });
+  def('stump', { img: buildStump(6), foot: { w: 8, h: 4 }, shadow: { rx: 6, ry: 2 } });
+  def('stumpOak', { img: buildStump(8), foot: { w: 10, h: 4 }, shadow: { rx: 7, ry: 2 } });
+  def('stumpPalm', { img: buildStump(4), foot: { w: 6, h: 4 }, shadow: { rx: 5, ry: 2 } });
+  SPR.axe = buildAxe();
+  SPR.icon = {
+    backpack: buildBackpack(), axe: SPR.axe, wood: buildLog(),
+    apple: buildApple(), pear: buildPear(), banana: buildBanana(), pineapple: buildPineapple(),
+    berries: buildBerries(), coconut: buildCoconut(), stone: buildPebble(), wool: buildWool(),
+    hammer: buildHammer(), bow: buildBow(), sword: buildSword(), shield: buildShield(), spear: buildSpear(),
+    rod: buildRod(), fish: buildFish(), pickaxe: buildPickaxe(), iron: buildIron(),
+  };
+  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), hammer: buildHeldHammer(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe() };
+  def('ore', { img: buildOre(false), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 } });
+  def('oreSpent', { img: buildOre(true) });
+  SPR.heldFront = { axe: buildAxeFront() };
+  def('bushCut', { img: buildBushCut() });
+  def('fenceHBroken', { img: buildBrokenFence(false) });
+  def('fenceVBroken', { img: buildBrokenFence(true) });
+  def('bed', { img: buildBed('#3d6ca3'), foot: { w: 22, h: 27 } });
+  const hearth = buildHearthFrames();
+  def('hearth', { frames: hearth, fps: 7, foot: { w: 32, h: 6 }, light: { dx: 0, dy: -8, r: 52, color: '#ff9a3a' } });
+  def('table', { img: buildTable(32, homeFood), foot: { w: 28, h: 9 }, shadow: { rx: 15, ry: 3 } });
+  def('longTable', { img: buildTable(66, feastFood), foot: { w: 62, h: 9 }, shadow: { rx: 31, ry: 3 } });
+  def('stool', { img: buildStool(), foot: { w: 8, h: 3 } });
+  def('bench', { img: buildBench(), foot: { w: 32, h: 3 } });
+  def('chest', { img: buildChest(), foot: { w: 16, h: 6 } });
+  def('throne', { img: buildThrone(), foot: { w: 22, h: 8 } });
+  def('backpack', { img: SPR.icon.backpack, shadow: { rx: 5, ry: 2 } });
+  const wallMap = buildWallMap();
+  def('wallMap', { img: wallMap, oy: wallMap.height + 3 });
   def('bushPink', { img: buildBush('#f25c9a'), foot: { w: 12, h: 4 } });
   def('bushYellow', { img: buildBush('#f7d046'), foot: { w: 12, h: 4 } });
   def('rock', { img: buildRock(true) });
@@ -1323,17 +2519,40 @@ function buildSprites() {
       shadow: { rx: 10, ry: 3 },
       light: { dx: 0, dy: -10, r: 22, color: pal.egg.glow },
     });
-    SPR.flyDragon[id] = buildFlyingDragon(pal);
+    SPR.flyDragon[id] = addFlyingDiagonals(buildFlyingDragon(pal), pal);
     SPR.heldEgg[id] = buildHeldEgg(pal.egg);
-    SPR.babyDragon[id] = DRAGON_SCALES.map((s) => buildBabyDragon(pal, s));
+    SPR.babyDragon[id] = DRAGON_SCALES.map((_, stage) => buildBabyDragon(pal, stage));
   }
   SPR.clouds = [1, 2, 3, 4].map(buildCloud);
 
-  def('palm', { img: buildPalm(), foot: { w: 6, h: 4 }, shadow: { rx: 9, ry: 3 } });
+  const palm = buildPalm();
+  const bare = buildPalm(false);
+  def('palm', { img: palm, pick: (t, o) => (o.shaken ? bare : palm), foot: { w: 6, h: 4 }, shadow: { rx: 9, ry: 3 } });
   def('menhir', { img: buildMenhir(), foot: { w: 10, h: 5 }, shadow: { rx: 6, ry: 2 }, light: { dx: 0, dy: -14, r: 14, color: '#6fb6ff' } });
+  [['peak', 112, 100, 0.42], ['peak2', 104, 92, 0.48], ['peakB', 84, 74, 0.32], ['peakC', 56, 48, 0.22]].forEach(([k, w, h, snow], i) => {
+    for (let v = 0; v < 3; v++) def(`${k}-${v}`, { img: buildPeak(w, h, 1 + i * 3 + v, snow * (0.85 + v * 0.15)) });
+  });
+  def('volcano', { img: buildVolcano(), light: { dx: 0, dy: -96, r: 40, color: '#ff6a1a' } });
+  def('snowPine', { img: buildPine(true, true), foot: { w: 8, h: 5 }, shadow: { rx: 10, ry: 3 } });
+  def('jungleTree', { img: buildJungleTree(), foot: { w: 10, h: 5 }, shadow: { rx: 14, ry: 4 } });
+  def('fern', { img: buildFern(), foot: { w: 10, h: 3 } });
+  def('boulder', { img: buildBoulder('grey'), foot: { w: 24, h: 8 }, shadow: { rx: 13, ry: 3 } });
+  def('boulderSnow', { img: buildBoulder('snow'), foot: { w: 24, h: 8 }, shadow: { rx: 13, ry: 3 } });
+  def('boulderDark', { img: buildBoulder('dark'), foot: { w: 24, h: 8 }, shadow: { rx: 13, ry: 3 } });
+  def('deadTree', { img: buildDeadTree(), foot: { w: 6, h: 4 }, shadow: { rx: 8, ry: 2 } });
+  def('column', { img: buildColumn(), foot: { w: 12, h: 5 }, shadow: { rx: 7, ry: 2 } });
+  def('ruinWall', { img: buildRuinWall(), foot: { w: 32, h: 6 } });
+  const nest = buildNest();
+  def('nest', { img: nest, oy: nest.height - 4 });
+  def('cairn', { img: buildCairn(), foot: { w: 10, h: 4 }, shadow: { rx: 7, ry: 2 } });
+  def('logPile', { img: buildLogPile(), foot: { w: 30, h: 6 }, shadow: { rx: 16, ry: 3 } });
+  def('iceCrystal', { img: buildIceCrystal(), foot: { w: 14, h: 4 }, light: { dx: 0, dy: -12, r: 16, color: '#9fdcff' } });
+  def('scarecrow', { img: buildScarecrow(), foot: { w: 4, h: 3 } });
   SPR.sheep = buildSheep();
 
   const side = buildShip();
+  const ne = buildShipDiagonal(false);
+  const se = buildShipDiagonal(true);
   // seat = where the rider's waist meets the gunwale
   def('ship', {
     img: side,
@@ -1343,11 +2562,22 @@ function buildSprites() {
       left: { img: mirror(side), ox: 52, oy: 80, seat: [74, 62] },
       down: { img: buildShipVertical(true), ox: 32, oy: 86, seat: [32, 69] },
       up: { img: buildShipVertical(false), ox: 32, oy: 86, seat: [32, 73] },
+      ne: { img: ne, ox: 52, oy: 88, seat: [44, 69] },
+      nw: { img: mirror(ne), ox: 52, oy: 88, seat: [60, 69] },
+      se: { img: se, ox: 52, oy: 88, seat: [60, 69] },
+      sw: { img: mirror(se), ox: 52, oy: 88, seat: [44, 69] },
     },
     after: (g, x, y, t, o) => {
       const w = 3 + Math.round(Math.sin(t * 2) * 2);
       g.globalAlpha = 0.6;
-      if (o.dir === 'up' || o.dir === 'down') {
+      const f = o.facing || o.dir;
+      if (f === 'ne' || f === 'nw' || f === 'se' || f === 'sw') {
+        // the near waterline climbs toward the far end of the hull
+        const s = f === 'ne' || f === 'sw' ? -1 : 1;
+        for (let i = -2; i <= 2; i++) rect(g, x + i * 13 - 5, y - 11 + s * i * 7, 10, 1, '#9fd2fa');
+        rect(g, x - 40 - w, y - 13 + s * 16, 8 + w, 1, PAL.foam);
+        rect(g, x + 34, y - 13 - s * 16, 8 + w, 1, PAL.foam);
+      } else if (f === 'up' || f === 'down') {
         rect(g, x - 20 - w, y + 2, 8 + w, 1, PAL.foam);
         rect(g, x + 12, y + 2, 8 + w, 1, PAL.foam);
         rect(g, x - 12, y + 4, 24, 1, '#9fd2fa');

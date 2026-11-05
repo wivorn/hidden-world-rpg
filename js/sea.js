@@ -62,7 +62,7 @@ function initSea() {
     }
     return null;
   };
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 14; i++) {
     const p = spot(6, 255, 300, seaLife.pods);
     if (!p) continue;
     const members = Array.from({ length: 2 + Math.floor(rng() * 2) }, (_, j) => ({
@@ -70,11 +70,11 @@ function initSea() {
     }));
     seaLife.pods.push({ ...p, heading: rng() * Math.PI * 2, vx: 0, vy: 0, face: 1, side: rng() < 0.5 ? -1 : 1, members });
   }
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 8; i++) {
     const p = spot(9, 255, 500, seaLife.whales);
     if (p) seaLife.whales.push({ ...p, heading: rng() * Math.PI * 2, face: 1, t: rng() * 16, sang: false, spouts: 0 });
   }
-  for (let i = 0; i < 45; i++) {
+  for (let i = 0; i < 170; i++) {
     const p = spot(1, 3, 70, seaLife.schools);
     if (!p) continue;
     const fish = Array.from({ length: 4 + Math.floor(rng() * 3) }, () => ({ a: rng() * 6.28, r: 3 + rng() * 7, s: 0.8 + rng() * 1.2 }));

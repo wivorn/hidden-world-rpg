@@ -13,11 +13,13 @@
   <div class="vignette"></div>
   <div id="bubbles"></div>
   <div id="prompt"></div>
+  <ul id="inventory" aria-label="Inventory" aria-live="polite"></ul>
   <div id="toggles">
     <button id="hints" class="toggle" type="button" aria-pressed="false">HINTS OFF</button>
     <button id="sound" class="toggle" type="button" aria-pressed="true">SOUND ON</button>
+    <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="World map (M)" hidden>MAP</button>
   </div>
-  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; Enter to chat &middot; H for hints &middot; M for sound</div>
+  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; 1-6 to pick a slot &middot; F to use it &middot; X to drop it &middot; Enter to chat &middot; M for map &middot; H for hints &middot; N for sound</div>
   <form id="chat" autocomplete="off">
     <label for="chat-input">SAY</label>
     <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
@@ -31,9 +33,16 @@
       <button type="submit">OK</button>
     </form>
   </div>
+  <div id="worldmap" class="overlay" role="dialog" aria-modal="true" aria-labelledby="worldmap-title" hidden>
+    <div class="panel map-panel">
+      <h2 id="worldmap-title">MAP OF THE HIDDEN WORLD</h2>
+      <canvas id="worldmap-canvas" role="img" aria-label="World map"></canvas>
+      <button id="worldmap-close" type="button">CLOSE</button>
+    </div>
+  </div>
   <div id="start" class="overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
     <form id="start-form" class="panel" autocomplete="off">
-      <h1 id="start-title">HIDDEN WORLD</h1>
+      <h1 id="start-title"><small>WELCOME TO</small> HIDDEN WORLD</h1>
       <fieldset class="heroes">
         <legend>CHOOSE YOUR HERO</legend>
         <label class="hero">
@@ -48,7 +57,7 @@
         </label>
       </fieldset>
       <label class="name-label" for="hero-name">YOUR NAME</label>
-      <input id="hero-name" class="name-input" maxlength="12" placeholder="Eli" spellcheck="false" />
+      <input id="hero-name" class="name-input" maxlength="12" placeholder="Hickory" spellcheck="false" />
       <button type="submit">START</button>
     </form>
   </div>
@@ -56,9 +65,12 @@
   <script src="js/pixel.js"></script>
   <script src="js/sprites.js"></script>
   <script src="js/world.js"></script>
+  <script src="js/craft.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sea.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/title.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

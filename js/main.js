@@ -24,13 +24,15 @@ buildSprites();
 generateMap();
 placeObjects();
 buildColliders();
-const ground = renderGround();
+initGround();
 const shipObj = objects.find((o) => o.key === 'ship');
+shipObj.facing = shipObj.dir;
 const seaRocks = objects.filter((o) => o.key === 'rock');
 // state: wild, carried, warming or hatched
 const eggs = objects.filter((o) => o.species).map((o) => Object.assign(o, { state: 'wild', crack: 0, hatchT: 0 }));
 const villageFire = objects.find((o) => o.key === 'bonfire');
 initSea();
+initCrafting();
 
 // 0..1 loudness for a sound at a world position, fading out past the edge of the view.
 function earshot(x, y) {
@@ -38,13 +40,13 @@ function earshot(x, y) {
   return Math.max(0, Math.min(1, 1.3 - d / (viewW * 0.6)));
 }
 
-const VOICES = { male: 330, female: 460, chief: 150, smith: 120, merchant: 380, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110 };
+const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400 };
 
 function surfaceUnder(x, y) {
   const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
   if (t === T.WOOD) return 'wood';
-  if (t === T.PATH || t === T.STAIRS) return 'stone';
-  if (t === T.SAND) return 'sand';
+  if (t === T.PATH || t === T.STAIRS || t === T.ROCK || t === T.ICE) return 'stone';
+  if (t === T.SAND || t === T.SNOW || t === T.ASH) return 'sand';
   return 'grass';
 }
 
@@ -74,9 +76,20 @@ player.running = false;
 
 const npcs = NPCS.map((d) => Object.assign(makeEntity(LOOKS[d.look], d.x * TILE, d.y * TILE), {
   home: { x: d.x * TILE, y: d.y * TILE },
+  origin: { x: d.x * TILE, y: d.y * TILE },
   roam: (d.roam || 0) * TILE,
   fixed: d.fixed,
-  line: d.line,
+  stays: d.stays,
+  job: d.job && {
+    station: { x: d.job.station[0] * TILE, y: d.job.station[1] * TILE },
+    face: d.job.face,
+    prop: objects.find((o) => o.key === d.job.prop),
+    working: false,
+    effectT: 0,
+  },
+  lines: d.lines,
+  line: null,
+  lineI: 0,
   dir: d.fixed || 'down',
   state: 'idle',
   timer: 1 + Math.random() * 3,
@@ -108,23 +121,24 @@ function blocked(x0, y0, x1, y1, self, swim = false) {
     for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x1 - 0.001) / TILE); tx++) {
       if (!inBounds(tx, ty)) return true;
       const t = tileAt(tx, ty);
-      if (t === T.WATER ? !swim : isSolidTile(t)) return true;
+      if (isWet(t) ? !swim : isSolidTile(t)) return true;
     }
   }
-  for (const c of colliders) if (!c.off && x1 > c.x0 && x0 < c.x1 && y1 > c.y0 && y0 < c.y1) return true;
+  if (solidAt(x0, y0, x1, y1)) return true;
   for (const e of entities) {
     if (e !== self && !e.flying && x1 > e.x - 5 && x0 < e.x + 5 && y1 > e.y - 4 && y0 < e.y) return true;
   }
   if (swim && !sail) {
-    const [sx0, sy0, sx1, sy1] = shipBox(shipObj.dir, shipObj.x, shipObj.y);
-    if (x1 > sx0 && x0 < sx1 && y1 > sy0 && y0 < sy1) return true;
+    for (const [sx0, sy0, sx1, sy1] of shipBoxes(shipObj.facing, shipObj.x, shipObj.y)) {
+      if (x1 > sx0 && x0 < sx1 && y1 > sy0 && y0 < sy1) return true;
+    }
   }
   return false;
 }
 
 const canStand = (e, x, y) => !blocked(x - 5, y - 4, x + 5, y, e, e.swimming);
 const onLand = (x, y) => !blocked(x - 5, y - 4, x + 5, y, player);
-const inWater = (x, y) => tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)) === T.WATER;
+const inWater = (x, y) => isWet(tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)));
 
 // Slides the entity sideways when it pushes straight into a corner.
 function nudge(e, dx, dy) {
@@ -209,8 +223,8 @@ function diveSpot() {
     const y = player.y + vy * d;
     const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
     if (t === T.FALL) return null;
-    if (t !== T.CLIFF && t !== T.WATER) {
-      if (d > 12 || colliders.some((c) => !c.off && x + 5 > c.x0 && x - 5 < c.x1 && y > c.y0 && y - 4 < c.y1)) return null;
+    if (t !== T.CLIFF && !isWet(t)) {
+      if (d > 12 || solidAt(x - 5, y - 4, x + 5, y)) return null;
       continue;
     }
     const wet = [[-5, -4], [5, -4], [-5, 0], [5, 0]].every(([ox, oy]) => inWater(x + ox, y + oy));
@@ -313,7 +327,8 @@ function updatePlayer(dt) {
   }
   const running = player.running;
   const speed = (running ? 115 : 68) * dt;
-  move(player, ix * speed, iy * speed);
+  if (!move(player, ix * speed, iy * speed) && player.jumpT < 0 && wadeIn(ix, iy)) return;
+  updateDoors(iy);
 
   if (Math.abs(ix) > Math.abs(iy) + 0.01) player.dir = ix > 0 ? 'right' : 'left';
   else if (Math.abs(iy) > Math.abs(ix) + 0.01) player.dir = iy > 0 ? 'down' : 'up';
@@ -357,8 +372,10 @@ function updateNpc(n, dt) {
     n.frame = 0;
     n.state = 'idle';
     n.timer = Math.max(n.timer, 1);
+    if (n.job) n.job.prop.active = false;
     return;
   }
+  if (n.job) return updateJob(n, dt);
   if (n.fixed) {
     n.dir = n.fixed;
     n.frame = 0;
@@ -398,11 +415,67 @@ function updateNpc(n, dt) {
   n.frame = Math.floor(n.anim) % 4;
 }
 
+// Shopkeepers mind their stall, and every so often step over to their workstation.
+function updateJob(n, dt) {
+  const j = n.job;
+  const spot = j.working ? j.station : n.home;
+  const dx = spot.x - n.x;
+  const dy = spot.y - n.y;
+  const d = Math.hypot(dx, dy);
+  j.prop.active = false;
+  if (d > 1.5 && n.stuck < 0.6) {
+    const sp = 30 * dt;
+    if (!move(n, (dx / d) * sp, (dy / d) * sp)) n.stuck += dt;
+    faceToward(n, dx, dy);
+    n.anim += dt * 6;
+    n.frame = Math.floor(n.anim) % 4;
+    return;
+  }
+  n.frame = 0;
+  n.dir = j.working ? j.face : 'down';
+  if (j.working) {
+    j.prop.active = true;
+    j.effectT -= dt;
+    if (j.effectT <= 0) j.effectT = WORK[n.look.id](n, j.prop);
+  }
+  n.timer -= dt;
+  if (n.timer > 0) return;
+  j.working = !j.working;
+  n.stuck = 0;
+  n.timer = j.working ? 6 + Math.random() * 4 : 8 + Math.random() * 8;
+}
+
+// What each trade looks and sounds like at its workstation; returns the delay until the next beat.
+const WORK = {
+  baker(n, o) {
+    for (let i = 0; i < 3; i++) {
+      particles.push({ type: 'ember', x: o.x + (Math.random() - 0.5) * 8, y: o.y - 8, vx: (Math.random() - 0.5) * 10, vy: -18 - Math.random() * 14, life: 0, max: 0.6 + Math.random() * 0.4 });
+    }
+    return 0.5;
+  },
+  weaver(n, o) {
+    Sfx.thunk(0.25 * earshot(o.x, o.y));
+    return 0.4;
+  },
+  seamstress(n, o) {
+    particles.push({ type: 'sparkle', x: o.x + (Math.random() - 0.5) * 8, y: o.y - 8 - Math.random() * 14, vx: 0, vy: -4, life: 0, max: 0.4 });
+    return 0.7;
+  },
+  tanner(n, o) {
+    o.shakeT = 0.15;
+    Sfx.swish(0.5 * earshot(o.x, o.y));
+    for (let i = 0; i < 3; i++) {
+      particles.push({ type: 'chip', x: o.x - 2, y: o.y - 14, vx: 10 + Math.random() * 20, vy: -20 - Math.random() * 20, c: '#d8b484', life: 0, max: 0.4 });
+    }
+    return 0.6;
+  },
+};
+
 function nearNpc() {
   let best = null;
   let bestD = 36;
   for (const n of npcs) {
-    if (n.followT > 0) continue;
+    if (n.followT > 0 || !sameSpace(n)) continue;
     const d = Math.hypot(n.x - player.x, n.y - player.y);
     if (d < bestD) { bestD = d; best = n; }
   }
@@ -412,9 +485,19 @@ function nearNpc() {
 function talk() {
   const best = nearNpc();
   if (!best) return false;
-  npcSay(best, best.line);
+  if (!welcomeGift(best)) npcSay(best, nextLine(best));
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
+}
+
+// Cycles through an NPC's lines. A story or situation line (`line`) comes first whenever it changes, then every other time.
+function nextLine(n) {
+  if (n.line !== n.saidLine) {
+    n.saidLine = n.line;
+    n.turn = 0;
+  }
+  if (n.line && n.turn++ % 2 === 0) return n.line;
+  return n.lines[n.lineI++ % n.lines.length];
 }
 
 function npcSay(n, text) {
@@ -429,6 +512,7 @@ function npcSay(n, text) {
     .replace(/\{lad\}/g, player.look.id === 'female' ? 'lass' : 'lad')
     .replace(/\{dragon\}/g, pet ? pet.name : 'your dragon');
   n.bubble.textContent = text;
+  learnFrom(n, text);
   n.bubble.classList.add('show');
   n.talkT = 2.5 + text.length * 0.05;
   Sfx.babble(VOICES[n.look.id] || 250, text, earshot(n.x, n.y));
@@ -441,7 +525,7 @@ function hear(text) {
     .map((n) => [n, Math.hypot(n.x - lx, n.y - ly)])
     .filter(([, d]) => d < r)
     .sort((a, b) => a[1] - b[1]);
-  const nearD = byDist(npcs, 80);
+  const nearD = byDist(npcs.filter(sameSpace), 80);
   const near = nearD.map(([n]) => n);
   const topic = chatTopic(text);
   if (topic === 'follow' || topic === 'stop') {
@@ -456,9 +540,12 @@ function hear(text) {
     }
   }
   if (!near.length) return;
-  const speaker = near.find((n) => addresses(n.look.id, text)) || near[0];
+  const tools = topic === 'forge' || (topic === 'wares' && /\btools?\b/i.test(text));
+  const makerId = topic === 'craft' ? recipeFor(text).maker : tools && 'smith';
+  const maker = makerId && near.find((n) => n.look.id === makerId);
+  const speaker = near.find((n) => addresses(n.look.id, text)) || maker || near[0];
   for (const n of near) {
-    n.pending = { t: 0.35 + Math.random() * 0.35 + (n === speaker ? 0.25 : 0), topic, reply: n === speaker };
+    n.pending = { t: 0.35 + Math.random() * 0.35 + (n === speaker ? 0.25 : 0), topic, text, reply: n === speaker };
   }
 }
 
@@ -495,16 +582,18 @@ function storyTopic(n, topic) {
   return born ? eggStage : 'eggFound';
 }
 
-function react(n, { topic: heard, reply }) {
+function react(n, { topic: heard, text, reply }) {
   const topic = storyTopic(n, heard);
   faceToward(n, player.x - n.x, player.y - n.y);
   n.emote = TOPIC_EMOTES[topic];
   n.emoteT = 1.8;
   if (topic === 'dance' && !n.fixed) n.danceT = 2.4;
   if (!reply) return;
+  if (topic !== 'insult' && welcomeGift(n)) return;
+  if (topic === 'craft' && askCraft(n, text)) return;
   npcSay(n, npcReply(n.look.id, topic));
   playerSayT = Math.min(playerSayT, 0.01);
-  if (n.fixed) return;
+  if (n.fixed || n.stays) return;
   if (topic === 'follow') n.followT = 45;
   if (topic === 'stop' && n.followT > 0) {
     n.followT = 0;
@@ -515,6 +604,10 @@ function react(n, { topic: heard, reply }) {
 
 // Dancing, fleeing and following override the usual roaming; returns true when handled.
 function updateReaction(n, dt) {
+  if (n.craft) {
+    updateCraft(n, dt);
+    return true;
+  }
   if (n.danceT > 0) {
     n.danceT -= dt;
     n.dir = ['down', 'left', 'up', 'right'][Math.floor(time * 7) % 4];
@@ -903,10 +996,10 @@ const STORY_LINES = {
     hermit: 'A dragon of your very own. Young dragons grow strong on fish from the open sea.',
     chief: 'A new dragon in our village! This is a great day.',
     kid: 'Your baby dragon is SO cute!',
-    fisher: 'That little dragon keeps eyeing my fish! Sail over a school and give a whistle (F), it\'ll dive right in.',
+    fisher: 'That little dragon keeps eyeing my fish! Sail over a school, or near the dolphins, and give a whistle (F). It\'ll dive right in.',
   },
   grown: {
-    hermit: 'It has grown into a true dragon. More eggs sleep on the sandy isles, if you have room for more.',
+    hermit: 'It has grown into a true dragon. More eggs sleep on the far isles, if you have room for more.',
     chief: 'A full-grown dragon! Our people will ride the skies again.',
     kid: '{dragon} is HUGE now! Can I ride too?!',
     fisher: 'Ha! It ate its fill out there. Mighty beast now!',
@@ -1143,6 +1236,31 @@ function updateBaby(b, dt) {
   b.anim += dt * 8;
 }
 
+const DRAGON_OCTANTS = ['right', 'se', 'down', 'sw', 'left', 'nw', 'up', 'ne'];
+const DRAGON_FACE_SIDES = { se: ['down', 'right'], sw: ['down', 'left'], ne: ['up', 'right'], nw: ['up', 'left'] };
+
+// A dragon is drawn in one of eight facings (`face`), separate from its four-way `dir`: the heading
+// of its smoothed movement, changed only once it is well past an octant edge so it doesn't flicker.
+// Standing still it keeps a diagonal that agrees with `dir`, or else falls back to `dir`.
+function updateDragonFace(b, dt) {
+  const mx = b.x - (b.lastX ?? b.x);
+  const my = b.y - (b.lastY ?? b.y);
+  b.lastX = b.x;
+  b.lastY = b.y;
+  if (dt <= 0 || Math.hypot(mx, my) > 40) return;
+  const k = 1 - Math.exp(-dt * 8);
+  b.vx = (b.vx || 0) + (mx / dt - (b.vx || 0)) * k;
+  b.vy = (b.vy || 0) + (my / dt - (b.vy || 0)) * k;
+  if (Math.hypot(b.vx, b.vy) > 14) {
+    const a = Math.atan2(b.vy, b.vx);
+    const i = DRAGON_OCTANTS.indexOf(b.face);
+    const off = i < 0 ? Infinity : Math.abs(Math.atan2(Math.sin(a - i * Math.PI / 4), Math.cos(a - i * Math.PI / 4)));
+    if (off > Math.PI / 8 + 0.2) b.face = DRAGON_OCTANTS[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+  } else if (b.face !== b.dir && !(DRAGON_FACE_SIDES[b.face] || []).includes(b.dir)) {
+    b.face = b.dir;
+  }
+}
+
 function babyLift(b) {
   if (b.stage === GROWN) return b.alt + Math.sin(time * 3) * 1.5;
   if (b.flying) return b.alt + 2 + Math.sin(time * 6) * 1.5;
@@ -1155,18 +1273,33 @@ const babyShown = (b) => !(b.stage === GROWN && (b.perched || (flight && flight.
 function drawBaby(b, cx, cy) {
   const x = Math.round(b.x) - cx;
   const y = Math.round(b.y - babyLift(b)) - cy;
+  const face = b.face || b.dir;
   if (b.stage === GROWN) {
-    const fr = SPR.flyDragon[b.species][b.dir][Math.floor(b.flap) % 4];
+    const fr = SPR.flyDragon[b.species][face][Math.floor(b.flap) % 4];
     ctx.drawImage(fr.under, x - 36, y - 40);
     if (fr.over) ctx.drawImage(fr.over, x - 36, y - 40);
     return;
   }
   const set = SPR.babyDragon[b.species][b.stage];
-  ctx.drawImage(set[b.dir][b.jumpT >= 0 || b.swoop ? 1 : b.frame], x - set.ox, y - set.oy);
-  if (b.catchT > 0 && b.dir !== 'up') {
-    const s = DRAGON_SCALES[b.stage];
-    const mx = x + Math.round((b.dir === 'right' ? 9 : b.dir === 'left' ? -9 : 0) * s);
-    const my = y - Math.round(9 * s);
+  const fr = b.swoop ? 2 : b.flying ? 2 + b.frame : b.jumpT >= 0 ? 1 : 0;
+  ctx.drawImage(set[face][fr], x - set.ox, y - set.oy);
+  const mouth = set.mouth[face];
+  if (b.catchT > 0 && mouth && b.catchBig) {
+    const mx = x + mouth[0];
+    const my = y + mouth[1];
+    const s = face === 'left' || face.endsWith('w') ? -1 : 1;
+    ellipse(ctx, mx, my + 1, 7, 3, '#22160f');
+    ellipse(ctx, mx, my + 1, 6, 2, '#5f7fa6');
+    rect(ctx, mx - 4, my, 8, 1, '#46658c');
+    rect(ctx, mx - 3, my + 2, 6, 1, '#cfdceb');
+    rect(ctx, mx - 1, my - 2, 2, 1, '#46658c');
+    px(ctx, mx + 4 * s, my + 1, '#10141c');
+    const tail = s > 0 ? mx - 8 : mx + 7;
+    rect(ctx, tail, my - 1, 2, 1, '#46658c');
+    rect(ctx, tail, my + 3, 2, 1, '#46658c');
+  } else if (b.catchT > 0 && mouth) {
+    const mx = x + mouth[0];
+    const my = y + mouth[1];
     rect(ctx, mx - 3, my - 1, 7, 4, '#22160f');
     rect(ctx, mx - 2, my, 4, 2, '#dbe7f2');
     px(ctx, mx + 2, my, '#9fb3c8');
@@ -1179,35 +1312,46 @@ function drawBaby(b, cx, cy) {
 const GROWN = DRAGON_SCALES.length;
 const FISH_RANGE = 90;
 
+// Where the prey is now: a whole school, or one dolphin (a big fish) in a pod.
+const preyAt = (p) => (p.pod ? [p.pod.x + p.m.ox, p.pod.y + p.m.oy] : [p.s.x, p.s.y]);
+
+// The nearest school or dolphin; a pod always keeps at least one dolphin.
 function fishNearShip() {
   let best = null;
   let bd = FISH_RANGE;
-  for (const s of seaLife.schools) {
-    if (!s.fish.length) continue;
-    const d = Math.hypot(s.x - shipObj.x, s.y - shipObj.y);
-    if (d < bd) { bd = d; best = s; }
-  }
+  const consider = (p) => {
+    const [x, y] = preyAt(p);
+    const d = Math.hypot(x - shipObj.x, y - shipObj.y);
+    if (d < bd) { bd = d; best = p; }
+  };
+  for (const s of seaLife.schools) if (s.fish.length) consider({ s });
+  for (const pod of seaLife.pods) if (pod.members.length > 1) for (const m of pod.members) consider({ pod, m });
   return best;
 }
 
-// Dives at the school, snatches a fish off the surface and climbs back to the ship.
+// Dives at the prey, snatches it off the surface and climbs back to the ship.
 function updateSwoop(b, dt) {
   const w = b.swoop;
   w.t += dt;
-  const dx = w.s.x - b.x;
-  const dy = w.s.y - b.y;
+  const [px, py] = preyAt(w);
+  const dx = px - b.x;
+  const dy = py - b.y;
   const k = 1 - Math.exp(-dt * 6);
   b.x += dx * k;
   b.y += dy * k;
   b.alt += (-1 - b.alt) * (1 - Math.exp(-dt * 5));
   faceToward(b, dx, dy);
   if (Math.hypot(dx, dy) < 6 && b.alt < 3) {
-    w.s.fish.pop();
-    seaSplash(b.x, b.y, 0.9);
-    Sfx.splash(0.6 * earshot(b.x, b.y));
+    const big = !!w.pod;
+    if (big) w.pod.members.splice(w.pod.members.indexOf(w.m), 1);
+    else w.s.fish.pop();
+    seaSplash(b.x, b.y, big ? 1.6 : 0.9);
+    Sfx.splash((big ? 0.9 : 0.6) * earshot(b.x, b.y));
+    if (big) Sfx.dolphin(earshot(b.x, b.y));
     b.alt = 0;
     b.swoop = null;
-    b.catchT = 0.9;
+    b.catchT = big ? 1.4 : 0.9;
+    b.catchBig = big;
   } else if (w.t > 2.5) {
     b.swoop = null;
   }
@@ -1219,9 +1363,9 @@ const canFish = (b) => !!b && b.stage < GROWN && sail && b.flying && !b.swoop &&
 function sendFishing() {
   const b = follower;
   if (!canFish(b)) return;
-  const s = fishNearShip();
-  if (s) {
-    b.swoop = { s, t: 0 };
+  const prey = fishNearShip();
+  if (prey) {
+    b.swoop = { ...prey, t: 0 };
     Sfx.flap(0.5 * earshot(b.x, b.y));
   } else {
     b.emote = 'question';
@@ -1244,7 +1388,7 @@ function feedBaby(b) {
   if (b.stage === GROWN) growUp(b);
 }
 
-// The fifth fish: it becomes the full-size dragon, which can be ridden whenever it has landed.
+// The third fish: it becomes the full-size dragon, which can be ridden whenever it has landed.
 // It sees the player back to land, then stays there until ridden or asked to follow again.
 function growUp(b) {
   const o = { key: `dragon_${b.species}`, x: Math.round(b.x), y: Math.round(b.y), phase: 0, hidden: true, col: { off: true } };
@@ -1292,9 +1436,10 @@ function grownLeader(b) {
     const [vx, vy] = DIR_VEC[player.dir];
     return { x: player.x - vx * 36, y: player.y - vy * 24, alt: 44 };
   }
+  const p = leadSpot();
   const s = b.spot;
-  if (!s || Math.hypot(s.x - player.x, s.y - player.y) > 80 || !dragonFits(s.x, s.y)) b.spot = perchSpot(player.x, player.y, BESIDE);
-  if (!b.spot) return { x: player.x, y: player.y - 30, alt: 44 };
+  if (!s || Math.hypot(s.x - p.x, s.y - p.y) > 80 || !dragonFits(s.x, s.y)) b.spot = perchSpot(p.x, p.y, BESIDE);
+  if (!b.spot) return { x: p.x, y: p.y - 30, alt: 44 };
   const near = Math.hypot(b.x - b.spot.x, b.y - b.spot.y) < 40;
   return { x: b.spot.x, y: b.spot.y, alt: near ? 0 : 36, land: true };
 }
@@ -1313,7 +1458,8 @@ function updateGrown(b, dt) {
     b.x = d.x;
     b.y = d.y;
     if (hop || b !== follower) return;
-    if (sail || player.swimming || flight || Math.hypot(player.x - d.x, player.y - d.y) > 150) {
+    const p = leadSpot();
+    if (sail || player.swimming || flight || Math.hypot(p.x - d.x, p.y - d.y) > 150) {
       d.hidden = true;
       d.col.off = true;
       Object.assign(b, { perched: false, alt: 0, flap: 0, spot: null });
@@ -1356,6 +1502,68 @@ function drawHeldEgg(x, top) {
 
 // ---------- sheep ----------
 
+const inPen = (s) => s.x > PEN.x0 && s.x < PEN.x1 && s.y > PEN.y0 && s.y < PEN.y1;
+const sheepLoose = () => sheep.some((s) => !inPen(s));
+const penOpen = () => hittables.some((o) => o.pen && o.broken && !o.mendNow);
+// With a gap in the fence they graze further afield, and slip out through it.
+const PASTURE = { x0: PEN.x0 - 5 * TILE, y0: PEN.y0 - 4 * TILE, x1: PEN.x1 + 5 * TILE, y1: PEN.y1 + 4 * TILE };
+const shepherd = npcs.find((n) => n.look.id === 'villager');
+const FLOCK_ASK = 'My sheep broke through the fence and scattered! Could you herd them back into the pen for me?';
+let looseCount = 0;
+let flockAsked = false;
+let flockDone = false;
+for (const o of hittables) {
+  if (!o.gap) continue;
+  Object.assign(o, { key: 'fenceHBroken', broken: true });
+  o.col.off = true;
+}
+
+// Sheep out of the pen scatter away from the player, so they can be herded back in.
+function herd(s, dt) {
+  const dx = s.x - player.x;
+  const dy = s.y - player.y;
+  const d = Math.hypot(dx, dy);
+  if (inPen(s) || player.flying || d > 34) return false;
+  const sp = 46 * dt;
+  move(s, (dx / (d || 1)) * sp, (dy / (d || 1)) * sp);
+  if (Math.abs(dx) > 1) s.dir = dx > 0 ? 'right' : 'left';
+  s.anim += dt * 9;
+  Object.assign(s, { state: 'idle', timer: 0.8 });
+  return true;
+}
+
+// The first round-up is the shepherd's errand and earns some wool; later escapes only earn thanks.
+function updateFlock() {
+  const near = !indoors && Math.hypot(shepherd.x - player.x, shepherd.y - player.y) < 320;
+  if (!flockDone && !flockAsked && near && Math.hypot(shepherd.x - player.x, shepherd.y - player.y) < 80) {
+    flockAsked = true;
+    npcSay(shepherd, FLOCK_ASK);
+  }
+  const n = sheep.filter((s) => !inPen(s)).length;
+  if (n === looseCount) return;
+  if (!n && !flockDone) finishFlock();
+  else if (!n && near) npcSay(shepherd, 'They\'re all back! Thank you, {name}!');
+  else if (n < looseCount && near && !flockDone) npcSay(shepherd, n === 1 ? 'Nearly there! Just one more.' : `In you go! ${n} more to go.`);
+  else if (n > looseCount && near && flockDone) npcSay(shepherd, 'My sheep! They\'re getting out!');
+  shepherd.line = !n ? null : flockDone ? 'Some of my sheep got out! Shoo them back into the pen, would you?' : FLOCK_ASK;
+  looseCount = n;
+}
+
+function finishFlock() {
+  flockDone = true;
+  npcSay(shepherd, 'That\'s all of them! Thank you, {name}. Here, have some of their wool.');
+  faceToward(shepherd, player.x - shepherd.x, player.y - shepherd.y);
+  Object.assign(shepherd, { emote: 'heart', emoteT: 1.8 });
+  give('wool', 3);
+  popIcon('wool', player.x, player.y - 30);
+  Sfx.reward();
+  for (const o of hittables) {
+    if (!o.pen || !o.broken) continue;
+    o.mendNow = true;
+    o.regrowT = 1.5;
+  }
+}
+
 function updateSheep(s, dt) {
   if (s.emoteT > 0) s.emoteT -= dt;
   s.baaT -= dt;
@@ -1363,10 +1571,17 @@ function updateSheep(s, dt) {
     s.baaT = 8 + Math.random() * 14;
     Sfx.baa(0.6 * earshot(s.x, s.y));
   }
+  if (herd(s, dt)) return;
   if (s.state !== 'walk') {
     s.timer -= dt;
     if (s.timer > 0) return;
-    s.target = { x: PEN.x0 + Math.random() * (PEN.x1 - PEN.x0), y: PEN.y0 + Math.random() * (PEN.y1 - PEN.y0) };
+    // loose sheep graze round the pen rather than wander back in; it takes herding
+    const out = !inPen(s) || (penOpen() && flockDone);
+    const area = out ? PASTURE : PEN;
+    for (let i = 0; i < 8; i++) {
+      s.target = { x: area.x0 + Math.random() * (area.x1 - area.x0), y: area.y0 + Math.random() * (area.y1 - area.y0) };
+      if (!out || !inPen(s.target)) break;
+    }
     s.state = 'walk';
     s.stuck = 0;
     return;
@@ -1414,30 +1629,43 @@ function drawSheep(s, cx, cy) {
 // ---------- sailing ----------
 
 const isHorizontal = (dir) => dir === 'left' || dir === 'right';
+// shipObj.facing is 8-way (clockwise from east in 45° steps); shipObj.dir stays 4-way for the rider.
+const SHIP_FACINGS = ['right', 'se', 'down', 'sw', 'left', 'nw', 'up', 'ne'];
+const FACING_DIR = { ne: 'right', se: 'right', nw: 'left', sw: 'left' };
+const isDiagonal = (f) => f in FACING_DIR;
 
-function shipBox(dir, x, y) {
-  return isHorizontal(dir) ? [x - 44, y - 12, x + 44, y + 2] : [x - 16, y - 50, x + 16, y + 2];
+function shipBox(facing, x, y) {
+  if (isDiagonal(facing)) return [x - 35, y - 36, x + 35, y + 2];
+  return isHorizontal(facing) ? [x - 44, y - 12, x + 44, y + 2] : [x - 16, y - 50, x + 16, y + 2];
 }
 
-function shipBlocked(dir, x, y) {
-  const [x0, y0, x1, y1] = shipBox(dir, x, y);
-  for (let ty = Math.floor(y0 / TILE); ty <= Math.floor(y1 / TILE); ty++) {
-    for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
-      if (!inBounds(tx, ty) || tileAt(tx, ty) !== T.WATER) return true;
+// A diagonal hull is covered by three boxes stepped along the keel instead of its loose bounding box.
+function shipBoxes(facing, x, y) {
+  if (!isDiagonal(facing)) return [shipBox(facing, x, y)];
+  const s = facing === 'ne' || facing === 'sw' ? -1 : 1;
+  return [-1, 0, 1].map((k) => [x + k * 19 - 16, y - 24 + s * k * 11.5, x + k * 19 + 16, y - 10 + s * k * 11.5]);
+}
+
+function shipBlocked(facing, x, y) {
+  for (const [x0, y0, x1, y1] of shipBoxes(facing, x, y)) {
+    for (let ty = Math.floor(y0 / TILE); ty <= Math.floor(y1 / TILE); ty++) {
+      for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
+        if (!inBounds(tx, ty) || tileAt(tx, ty) !== T.WATER) return true;
+      }
     }
+    for (const r of seaRocks) if (x1 > r.x - 10 && x0 < r.x + 10 && y1 > r.y - 8 && y0 < r.y) return true;
   }
-  for (const r of seaRocks) if (x1 > r.x - 10 && x0 < r.x + 10 && y1 > r.y - 8 && y0 < r.y) return true;
   return false;
 }
 
 function deckPos() {
-  const d = SPR.ship.dirs[shipObj.dir];
+  const d = SPR.ship.dirs[shipObj.facing];
   return { x: shipObj.x + d.seat[0] - d.ox, lift: d.oy - d.seat[1] - 5 };
 }
 
 function nearShip() {
   if (sail || flight || hop) return false;
-  const [x0, y0, x1, y1] = shipBox(shipObj.dir, shipObj.x, shipObj.y);
+  const [x0, y0, x1, y1] = shipBox(shipObj.facing, shipObj.x, shipObj.y);
   const dx = Math.max(x0 - player.x, 0, player.x - x1);
   const dy = Math.max(y0 - player.y, 0, player.y - y1);
   return Math.hypot(dx, dy) < 56;
@@ -1456,7 +1684,7 @@ function board() {
 
 // Nearest walkable spot just off the hull, or null when out at sea.
 function shoreSpot() {
-  const [x0, y0, x1, y1] = shipBox(shipObj.dir, shipObj.x, shipObj.y);
+  const [x0, y0, x1, y1] = shipBox(shipObj.facing, shipObj.x, shipObj.y);
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;
   let best = null;
@@ -1489,10 +1717,14 @@ function disembark() {
 }
 
 function sternPos() {
-  const { x, y, dir } = shipObj;
-  if (dir === 'right') return [x - 44, y - 2];
-  if (dir === 'left') return [x + 44, y - 2];
-  if (dir === 'down') return [x, y - 50];
+  const { x, y, facing } = shipObj;
+  if (facing === 'right') return [x - 44, y - 2];
+  if (facing === 'left') return [x + 44, y - 2];
+  if (facing === 'down') return [x, y - 50];
+  if (facing === 'ne') return [x - 30, y - 8];
+  if (facing === 'nw') return [x + 30, y - 8];
+  if (facing === 'se') return [x - 28, y - 34];
+  if (facing === 'sw') return [x + 28, y - 34];
   return [x, y + 2];
 }
 
@@ -1507,21 +1739,24 @@ function updateSail(dt) {
   s.vy += (iy * max - s.vy) * k;
 
   const nx = o.x + s.vx * dt;
-  if (!shipBlocked(o.dir, nx, o.y)) o.x = nx;
+  if (!shipBlocked(o.facing, nx, o.y)) o.x = nx;
   else s.vx *= -0.2;
   const ny = o.y + s.vy * dt;
-  if (!shipBlocked(o.dir, o.x, ny)) o.y = ny;
+  if (!shipBlocked(o.facing, o.x, ny)) o.y = ny;
   else s.vy *= -0.2;
 
-  const ax = Math.abs(s.vx);
-  const ay = Math.abs(s.vy);
   if (Math.hypot(s.vx, s.vy) > 15) {
-    let nd = o.dir;
-    if (isHorizontal(o.dir) ? ay > ax * 1.3 : ax > ay * 1.3) {
-      nd = ax > ay ? (s.vx > 0 ? 'right' : 'left') : (s.vy > 0 ? 'down' : 'up');
-    } else if (isHorizontal(o.dir)) nd = s.vx > 0 ? 'right' : 'left';
-    else nd = s.vy > 0 ? 'down' : 'up';
-    if (nd !== o.dir && !shipBlocked(nd, o.x, o.y)) o.dir = nd;
+    const step = Math.PI / 4;
+    const a = Math.atan2(s.vy, s.vx);
+    const off = Math.abs(((a - SHIP_FACINGS.indexOf(o.facing) * step + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+    // hold the current facing a bit past its sector edge so near-diagonal courses don't flicker
+    if (off > step / 2 + 0.2) {
+      const nf = SHIP_FACINGS[(Math.round(a / step) + 8) % 8];
+      if (!shipBlocked(nf, o.x, o.y)) {
+        o.facing = nf;
+        o.dir = FACING_DIR[nf] || nf;
+      }
+    }
   }
   player.x = o.x;
   player.y = o.y;
@@ -1531,10 +1766,14 @@ function updateSail(dt) {
   if (speed > 20 && s.wakeT <= 0) {
     s.wakeT = full ? 0.025 : 0.045;
     const [wx, wy] = sternPos();
-    const spread = isHorizontal(o.dir) ? [0, (Math.random() - 0.5) * 6] : [(Math.random() - 0.5) * 6, 0];
+    const r = (Math.random() - 0.5) * 6;
+    const slope = o.facing === 'ne' || o.facing === 'sw' ? -1 : 1;
+    const spread = isDiagonal(o.facing) ? [r * 0.7, -slope * r * 0.7] : isHorizontal(o.facing) ? [0, r] : [r, 0];
     particles.push({ type: 'wake', layer: 'water', x: wx + spread[0], y: wy + spread[1], vx: -s.vx * 0.15, vy: -s.vy * 0.15, life: 0, max: 1.4 });
     const side = Math.random() < 0.5 ? -1 : 1;
-    const [hx, hy] = isHorizontal(o.dir) ? [o.x + (Math.random() - 0.5) * 70, o.y + 2] : [o.x + side * 15, o.y - Math.random() * 48];
+    const t = Math.random() * 2 - 1;
+    const [hx, hy] = isDiagonal(o.facing) ? [o.x + t * 26, o.y - 14 + slope * t * 15 + side * 6]
+      : isHorizontal(o.facing) ? [o.x + (Math.random() - 0.5) * 70, o.y + 2] : [o.x + side * 15, o.y - Math.random() * 48];
     particles.push({ type: 'wake', layer: 'water', x: hx, y: hy, vx: 0, vy: 0, life: 0, max: 0.8 });
   }
 
@@ -1545,8 +1784,127 @@ function updateSail(dt) {
   }
 }
 
+// ---------- buildings & interiors ----------
+
+// The room the player is in, or null outdoors. The game starts at home.
+let indoors = ROOMS.home;
+let fade = null;
+const FADE = 0.22;
+const buildings = objects.filter((o) => o.room);
+for (const b of buildings) ROOMS[b.room].building = b;
+const backpack = objects.find((o) => o.key === 'backpack');
+const mom = npcs.find((n) => n.look.id === 'mom');
+let momNagT = 0;
+
+const doorX = (b) => b.x + SPR[b.key].door.dx;
+const inRoom = (r, e) => e.x > r.px.x0 && e.x < r.px.x1 && e.y > r.px.y0 && e.y < r.px.y1;
+// Whether the player could see or hear `e`: both outdoors, or both in the same room.
+const sameSpace = (e) => (indoors ? inRoom(indoors, e) : e.y < MAP_H * TILE);
+const outsideDoor = (r) => standSpotNear(player, doorX(r.building), r.building.y + 12);
+// Where the player's grown dragon waits: by the door while they are inside.
+const leadSpot = () => (indoors ? outsideDoor(indoors) : player);
+
+// The building whose door the player is standing at, on foot outside.
+function doorAhead() {
+  if (indoors || fade || flight || sail || hop || player.swimming || player.jumpT >= 0) return null;
+  return buildings.find((b) => Math.abs(player.x - doorX(b)) <= SPR[b.key].door.w / 2 + 1 && player.y > b.y && player.y < b.y + 10) || null;
+}
+
+function fadeTo(act) {
+  if (fade) return;
+  fade = { t: 0, act };
+  Sfx.door();
+}
+
+function updateFade(dt) {
+  fade.t += dt;
+  if (fade.act && fade.t >= FADE) {
+    fade.act();
+    fade.act = null;
+    zoom = zoomTarget();
+    applyView();
+    updateCamera(0, true);
+  }
+  if (fade.t >= FADE * 2) fade = null;
+}
+
+// A young follower and any villagers tagging along come through the door too.
+function bringAlong() {
+  const f = follower;
+  if (f && f.stage < GROWN && !f.swoop) {
+    Object.assign(f, standSpotNear(f, player.x + 14, player.y - 2), { alt: 0, flying: false, stuck: 0, jumpT: -1 });
+  }
+  for (const n of npcs) if (n.followT > 0) Object.assign(n, standSpotNear(n, player.x - 14, player.y - 2), { stuck: 0 });
+}
+
+function enterBuilding(b) {
+  fadeTo(() => {
+    const r = ROOMS[b.room];
+    indoors = r;
+    Object.assign(player, { x: (r.door + 0.5) * TILE, y: (r.ry + r.h + 2) * TILE - 2, dir: 'up' });
+    bringAlong();
+  });
+}
+
+function leaveRoom() {
+  if (indoors === ROOMS.home && !has('backpack')) {
+    player.y = (indoors.ry + indoors.h + 2) * TILE - 2;
+    player.dir = 'up';
+    if (momNagT <= 0) {
+      momNagT = 2.5;
+      npcSay(mom, '{name}! Your backpack! You\'ll forget your head one day.');
+      Object.assign(mom, { emote: 'exclaim', emoteT: 1.2 });
+    }
+    return;
+  }
+  fadeTo(() => {
+    for (const n of npcs) {
+      const left = inRoom(indoors, n) && !(n.followT > 0) && !inRoom(indoors, n.origin);
+      if (left) Object.assign(n, n.origin, { home: { ...n.origin } });
+    }
+    Object.assign(player, outsideDoor(indoors), { dir: 'down' });
+    indoors = null;
+    bringAlong();
+  });
+}
+
+function updateDoors(iy) {
+  if (fade) return;
+  if (indoors) {
+    if (tileAt(Math.floor(player.x / TILE), Math.floor((player.y - 1) / TILE)) === T.DOOR) leaveRoom();
+  } else if (iy < -0.5 && doorAhead()) {
+    enterBuilding(doorAhead());
+  }
+}
+
+function nearBackpack() {
+  return indoors && !backpack.hidden && Math.hypot(backpack.x - player.x, backpack.y - player.y) < 22;
+}
+
+function pickUpBackpack() {
+  backpack.hidden = true;
+  bag.backpack = 1;
+  renderInventory();
+  player.look = { ...player.look, pack: true };
+  Sfx.pickup();
+  faceToward(player, backpack.x - player.x, backpack.y - player.y);
+  npcSay(mom, 'That\'s it! Off you go then, and be back for supper.');
+  mom.lines = ['Be home before dark, {name}!', 'The smith makes a fine axe, I hear. Go and ask him.', 'Say hello to the chief for me.', 'Off you go! The island won\'t explore itself.'];
+  mom.lineI = 0;
+}
+
+// Paints over everything outside the room's walls.
+function maskRoom(cx, cy) {
+  const { x0, y0, x1, y1 } = indoors.px;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, viewW, y0 - cy);
+  ctx.fillRect(0, y1 - cy, viewW, viewH);
+  ctx.fillRect(0, 0, x0 - cx, viewH);
+  ctx.fillRect(x1 - cx, 0, viewW, viewH);
+}
+
 function action() {
-  if (hop) return;
+  if (hop || fade) return;
   if (flight) {
     if (flight.mode !== 'fly') return;
     if (landingSpot()) land();
@@ -1557,6 +1915,10 @@ function action() {
   else if (nearShip()) board();
   else if (nearDragon()) mount(nearDragon());
   else if (nearEgg()) pickUpEgg(nearEgg());
+  else if (nearBackpack()) pickUpBackpack();
+  else if (nearWallMap()) takeMap();
+  else if (nearDrop()) pickUp(nearDrop());
+  else if (doorAhead()) enterBuilding(doorAhead());
   else if (!(nearFire() && placeEgg()) && !talk() && !petSheep()) jump();
 }
 
@@ -1567,8 +1929,20 @@ function applyView() {
   viewH = Math.min(buffer.height, Math.ceil(window.innerHeight / zoom));
 }
 
+// One step closer indoors when the whole room still fits on screen.
+function roomZoom(r) {
+  const fit = Math.min(window.innerWidth / (r.px.x1 - r.px.x0), window.innerHeight / (r.px.y1 - r.px.y0 + 24));
+  return Math.max(baseZoom, Math.min(baseZoom + 1, Math.floor(fit)));
+}
+
+function zoomTarget() {
+  if (!started) return baseZoom;
+  if (indoors) return roomZoom(indoors);
+  return sail || (flight && flight.mode !== 'landing' && (flight.alt > 8 || flight.mode === 'dive')) ? flyZoom : baseZoom;
+}
+
 function updateZoom(dt) {
-  const target = sail || (flight && flight.mode !== 'landing' && (flight.alt > 8 || flight.mode === 'dive')) ? flyZoom : baseZoom;
+  const target = zoomTarget();
   zoom += (target - zoom) * (1 - Math.exp(-dt * 2.5));
   if (Math.abs(target - zoom) < 0.003) zoom = target;
   applyView();
@@ -1580,8 +1954,10 @@ function updateCamera(dt, snap) {
   const focusY = flight ? flight.y - flight.alt - 12 : sail ? player.y - 30 : player.y - 10;
   let tx = player.x - viewW / 2;
   let ty = focusY - viewH / 2;
-  tx = mw > viewW ? Math.max(0, Math.min(mw - viewW, tx)) : (mw - viewW) / 2;
-  ty = mh > viewH ? Math.max(0, Math.min(mh - viewH, ty)) : (mh - viewH) / 2;
+  // Indoors the view frames the room, following the player only if it doesn't fit.
+  const { x0, y0, x1, y1 } = indoors ? indoors.px : { x0: 0, y0: 0, x1: mw, y1: mh };
+  tx = x1 - x0 > viewW ? Math.max(x0, Math.min(x1 - viewW, tx)) : (x0 + x1 - viewW) / 2;
+  ty = y1 - y0 > viewH ? Math.max(y0, Math.min(y1 - viewH, ty)) : (y0 + y1 - viewH) / 2;
   if (snap) {
     cam.x = tx;
     cam.y = ty;
@@ -1595,7 +1971,6 @@ function updateCamera(dt, snap) {
 // ---------- particles ----------
 
 const particles = [];
-let mistTimer = 0;
 
 function dust(x, y) {
   for (let i = 0; i < 16; i++) {
@@ -1606,10 +1981,16 @@ function dust(x, y) {
 
 function emitParticles(dt) {
   for (const o of objects) {
-    if (o.key !== 'forge' && o.key !== 'bonfire') continue;
+    if (o.key !== 'forge' && o.key !== 'bonfire' && o.key !== 'oven' && o.key !== 'vat') continue;
     o.emitT = (o.emitT ?? 0) - dt;
     if (o.emitT > 0) continue;
-    if (o.key === 'forge') {
+    if (o.key === 'oven') {
+      o.emitT = 0.3;
+      particles.push({ type: 'smoke', x: o.x + (Math.random() - 0.5) * 3, y: o.y - 28, vx: 4 + Math.random() * 4, vy: -12 - Math.random() * 5, life: 0, max: 1.8 + Math.random() });
+    } else if (o.key === 'vat') {
+      o.emitT = 0.9 + Math.random() * 0.6;
+      particles.push({ type: 'stink', x: o.x + (Math.random() - 0.5) * 10, y: o.y - 8, vx: 0, vy: -9, life: 0, max: 1.6 });
+    } else if (o.key === 'forge') {
       o.emitT = 0.18;
       particles.push({ type: 'smoke', x: o.x - 28 + (Math.random() - 0.5) * 6, y: o.y - 76, vx: 5 + Math.random() * 6, vy: -14 - Math.random() * 6, life: 0, max: 2.4 + Math.random() });
     } else {
@@ -1625,11 +2006,7 @@ function emitParticles(dt) {
     e.emitT = warm ? 0.08 + Math.random() * 0.1 : 0.35 + Math.random() * 0.4;
     particles.push({ type: 'sparkle', x: e.x + (Math.random() - 0.5) * (warm ? 24 : 18), y: e.y - 4 - Math.random() * 18, vx: 0, vy: -6, life: 0, max: 0.7 });
   }
-  mistTimer -= dt;
-  if (mistTimer <= 0) {
-    mistTimer = 0.12;
-    particles.push({ type: 'mist', x: (OX + 1 + Math.random() * 3) * TILE, y: (OY + 9) * TILE + 2, vx: (Math.random() - 0.5) * 8, vy: -6 - Math.random() * 6, life: 0, max: 1 + Math.random() });
-  }
+  emitWorld(dt);
 }
 
 function updateParticles(dt) {
@@ -1637,13 +2014,17 @@ function updateParticles(dt) {
     const p = particles[i];
     p.life += dt;
     if (p.life >= p.max) { particles.splice(i, 1); continue; }
+    if (p.life < 0) continue;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    if (p.type === 'smoke') p.vx += 2 * dt;
+    if (p.type === 'smoke' || p.type === 'plume') p.vx += 2 * dt;
     if (p.type === 'ember') p.vx += Math.sin(time * 5 + p.y) * 10 * dt;
     if (p.type === 'dust' || p.type === 'wake') { p.vx *= Math.exp(-dt * 4); p.vy *= Math.exp(-dt * 4); }
     if (p.type === 'drop') p.vy += 260 * dt;
     if (p.type === 'spark') { p.vy += 40 * dt; p.vx *= Math.exp(-dt * 1.8); p.vy *= Math.exp(-dt * 1.8); }
+    if (p.type === 'chip') { p.vy += 260 * dt; p.vx *= Math.exp(-dt * 2); }
+    if (p.type === 'leaf') p.vx = Math.sin(time * 4 + p.y * 0.3) * 14;
+    if (p.type === 'icon') p.vy *= Math.exp(-dt * 2);
   }
 }
 
@@ -1666,19 +2047,31 @@ function updateAmbience(dt) {
     seaShare = wet / 48;
   }
   const air = flight ? (flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) : 0;
-  Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
+  if (indoors) Sfx.ambience(0.04, 0);
+  else Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
 }
 
 function update(dt) {
   time += dt;
+  if (momNagT > 0) momNagT -= dt;
+  if (fade) updateFade(dt);
   if (hop) updateHop(dt);
   else if (sail) updateSail(dt);
   else if (flight) updateFlight(dt);
+  else if (fade) player.anim = player.frame = 0;
   else updatePlayer(dt);
   for (const n of npcs) updateNpc(n, dt);
   for (const s of sheep) updateSheep(s, dt);
+  updateFlock();
   updateEggs(dt);
-  for (const d of dragons) updateBaby(d, dt);
+  for (const o of objects) if (o.shakeT > 0) o.shakeT -= dt;
+  updateChopping(dt);
+  updateDrops(dt);
+  updateMap();
+  for (const d of dragons) {
+    updateBaby(d, dt);
+    updateDragonFace(d, dt);
+  }
   if (playerSayT > 0) {
     playerSayT -= dt;
     if (playerSayT <= 0) playerBubble.classList.remove('show');
@@ -1759,6 +2152,8 @@ function drawAnimatedTiles(cx, cy) {
             clippedStreak(X, Y, i, wy0, base + k * period, period * 0.6, h < 0.5 ? '#a8d6fa' : '#e6f6ff');
           }
         }
+      } else if (t === T.SPRING || t === T.LAVA) {
+        animTile(t, x, y, X, Y);
       }
     }
   }
@@ -1770,12 +2165,13 @@ function drawShadow(x, y, rx, ry, alpha = 0.22) {
 
 function drawObject(o, cx, cy) {
   const s = SPR[o.key];
-  const view = s.dirs ? s.dirs[o.dir] : s;
+  const view = s.dirs ? s.dirs[o.facing || o.dir] : s;
   let img = view.img;
   if (s.pick) img = s.pick(time, o);
   else if (s.frames) img = s.frames[Math.floor(time * s.fps + o.phase) % s.frames.length];
   const dy = s.bob ? Math.round(Math.sin(time * 1.4 + o.phase) * s.bob) : 0;
-  const sx = Math.round(o.x - view.ox - cx);
+  const shake = o.shakeT > 0 ? Math.sin(o.shakeT * 70) * 1.5 : 0;
+  const sx = Math.round(o.x - view.ox - cx + shake);
   const sy = Math.round(o.y - view.oy - cy + dy);
   ctx.drawImage(img, sx, sy);
   if (o.rider) {
@@ -1785,6 +2181,7 @@ function drawObject(o, cx, cy) {
     ctx.drawImage(rider, 0, 0, 16, 15, sx + view.seat[0] - 8, sy + view.seat[1] - 15, 16, 15);
   }
   if (s.after) s.after(ctx, o.x - cx, o.y - cy + dy, time, o);
+  if (o.fall) drawFallingTree(o, cx, cy);
 }
 
 function drawSwimmer(e, cx, cy) {
@@ -1821,7 +2218,18 @@ function drawEntity(e, cx, cy, lift = 0) {
   const carry = e === player && !!carried;
   const run = e.running && !hop;
   if (carry) drawHeldEgg(x, top);
-  ctx.drawImage(charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run), x - 8, top);
+  drawHeldTool(e, x, top, true);
+  const spr = charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run);
+  if (e.craft && e.craft.atAnvil) {
+    // leave out the hanging right arm; drawSmithHammer draws it swinging
+    ctx.drawImage(spr, 0, 0, 12, 24, x - 8, top, 12, 24);
+    ctx.drawImage(spr, 12, 0, 4, 11, x + 4, top, 4, 11);
+    ctx.drawImage(spr, 12, 16, 4, 8, x + 4, top + 16, 4, 8);
+  } else {
+    ctx.drawImage(spr, x - 8, top);
+  }
+  drawHeldTool(e, x, top, false);
+  drawSmithHammer(e, x, top);
 }
 
 function drawFlight(cx, cy) {
@@ -1892,12 +2300,20 @@ function drawEmote(n, cx, cy, above = 30) {
 
 function drawParticles(cx, cy, layer) {
   for (const p of particles) {
-    if ((p.layer || 'world') !== layer) continue;
+    if ((p.layer || 'world') !== layer || p.life < 0) continue;
     const t = p.life / p.max;
     if (p.type === 'smoke') {
       const r = 1 + t * 3;
       ctx.globalAlpha = 0.5 * (1 - t);
       ellipse(ctx, p.x - cx, p.y - cy, r, r, t < 0.3 ? '#dcd8d2' : '#b8b4b0');
+    } else if (p.type === 'steam') {
+      const r = 2 + t * 5;
+      ctx.globalAlpha = 0.3 * Math.sin(t * Math.PI);
+      ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.8, '#f4fbff');
+    } else if (p.type === 'plume') {
+      const r = 3 + t * 10;
+      ctx.globalAlpha = 0.5 * (1 - t);
+      ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.85, t < 0.2 ? '#8a7f80' : '#5e5759');
     } else if (p.type === 'ember') {
       ctx.globalAlpha = 1 - t;
       px(ctx, p.x - cx, p.y - cy, t < 0.5 ? '#ffe27a' : '#ff8a2a');
@@ -1936,6 +2352,18 @@ function drawParticles(cx, cy, layer) {
       ctx.globalAlpha = 1 - t * 0.6;
       const s = p.big && t < 0.7 ? 2 : 1;
       rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, t < 0.4 ? '#ffffff' : PAL.foam);
+    } else if (p.type === 'stink') {
+      ctx.globalAlpha = 0.6 * Math.sin(t * Math.PI);
+      for (let k = 0; k < 4; k++) px(ctx, Math.round(p.x - cx + Math.sin(p.life * 5 + k * 0.9) * 2), Math.round(p.y - cy + k * 2), '#9ab04a');
+    } else if (p.type === 'chip') {
+      ctx.globalAlpha = 1 - t * t;
+      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), 2, 1, p.c);
+    } else if (p.type === 'leaf') {
+      ctx.globalAlpha = Math.min(1, (1 - t) * 3);
+      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), 2, Math.sin(time * 6 + p.x) > 0 ? 2 : 1, p.c);
+    } else if (p.type === 'icon') {
+      ctx.globalAlpha = Math.min(1, (1 - t) * 2.5);
+      ctx.drawImage(p.img, Math.round(p.x - p.img.width / 2 - cx), Math.round(p.y - p.img.height / 2 - cy));
     } else if (p.type === 'wind') {
       ctx.globalAlpha = 0.55 * Math.sin(t * Math.PI);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 12, p.y - cy - p.dy * 12, '#ffffff');
@@ -1958,11 +2386,16 @@ function setPrompt(text) {
 }
 
 function render() {
+  if (!started) {
+    drawTitle(time);
+    screenCtx.drawImage(buffer, 0, 0, viewW, viewH, 0, 0, viewW * zoom * dpr, viewH * zoom * dpr);
+    return;
+  }
   const cx = Math.round(cam.x);
   const cy = Math.round(cam.y);
   ctx.fillStyle = PAL.ocean;
   ctx.fillRect(0, 0, viewW, viewH);
-  ctx.drawImage(ground, -cx, -cy);
+  drawGround(ctx, cx, cy, viewW, viewH);
   drawAnimatedTiles(cx, cy);
   drawParticles(cx, cy, 'water');
   drawSeaUnder(cx, cy);
@@ -1987,7 +2420,7 @@ function render() {
   const highDragons = shownDragons.filter((d) => babyLift(d) > 20);
   for (const d of shownDragons) {
     const k = Math.min(1, babyLift(d) / 50);
-    const s = d.stage === GROWN ? 3 : DRAGON_SCALES[d.stage];
+    const s = 3 * (d.stage === GROWN ? 1 : DRAGON_SCALES[d.stage]);
     drawShadow(Math.round(d.x) - cx, Math.round(d.y) - cy, (6 - k * 2) * s, (2 - k * 0.5) * s, 0.22 - k * 0.06);
   }
 
@@ -1996,7 +2429,8 @@ function render() {
 
   const dragonItems = shownDragons.filter((d) => !highDragons.includes(d)).map((d) => ({ y: d.y, draw: () => drawBaby(d, cx, cy) }));
   const sheepItems = flock.map((s) => ({ y: s.y, draw: () => drawSheep(s, cx, cy) }));
-  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems).sort((a, b) => a.y - b.y);
+  const dropItems = drops.filter((d) => onScreen(d.x, d.y, cx, cy, 20)).map((d) => ({ y: d.y - 2, draw: () => drawDrop(d, cx, cy) }));
+  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems).sort((a, b) => a.y - b.y);
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -2023,10 +2457,15 @@ function render() {
   for (const d of highDragons) drawBaby(d, cx, cy);
   if (flight) drawFlight(cx, cy);
   drawFireballs(cx, cy);
+  drawArrows(cx, cy);
   drawSky(cx, cy);
   drawParticles(cx, cy, 'sky');
+  if (indoors) maskRoom(cx, cy);
 
   for (const n of npcs) {
+    const seen = sameSpace(n);
+    if (n.bubble) n.bubble.hidden = !seen;
+    if (!seen) continue;
     if (n.talkT > 0) {
       n.bubble.style.left = `${(Math.round(n.x) - cx) * zoom}px`;
       n.bubble.style.top = `${(Math.round(n.y) - cy - 24) * zoom}px`;
@@ -2038,7 +2477,7 @@ function render() {
   }
   for (const d of dragons) {
     if (d.emoteT <= 0 || (flight && flight.dragon === d)) continue;
-    const h = d.stage === GROWN ? (d.perched ? 44 : 52) : 26 * DRAGON_SCALES[d.stage];
+    const h = d.stage === GROWN ? (d.perched ? 44 : 52) : SPR.babyDragon[d.species][d.stage].top + 4;
     drawEmote(d, cx, cy, h + babyLift(d));
   }
   for (const s of flock) if (s.emoteT > 0) drawEmote(s, cx, cy, 24);
@@ -2063,8 +2502,22 @@ function render() {
     setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
   } else if (nearFire() && fireSpot()) {
     setPrompt('SPACE  Set the egg by the fire');
+  } else if (nearBackpack()) {
+    setPrompt('SPACE  Pick up your backpack');
+  } else if (nearWallMap()) {
+    setPrompt('SPACE  Take the map');
+  } else if (nearDrop()) {
+    const { item } = nearDrop();
+    setPrompt(bagFull(item) ? 'Your backpack is full. Press X or click an item to drop it' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
+  } else if (doorAhead()) {
+    setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
+  } else if (player.fishing) {
+    setPrompt(toolHint());
   } else if (!nearNpc() && nearSheep()) {
-    setPrompt('SPACE  Pet the sheep');
+    const tool = toolHint();
+    setPrompt(`${inPen(nearSheep()) ? 'SPACE  Pet the sheep' : 'SPACE  Pet the sheep   ·   Walk at it to shoo it toward the pen'}${tool ? `   ·   ${tool}` : ''}`);
+  } else if (toolHint()) {
+    setPrompt(toolHint());
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
   } else if (carried) {
@@ -2075,6 +2528,12 @@ function render() {
     setPrompt('');
   }
 
+  if (fade) {
+    ctx.globalAlpha = Math.max(0, 1 - Math.abs(fade.t - FADE) / FADE);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.globalAlpha = 1;
+  }
   const s = zoom * dpr;
   screenCtx.drawImage(buffer, 0, 0, viewW, viewH, 0, 0, viewW * s, viewH * s);
 }
@@ -2093,7 +2552,7 @@ function resize() {
   buffer.height = Math.ceil(window.innerHeight / flyZoom) + 1;
   ctx.imageSmoothingEnabled = false;
   screenCtx.imageSmoothingEnabled = false;
-  zoom = flight ? flyZoom : baseZoom;
+  zoom = zoomTarget();
   applyView();
   updateCamera(0, true);
 }
@@ -2131,7 +2590,8 @@ window.addEventListener('pointerdown', () => Sfx.init());
 
 window.addEventListener('keydown', (e) => {
   Sfx.init();
-  if (!started || naming || document.activeElement === chatInput) return;
+  if (!started || naming || mapOpen || document.activeElement === chatInput) return;
+  if (invEl.contains(document.activeElement) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
     chatInput.focus();
@@ -2141,12 +2601,15 @@ window.addEventListener('keydown', (e) => {
   if (!e.repeat) {
     if (e.code === 'Space' || e.code === 'KeyE') action();
     if (e.code === 'KeyF') {
-      if (sail) sendFishing();
-      else breatheFire();
+      if (flight) breatheFire();
+      else useTool();
     }
     if (e.code === 'KeyR') loopTrick();
-    if (e.code === 'KeyM') toggleSound();
+    if (e.code === 'KeyN') toggleSound();
     if (e.code === 'KeyH') toggleHints();
+    if (e.code === 'KeyM') toggleMap(true);
+    if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code[5] - 1);
+    if (e.code === 'KeyX') dropActive();
   }
   keys.add(e.code);
 });
@@ -2173,7 +2636,13 @@ const pointerPos = (e) => {
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 };
 screenCanvas.addEventListener('pointerdown', (e) => {
-  pointer = pointerPos(e);
+  const p = pointerPos(e);
+  const d = started && !naming && dropAt(p.x / zoom + Math.round(cam.x), p.y / zoom + Math.round(cam.y));
+  if (d) {
+    pickUp(d);
+    return;
+  }
+  pointer = p;
   pointerDownAt = time;
   screenCanvas.setPointerCapture(e.pointerId);
 });
@@ -2205,14 +2674,14 @@ function nextName() {
   namingEl.hidden = !naming;
   if (!naming) return;
   const sp = DRAGON_SPECIES[naming.species];
-  const img = SPR.babyDragon[naming.species][0].down[0];
+  const [, , w, h] = SPR.babyDragon[naming.species][0].box;
   namingTitle.textContent = `A ${sp.name.toUpperCase()} HATCHED!`;
   dragonNameInput.value = '';
   dragonNameInput.placeholder = sp.defaultName;
-  namingPreview.width = img.width;
-  namingPreview.height = img.height;
-  namingPreview.style.width = `${img.width * 4}px`;
-  namingPreview.style.height = `${img.height * 4}px`;
+  namingPreview.width = w;
+  namingPreview.height = h;
+  namingPreview.style.width = `${w * 6}px`;
+  namingPreview.style.height = `${h * 6}px`;
   keys.clear();
   dragonNameInput.focus();
 }
@@ -2220,7 +2689,9 @@ function nextName() {
 function drawNamingPreview() {
   const g = namingPreview.getContext('2d');
   g.clearRect(0, 0, namingPreview.width, namingPreview.height);
-  g.drawImage(SPR.babyDragon[naming.species][0].down[Math.floor(time * 3) % 2], 0, 0);
+  const set = SPR.babyDragon[naming.species][0];
+  const [x, y] = set.box;
+  g.drawImage(set.down[Math.floor(time * 3) % 2], -x, -y);
 }
 
 namingForm.addEventListener('submit', (e) => {
@@ -2243,7 +2714,7 @@ const startEl = document.getElementById('start');
 const startForm = document.getElementById('start-form');
 const nameInput = document.getElementById('hero-name');
 const heroInputs = [...startForm.elements.hero];
-const DEFAULT_NAMES = { male: 'Eli', female: 'Astrid' };
+const DEFAULT_NAMES = { male: 'Hickory', female: 'Astra' };
 let started = false;
 
 const chosenLook = () => heroInputs.find((r) => r.checked).value;
@@ -2259,10 +2730,7 @@ function drawHeroPreviews() {
 
 try {
   const saved = JSON.parse(localStorage.getItem('hw-hero'));
-  if (saved && PLAYER_LOOKS[saved.look]) {
-    heroInputs.find((r) => r.value === saved.look).checked = true;
-    nameInput.value = saved.name || '';
-  }
+  if (saved && PLAYER_LOOKS[saved.look]) heroInputs.find((r) => r.value === saved.look).checked = true;
 } catch (e) { /* storage unavailable */ }
 function pickHero() {
   const look = chosenLook();
@@ -2270,7 +2738,12 @@ function pickHero() {
   nameInput.placeholder = DEFAULT_NAMES[look];
 }
 pickHero();
-for (const r of heroInputs) r.addEventListener('change', pickHero);
+for (const r of heroInputs) {
+  r.addEventListener('change', () => {
+    nameInput.value = '';
+    pickHero();
+  });
+}
 nameInput.focus();
 
 startForm.addEventListener('submit', (e) => {
@@ -2278,13 +2751,23 @@ startForm.addEventListener('submit', (e) => {
   const look = chosenLook();
   player.name = nameInput.value.trim() || DEFAULT_NAMES[look];
   try {
-    localStorage.setItem('hw-hero', JSON.stringify({ look, name: player.name }));
+    localStorage.setItem('hw-hero', JSON.stringify({ look }));
   } catch (err) { /* storage unavailable */ }
   started = true;
+  fade = { t: FADE, act: null };
+  zoom = zoomTarget();
+  applyView();
+  updateCamera(0, true);
   keys.clear();
   startEl.remove();
   document.body.classList.remove('title');
   setTimeout(() => hint.classList.add('hide'), 8000);
+  setTimeout(() => {
+    npcSay(mom, 'Good morning, {name}! Are you ready for a new adventure today?');
+    setTimeout(() => {
+      if (!has('backpack')) npcSay(mom, 'Don\'t forget your backpack when you go out!');
+    }, 4000);
+  }, 700);
 });
 
 resize();
@@ -2296,6 +2779,7 @@ function frame(now) {
   render();
   if (!started) drawHeroPreviews();
   if (naming) drawNamingPreview();
+  if (mapOpen) drawMap();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
