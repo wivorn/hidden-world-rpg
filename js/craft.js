@@ -157,7 +157,8 @@ function renderInventory(changed) {
     btn.type = 'button';
     btn.draggable = true;
     btn.dataset.item = id;
-    btn.setAttribute('aria-label', `Slot ${i + 1}${on ? ', selected, used with F' : ''}. Drop ${ITEMS[id].name}${ITEMS[id].stack ? ` (${bag[id]})` : ''}`);
+    const label = `${ITEMS[id].name}${ITEMS[id].stack ? ` (${bag[id]})` : ''}`;
+    btn.setAttribute('aria-label', on ? `Slot ${i + 1}, selected, used with F. Drop ${label}` : `Slot ${i + 1}. Select ${label}`);
     const img = document.createElement('img');
     img.src = iconUrls[id] ||= SPR.icon[id].toDataURL();
     img.alt = '';
@@ -175,9 +176,13 @@ function renderInventory(changed) {
 }
 renderInventory();
 
+// Clicking a slot selects it; clicking the selected one again drops its item.
 invEl.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (btn) dropItem(btn.dataset.item);
+  if (!btn) return;
+  const i = slotIndex(btn);
+  if (i === activeSlot) dropItem(btn.dataset.item);
+  else selectSlot(i);
 });
 
 // Drag an item onto another slot to swap them.

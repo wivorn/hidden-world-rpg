@@ -2727,7 +2727,7 @@ function render() {
     setPrompt('SPACE  Take the map');
   } else if (nearDrop()) {
     const { item } = nearDrop();
-    setPrompt(bagFull(item) ? 'Your backpack is full. Press X or click an item to drop it' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
+    setPrompt(bagFull(item) ? 'Your backpack is full. Press X or click the selected item to drop it' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
   } else if (dogFirst()) {
     setPrompt(dog.state === 'lost' ? `SPACE  Pick up ${dogName()}` : 'SPACE  Pet Fred');
   } else if (dog.state === 'carried' && nearNpc() === dogOwner) {
