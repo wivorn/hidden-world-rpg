@@ -1,9 +1,15 @@
 // Crafting: villagers make tools when asked, and tools let you gather materials.
 
+// `worn` things are carried about the person and take no backpack slot. `tool`s are the ones F swings, shoots or casts.
+// Everything on the BELT rides in the backpack until the tanner makes a tool belt to hang it on.
+// `slots` are the extra backpack room a worn upgrade adds.
 const ITEMS = {
   backpack: { name: 'Backpack', worn: true },
+  toolBelt: { name: 'Tool belt', worn: true },
+  satchel: { name: 'Travel satchel', worn: true, slots: 2 },
+  pouch: { name: 'Hunter\'s pouch', worn: true, slots: 2, plural: 'hunter\'s pouches' },
   map: { name: 'Map', worn: true },
-  axe: { name: 'Axe' },
+  axe: { name: 'Axe', tool: true },
   wood: { name: 'Wood', stack: true },
   apple: { name: 'Apple', stack: true },
   pear: { name: 'Pear', stack: true },
@@ -13,18 +19,39 @@ const ITEMS = {
   coconut: { name: 'Coconut', stack: true },
   stone: { name: 'Stone', stack: true, plural: 'stones' },
   wool: { name: 'Wool', stack: true },
-  hammer: { name: 'Hammer' },
-  bow: { name: 'Bow' },
-  sword: { name: 'Sword' },
-  shield: { name: 'Shield' },
-  spear: { name: 'Spear' },
-  rod: { name: 'Fishing rod' },
-  fish: { name: 'Fish', stack: true },
-  pickaxe: { name: 'Pickaxe' },
+  bow: { name: 'Bow', tool: true },
+  sword: { name: 'Sword', tool: true },
+  shield: { name: 'Shield', tool: true },
+  spear: { name: 'Spear', tool: true },
+  rod: { name: 'Fishing rod', tool: true },
+  fishLog: { name: 'Fish log', worn: true },
+  fish: { name: 'Herring', stack: true },
+  cod: { name: 'Cod', stack: true },
+  trout: { name: 'Trout', stack: true },
+  eel: { name: 'Fire eel', stack: true },
+  cavefish: { name: 'Cave fish', stack: true },
+  goldenFish: { name: 'Golden fish', stack: true },
+  pickaxe: { name: 'Pickaxe', tool: true },
   iron: { name: 'Iron', stack: true },
+  gold: { name: 'Gold nugget', stack: true, plural: 'gold nuggets' },
   string: { name: 'String', stack: true },
+  feather: { name: 'Feather', stack: true, plural: 'feathers' },
+  arrow: { name: 'Arrow', stack: true, plural: 'arrows', worn: true },
+  torch: { name: 'Torch' },
+  mushroom: { name: 'Glowcap', stack: true, plural: 'glowcaps' },
+  grilledFish: { name: 'Grilled fish', stack: true },
+  bakedApple: { name: 'Baked apple', stack: true },
+  meat: { name: 'Raw meat', stack: true },
+  roast: { name: 'Roast meat', stack: true },
+  hide: { name: 'Hide', stack: true, plural: 'hides' },
 };
+// The belt, in the order it hangs: tools, then the shield and torch. Arrows show as a count on the bow.
+const BELT = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'shield', 'torch'];
+const onBelt = (id) => BELT.includes(id) && has('toolBelt');
+const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !onBelt(id);
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
+// Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, roasted: 0, gored: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -32,10 +59,6 @@ const RECIPES = [
     item: 'axe', maker: 'smith', words: /\b(axes?|hatchet)\b/, time: 1.8,
     start: 'An axe? Give me a moment...',
     done: 'There you go! Mind the edge, {lad}.',
-  },
-  {
-    item: 'hammer', maker: 'smith', words: /\b(hammers?|mallet)\b/, time: 1.8, needs: { wood: 1, stone: 1 },
-    done: 'One hammer. Try not to hit your thumb.',
   },
   {
     item: 'bow', maker: 'smith', words: /\bbows?\b/, time: 2, needs: { wood: 1, string: 1 },
@@ -57,6 +80,26 @@ const RECIPES = [
     item: 'sword', maker: 'smith', words: /\b(swords?|blades?)\b/, time: 2.6, needs: { wood: 1, iron: 2 },
     done: 'Finest blade this side of the sea. Use it well, {lad}.',
   },
+  {
+    item: 'torch', maker: 'smith', words: /\btorch(es)?\b/, time: 1.6, needs: { wood: 1, wool: 1 },
+    done: 'Wool soaked in pitch, wrapped round good wood. It\'ll burn for days. Mind your eyebrows!',
+  },
+  // the archer fletches at his post rather than at the anvil
+  {
+    item: 'arrow', count: 5, maker: 'archer', words: /\barrows?\b/, time: 2.2, needs: { wood: 1, stone: 1, feather: 1 },
+    start: 'Wood for the shafts, stone for the heads, a feather to split for the fletching. Watch and learn...',
+    done: 'Five arrows, straight and true. Don\'t waste them on the sheep.',
+  },
+  {
+    item: 'toolBelt', maker: 'tanner', words: /\b(tool ?)?belts?\b/, time: 2.4, needs: { hide: 2 },
+    start: 'Two hides for a tool belt? Let me cut you a good long strap...',
+    done: 'There! Loops for every tool you own. Hang them off your hip and keep your pack for the rest.',
+  },
+  {
+    item: 'pouch', maker: 'tanner', words: /\b(pouch(es)?|bags?|satchels?)\b/, time: 2.4, needs: { hide: 2 },
+    start: 'Two good hides! A bit of scraping, a bit of stitching...',
+    done: 'A hunter\'s pouch. Strap it to your pack and you\'ve room for two more things.',
+  },
 ];
 
 // Where the smith sends you for iron. A pickaxe needs iron to make, so the first lump comes from the dog's owner;
@@ -76,8 +119,9 @@ const bag = {};
 const has = (item) => (bag[item] || 0) > 0;
 const recipeFor = (text) => RECIPES.find((r) => r.words.test(text.toLowerCase()));
 const held = () => (syncSlots(), slots.filter(Boolean));
-const primary = () => (syncSlots(), slots[activeSlot]);
-const bagFull = (item) => !has(item) && held().length >= SLOTS;
+const primary = () => (syncSlots(), toolsFocused() ? activeTool : slots[activeSlot]);
+const packSize = () => 6 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
+const bagFull = (item) => inPack(item) && !has(item) && held().length >= packSize();
 
 // With no room in the pack the item lands at the player's feet instead.
 function give(item, n = 1) {
@@ -93,25 +137,41 @@ const listNeeds = (needs) => Object.entries(needs).map(([id, n]) => `${n} ${(n >
 
 // ---------- inventory panel ----------
 
+const packEl = document.getElementById('pack');
 const invEl = document.getElementById('inventory');
 const iconUrls = {};
 
-const SLOTS = 6;
-const slots = Array(SLOTS).fill(null);
-// The highlighted slot, picked with 1-6: F uses it and X drops it. -1 while the bag is empty.
+const slots = [];
+// The belt and the backpack each keep their own pick, and `focus` says which one F works from ('tools' or 'items').
+// E or Tab and Q step through the tools and then the items, and the number keys go straight to a tool.
+// `activeSlot` is -1 while the bag is empty; X drops it.
 let activeSlot = -1;
+let activeTool = null;
+let focus = 'items';
+const beltList = () => BELT.filter((id) => has(id) && onBelt(id) && ITEMS[id].tool);
+const toolsFocused = () => focus === 'tools' && !!activeTool && has(activeTool) && onBelt(activeTool);
 
 // Used-up items leave their slot; new ones take the first free one.
 function syncSlots() {
-  for (let i = 0; i < slots.length; i++) if (slots[i] && !has(slots[i])) slots[i] = null;
+  while (slots.length < packSize()) slots.push(null);
+  for (let i = 0; i < slots.length; i++) {
+    const id = slots[i];
+    if (!id || (has(id) && inPack(id))) continue;
+    // a tool picked in the pack stays picked when it moves onto the new belt
+    if (i === activeSlot && focus === 'items' && onBelt(id) && ITEMS[id].tool) {
+      activeTool = id;
+      focus = 'tools';
+    }
+    slots[i] = null;
+  }
   for (const id of Object.keys(ITEMS)) {
-    if (!has(id) || ITEMS[id].worn || slots.includes(id)) continue;
+    if (!has(id) || !inPack(id) || slots.includes(id)) continue;
     const i = slots.indexOf(null);
     if (i >= 0) slots[i] = id;
     else slots.push(id);
   }
   // the highlight only rests on a slot with something in it
-  if (!slots[activeSlot]) activeSlot = slots.findIndex((id, i) => id && i < SLOTS);
+  if (!slots[activeSlot]) activeSlot = slots.findIndex((id, i) => id && i < packSize());
 }
 
 function swapSlots(a, b) {
@@ -124,64 +184,196 @@ function swapSlots(a, b) {
 }
 
 function selectSlot(i) {
-  if (i === activeSlot || !has('backpack') || !slots[i]) return;
+  if ((i === activeSlot && focus === 'items') || !has('backpack') || !slots[i] || i >= packSize()) return;
   activeSlot = i;
-  player.fishing = null;
+  focus = 'items';
   renderInventory();
   Sfx.drop();
 }
 
+function selectTool(id) {
+  if ((id === activeTool && focus === 'tools') || !has('backpack') || !has(id) || !onBelt(id)) return;
+  activeTool = id;
+  focus = 'tools';
+  renderInventory();
+  Sfx.drop();
+}
+
+// Every tool owned, numbered for the number keys: 1 is the first, 0 the tenth. Ones in the backpack count too.
+const numberedTools = () => BELT.filter((id) => has(id) && ITEMS[id].tool && (onBelt(id) || (slots.includes(id) && slots.indexOf(id) < packSize())));
+const toolNumber = (id) => (numberedTools().indexOf(id) + 1) % 10;
+
+function pickTool(n) {
+  const id = numberedTools()[n - 1];
+  if (!id) return;
+  if (onBelt(id)) selectTool(id);
+  else selectSlot(slots.indexOf(id));
+}
+
+// E and Tab step forward (`step` 1), Q back (-1), along the belt's tools and on through the filled backpack
+// slots, wrapping round.
+function cycleSelection(step) {
+  const picks = [
+    ...beltList().map((id) => ({ tool: id })),
+    ...slots.map((id, slot) => ({ id, slot })).filter((p) => p.id && p.slot < packSize()),
+  ];
+  if (!picks.length) return;
+  const at = picks.findIndex((p) => (toolsFocused() ? p.tool === activeTool : p.slot === activeSlot));
+  const next = picks[at < 0 ? 0 : (at + step + picks.length) % picks.length];
+  if (next.tool) selectTool(next.tool);
+  else selectSlot(next.slot);
+}
+
 function dropActive() {
-  if (slots[activeSlot]) dropItem(slots[activeSlot]);
+  if (!toolsFocused() && slots[activeSlot]) dropItem(slots[activeSlot]);
 }
 
 // The bar only appears once there's a backpack to keep things in.
 function renderInventory(changed) {
   invEl.hidden = !has('backpack');
   syncSlots();
-  invEl.replaceChildren(...Array.from({ length: SLOTS }, (_, i) => {
+  // the belt always has a pick once it has tools, just like the backpack
+  if (!(activeTool && has(activeTool) && onBelt(activeTool))) activeTool = beltList()[0] || null;
+  if (!activeTool) focus = 'items';
+  packEl.dataset.focus = focus;
+  const size = packSize();
+  renderBelt(changed);
+  invEl.replaceChildren(...Array.from({ length: size }, (_, i) => {
     const li = document.createElement('li');
     const id = slots[i];
-    const on = i === activeSlot;
-    const key = document.createElement('b');
-    key.textContent = i + 1;
-    key.setAttribute('aria-hidden', 'true');
-    li.append(key);
-    if (on) li.classList.add('primary');
+    const live = i === activeSlot && focus === 'items';
+    markSlot(li, live, id && ITEMS[id].tool ? toolNumber(id) : null);
     if (!id) {
       li.classList.add('empty');
-      li.setAttribute('aria-label', `Slot ${i + 1}, empty${on ? ', selected' : ''}`);
+      li.setAttribute('aria-label', `Slot ${i + 1}, empty${live ? ', selected' : ''}`);
       return li;
     }
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.draggable = true;
     btn.dataset.item = id;
-    const label = `${ITEMS[id].name}${ITEMS[id].stack ? ` (${bag[id]})` : ''}`;
-    btn.setAttribute('aria-label', on ? `Slot ${i + 1}, selected, used with F. Drop ${label}` : `Slot ${i + 1}. Select ${label}`);
+    // the bow carries the arrow count wherever it is
+    const n = ITEMS[id].stack ? bag[id] : id === 'bow' ? bag.arrow || 0 : null;
+    const label = `${ITEMS[id].name}${n === null ? '' : id === 'bow' ? `, ${n} ${n === 1 ? 'arrow' : 'arrows'}` : ` (${n})`}`;
+    btn.setAttribute('aria-label', live ? `Slot ${i + 1}, selected, used with F. Drop ${label}` : `Slot ${i + 1}. Select ${label}`);
     const img = document.createElement('img');
     img.src = iconUrls[id] ||= SPR.icon[id].toDataURL();
     img.alt = '';
     img.style.width = `${SPR.icon[id].width * 3}px`;
     btn.append(img);
-    if (ITEMS[id].stack) {
+    if (n !== null) {
       const count = document.createElement('span');
-      count.textContent = bag[id];
+      count.textContent = n;
       btn.append(count);
     }
     li.append(btn);
-    if (id === changed) li.classList.add('bump');
+    if (id === changed || (id === 'bow' && changed === 'arrow')) li.classList.add('bump');
+    return li;
+  }));
+  layoutPack();
+}
+
+// The belt and the backpack share one row along the top. It folds into more rows only when it would reach
+// the purse and menu buttons; if it runs under the clock, the clock and the toast below it step down out of the way.
+const SLOT_W = 54;
+const SLOT_GAP = 6;
+const GROUP_GAP = 12;
+const togglesEl = document.getElementById('toggles');
+function layoutPack() {
+  if (document.body.classList.contains('title')) return;
+  clockEl.style.top = '';
+  toastEl.style.top = '';
+  if (invEl.hidden) return;
+  const groups = [beltEl.hidden ? 0 : beltEl.children.length, packSize()].filter(Boolean);
+  const cols = (n, rows) => Math.ceil(n / rows);
+  const width = (rows) => groups.reduce((w, n) => w + cols(n, rows) * SLOT_W + (cols(n, rows) - 1) * SLOT_GAP, 0) + GROUP_GAP * (groups.length - 1);
+  const left = packEl.getBoundingClientRect().left;
+  const room = Math.min(...[document.getElementById('purse'), togglesEl].filter((el) => !el.hidden).map((el) => el.getBoundingClientRect().left)) - GROUP_GAP - left;
+  let rows = 1;
+  while (rows < 3 && width(rows) > room) rows++;
+  beltEl.style.setProperty('--cols', cols(beltEl.children.length || 1, rows));
+  invEl.style.setProperty('--cols', cols(packSize(), rows));
+  const pack = packEl.getBoundingClientRect();
+  const clock = clockEl.getBoundingClientRect();
+  if (clock.left < pack.right + GROUP_GAP && clock.top < pack.bottom + 8) {
+    clockEl.style.top = `${Math.round(pack.bottom + 10)}px`;
+    toastEl.style.top = `${Math.round(clockEl.getBoundingClientRect().bottom + 12)}px`;
+  }
+}
+window.addEventListener('resize', layoutPack);
+
+// ---------- the belt ----------
+
+const beltEl = document.getElementById('belt');
+
+// Only the pick F works from is lit, with a little F; the other row's pick waits unmarked.
+// Tools show their number key.
+function markSlot(li, live, number) {
+  if (number !== null) {
+    const key = document.createElement('b');
+    key.textContent = number;
+    key.setAttribute('aria-hidden', 'true');
+    li.append(key);
+  }
+  if (live) {
+    li.classList.add('primary');
+    const f = document.createElement('i');
+    f.textContent = 'F';
+    f.setAttribute('aria-hidden', 'true');
+    li.append(f);
+  }
+}
+
+// Tools are buttons that pick them for F; the torch just hangs there and lights the way.
+function renderBelt(changed) {
+  const worn = BELT.filter((id) => has(id) && onBelt(id));
+  beltEl.hidden = !has('backpack') || !worn.length;
+  beltEl.replaceChildren(...worn.map((id) => {
+    const li = document.createElement('li');
+    const live = id === activeTool && focus === 'tools';
+    const holder = ITEMS[id].tool ? document.createElement('button') : li;
+    const img = document.createElement('img');
+    img.src = iconUrls[id] ||= SPR.icon[id].toDataURL();
+    img.alt = '';
+    img.style.width = `${SPR.icon[id].width * 3}px`;
+    holder.append(img);
+    let label = ITEMS[id].name;
+    if (id === 'bow') {
+      const count = document.createElement('span');
+      count.textContent = bag.arrow || 0;
+      holder.append(count);
+      label += `, ${bag.arrow || 0} ${bag.arrow === 1 ? 'arrow' : 'arrows'}`;
+    }
+    if (holder !== li) {
+      holder.type = 'button';
+      holder.dataset.item = id;
+      holder.setAttribute('aria-pressed', live);
+      holder.title = `${ITEMS[id].name} (${toolNumber(id)})`;
+      li.append(holder);
+      markSlot(li, live, toolNumber(id));
+    }
+    holder.setAttribute('aria-label', live ? `${label}, selected, used with F` : label);
+    if (id === changed || (id === 'bow' && changed === 'arrow')) li.classList.add('bump');
     return li;
   }));
 }
+
 renderInventory();
 
-// Clicking a slot selects it; clicking the selected one again drops its item.
+// Clicking a tool picks it and points F at the belt.
+beltEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  selectTool(btn.dataset.item);
+  btn.blur();
+});
+
+// Clicking a slot selects it; clicking the one F already works from drops its item.
 invEl.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
   const i = slotIndex(btn);
-  if (i === activeSlot) dropItem(btn.dataset.item);
+  if (i === activeSlot && focus === 'items') dropItem(btn.dataset.item);
   else selectSlot(i);
 });
 
@@ -266,9 +458,11 @@ function updateDrops(dt) {
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i];
     if (d.z <= 0 && d.vz <= 0) continue;
-    d.vz -= 320 * dt;
+    // a feather drifts down, rocking side to side
+    if (d.float) d.vz = Math.max(d.vz - 120 * dt, -14);
+    else d.vz -= 320 * dt;
     d.z += d.vz * dt;
-    d.x += d.vx * dt;
+    d.x += (d.vx + (d.float ? Math.sin(time * 4 + d.phase) * 16 : 0)) * dt;
     d.y += (d.vy || 0) * dt;
     if (d.z > 0) continue;
     d.z = 0;
@@ -305,9 +499,8 @@ function skipRipple(x, y) {
 
 function drawDrop(d, cx, cy) {
   const img = SPR.icon[d.item];
-  const bob = d.z > 0 || d.still ? 0 : Math.round(Math.sin(time * 3 + d.phase));
   drawShadow(Math.round(d.x) - cx, Math.round(d.y) - cy, img.width / 2 - 1, 1.5);
-  ctx.drawImage(img, Math.round(d.x - img.width / 2) - cx, Math.round(d.y - 2 - img.height - d.z) - bob - cy);
+  ctx.drawImage(img, Math.round(d.x - img.width / 2) - cx, Math.round(d.y - 2 - img.height - d.z) - cy);
 }
 
 // Floats an item icon up from a spot in the world.
@@ -322,24 +515,34 @@ let anvil = null;
 // Returns true when `n` makes what was asked for and has answered.
 function askCraft(n, text) {
   const r = recipeFor(text);
+  if (r && r.maker === 'archer' && n.look.id !== 'archer') {
+    npcSay(n, 'Arrows? Ask the archer at the range. He fletches his own.');
+    return true;
+  }
   if (!r || r.maker !== n.look.id) return false;
   const name = ITEMS[r.item].name.toLowerCase();
   const needs = Object.entries(r.needs || {});
   const short = Object.fromEntries(needs.filter(([id, k]) => (bag[id] || 0) < k).map(([id, k]) => [id, k - (bag[id] || 0)]));
   const shortN = Object.keys(short).length;
+  const what = r.count ? `${r.count} ${ITEMS[r.item].plural}` : `a ${name}`;
   // handing over every last piece of a material frees up its slot
   const freed = needs.filter(([id, k]) => bag[id] === k).length;
   if (n.craft) npcSay(n, 'Patience! I\'m working on it.');
-  else if (has(r.item)) npcSay(n, `You've already got one of my ${name}s!`);
+  else if (has(r.item) && !ITEMS[r.item].stack) npcSay(n, `You've already got one of my ${ITEMS[r.item].plural || `${name}s`}!`);
   else if (!has('backpack')) npcSay(n, 'And carry it how, {lad}? Fetch your backpack first.');
-  else if (needs.length && !has('axe')) npcSay(n, `A ${name}? All in good time, {lad}. Start with an axe.`);
+  else if (r.item === 'arrow' && !has('bow')) npcSay(n, 'Arrows are no use without a bow. Get the smith to make you one first.');
+  else if (needs.length && r.maker === 'smith' && !has('axe')) npcSay(n, `A ${name}? All in good time, {lad}. Start with an axe.`);
   else if (shortN) {
     let hint = short.iron && !has('iron') ? ` ${ironHint(n)}` : '';
     if (short.string && !has('string')) hint += ' String comes from the weaver. She spins it from wool.';
-    if (shortN === needs.length) npcSay(n, `A ${name}? Get me ${listNeeds(r.needs)} and I'll make you one.${hint}`);
-    else npcSay(n, `A ${name} takes ${listNeeds(r.needs)}. You're still short ${listNeeds(short)}.${hint}`);
+    if (short.wool && !has('wool')) hint += ' Wool? Give the sheep a pat, they shed a tuft now and then.';
+    if (short.feather && !has('feather')) hint += ' Feathers? Chase the hens round the farmyard. They drop one when they flap off.';
+    if (short.stone && !has('stone')) hint += ' Stones lie about on the grass and the beaches.';
+    if (short.hide && !has('hide')) hint += ' Deer and boar give hides. The south woods are full of them.';
+    if (shortN === needs.length) npcSay(n, `${what[0].toUpperCase()}${what.slice(1)}? Get me ${listNeeds(r.needs)} and I'll make you ${r.count ? 'some' : 'one'}.${hint}`);
+    else npcSay(n, `${what[0].toUpperCase()}${what.slice(1)} takes ${listNeeds(r.needs)}. You're still short ${listNeeds(short)}.${hint}`);
   }
-  else if (held().length - freed >= SLOTS) npcSay(n, 'Your pack\'s full, {lad}. Drop something first.');
+  else if (inPack(r.item) && held().length - freed >= packSize() && !has(r.item)) npcSay(n, 'Your pack\'s full, {lad}. Drop something first.');
   else {
     for (const [id, k] of needs) bag[id] -= k;
     if (needs.length) renderInventory();
@@ -386,17 +589,25 @@ function welcomeAxe(n) {
 const ANVIL_SPOT = 10;
 
 // The first time the player talks to the fisherman, he hands over his spare rod.
+// The fish log comes with it; anglers from before the log existed get theirs on the next chat.
 function welcomeRod(n) {
-  if (n.look.id !== 'fisher' || n.gaveRod || has('rod')) return false;
+  if (n.look.id !== 'fisher') return false;
+  if ((n.gaveRod || has('rod')) && !has('fishLog')) {
+    giveFishLog();
+    npcSay(n, 'Here, {lad}, take this fish log. Keep tally of every kind you land and I\'ll tell you what I know of each. Press L to read it.');
+    return true;
+  }
+  if (n.gaveRod || has('rod')) return false;
   if (!has('backpack')) {
     npcSay(n, 'Ahoy, a new face! I\'ve a spare rod for you, {lad}, but fetch your backpack first.');
     return true;
   }
   n.gaveRod = true;
   give('rod');
+  giveFishLog();
   popIcon('rod', player.x, player.y - 30);
   Sfx.reward();
-  npcSay(n, 'Ahoy, a new face! Here, take my old fishing rod. Face the water and press F to cast.');
+  npcSay(n, 'Ahoy, a new face! Here, my old fishing rod, and a log to keep tally of your catch. Select it, face the water and press F to cast. L opens the log.');
   return true;
 }
 
@@ -404,10 +615,11 @@ const welcomeGift = (n) => welcomeAxe(n) || welcomeRod(n);
 
 function updateCraft(n, dt) {
   const c = n.craft;
+  const smith = c.r.maker === 'smith';
   const dx = anvil.x - n.x;
   const dy = anvil.y - ANVIL_SPOT - n.y;
   const d = Math.hypot(dx, dy);
-  if (!c.atAnvil && d > 1.5 && n.stuck < 0.6) {
+  if (smith && !c.atAnvil && d > 1.5 && n.stuck < 0.6) {
     const sp = 34 * dt;
     if (!move(n, (dx / d) * sp, (dy / d) * sp)) n.stuck += dt;
     faceToward(n, dx, dy);
@@ -415,23 +627,34 @@ function updateCraft(n, dt) {
     n.frame = Math.floor(n.anim) % 4;
     return;
   }
-  c.atAnvil = true;
+  c.atAnvil = smith;
   c.t += dt;
   n.dir = 'down';
   n.frame = 0;
   if (c.t >= c.next && c.t < c.r.time) {
     c.next += 0.45;
-    Sfx.clang(earshot(anvil.x, anvil.y));
-    for (let i = 0; i < 9; i++) {
-      particles.push({
-        type: 'spark', x: anvil.x + (Math.random() - 0.5) * 6, y: anvil.y - 9, vx: (Math.random() - 0.5) * 90, vy: -30 - Math.random() * 50,
-        c: '#fff0a0', c2: '#ff8a2a', life: 0, max: 0.3 + Math.random() * 0.3,
-      });
+    if (smith) {
+      Sfx.clang(earshot(anvil.x, anvil.y));
+      for (let i = 0; i < 9; i++) {
+        particles.push({
+          type: 'spark', x: anvil.x + (Math.random() - 0.5) * 6, y: anvil.y - 9, vx: (Math.random() - 0.5) * 90, vy: -30 - Math.random() * 50,
+          c: '#fff0a0', c2: '#ff8a2a', life: 0, max: 0.3 + Math.random() * 0.3,
+        });
+      }
+    } else {
+      // whittling: shavings and a soft scrape
+      Sfx.swish(0.4 * earshot(n.x, n.y));
+      for (let i = 0; i < 3; i++) {
+        particles.push({ type: 'chip', x: n.x + 4, y: n.y - 10, vx: 10 + Math.random() * 25, vy: -20 - Math.random() * 25, c: i % 2 ? '#d9b07a' : '#f4f1ea', life: 0, max: 0.4 });
+      }
     }
   }
   if (c.t < c.r.time) return;
   n.craft = null;
-  give(c.r.item);
+  give(c.r.item, c.r.count || 1);
+  if (c.r.item === 'arrow') stats.fletched++;
+  if (ITEMS[c.r.item].slots) toast('UPGRADE', `Backpack: ${packSize()} slots`);
+  if (c.r.item === 'toolBelt') toast('TOOL BELT', 'Number keys pick a tool. Q and E (or TAB) step through tools and items');
   npcSay(n, c.r.done);
   faceToward(n, player.x - n.x, player.y - n.y);
   popIcon(c.r.item, player.x, player.y - 30);
@@ -457,11 +680,12 @@ const AXE = {
   fence: { prompt: 'Break the fence', hits: 2, chips: [PAL.wood, PAL.woodDark], done: breakFence },
   target: { prompt: 'Hit the target', chips: [PAL.cream, PAL.red], hit: hitTarget },
   ore: { prompt: 'Mine the iron ore', hits: 4, chips: ['#b0603a', '#56565e'], done: mineOre },
+  gold: { prompt: 'Mine the gold', hits: 4, chips: ['#f2c94a', '#3a4252'], done: mineGold },
   boulder: { prompt: 'Break the boulder', hits: 3, chips: [PAL.rock, PAL.rockDark], done: breakBoulder },
 };
 const AXE_KINDS = {
   barrel: 'barrel', bushPink: 'bush', bushYellow: 'bush', fern: 'bush', fenceH: 'fence', fenceV: 'fence', target: 'target',
-  ore: 'ore', boulder: 'boulder', boulderSnow: 'boulder', boulderDark: 'boulder',
+  ore: 'ore', goldOre: 'gold', boulder: 'boulder', boulderSnow: 'boulder', boulderDark: 'boulder',
 };
 const CHOP_TIME = 0.36;
 const CHOP_HIT = 0.55;
@@ -519,7 +743,7 @@ function scatterStones() {
     const y = (ty + 0.4 + rng() * 0.5) * TILE;
     if (solidAt(x - 8, y - 8, x + 8, y + 6)) continue;
     if (drops.some((d) => Math.hypot(d.x - x, d.y - y) < 64)) continue;
-    drops.push({ item: 'stone', x, y, z: 0, vz: 0, vx: 0, phase: 0, still: true });
+    drops.push({ item: 'stone', x, y, z: 0, vz: 0, vx: 0, phase: 0 });
     n++;
   }
 }
@@ -531,15 +755,16 @@ function kindOf(o) {
   return o.axe || null;
 }
 
-// What each swung tool can hit; the hammer mends broken fences instead.
-const TOOL_HITS = {
-  axe: ['tree', 'stump', 'barrel', 'bush', 'fence', 'target'],
-  sword: ['bush', 'barrel', 'target'],
-  spear: ['bush', 'target'],
-  hammer: [],
-  pickaxe: ['ore', 'boulder'],
+// Which tools can hit each kind of thing.
+const TOOL_FOR = {
+  tree: ['axe'], stump: ['axe'], fence: ['axe'], barrel: ['axe', 'sword'],
+  bush: ['sword', 'spear', 'axe'], target: ['sword', 'spear', 'axe'],
+  ore: ['pickaxe'], gold: ['pickaxe'], boulder: ['pickaxe'],
 };
-const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2' };
+// Chores win over game, so a rabbit underfoot doesn't get in the way of the woodcutting.
+const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder']);
+const SWUNG = new Set(Object.values(TOOL_FOR).flat());
+const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', mushroom: '#5affd8', roast: '#9a4a1e' };
 
 const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded();
 // The rod is the one tool that also works from the deck, once the ship has all but stopped.
@@ -547,67 +772,110 @@ const shipStill = () => Math.hypot(sail.vx, sail.vy) < 20;
 const canCast = () => (sail ? !hop && !carrying() && shipStill() : canUseTool());
 const mendable = (o) => o.broken && o.axe === 'fence' && !o.mendNow;
 
-function nearTarget(tool = primary()) {
-  const kinds = TOOL_HITS[tool];
-  if (!kinds || !has(tool) || !canUseTool()) return null;
+// The closest thing within arm's length that `tool` can deal with. A log patches a broken fence.
+function nearTarget(tool) {
+  if (!has(tool) || !canUseTool()) return null;
   let best = null;
   let bd = 9;
   for (const o of hittables) {
-    if (!(kinds.includes(kindOf(o)) || (tool === 'hammer' && mendable(o)))) continue;
+    if (!(tool === 'wood' ? mendable(o) : TOOL_FOR[kindOf(o)]?.includes(tool))) continue;
     const d = boxDist(o.col);
     if (d < bd) { bd = d; best = o; }
   }
   return best;
 }
 
-// F: uses whatever is in the first slot. At sea it casts the rod, or else sends the young dragon fishing.
-function useTool() {
-  if (hop || fade || naming) return;
-  if (sail) return primary() === 'rod' && (player.fishing || castSpot()) ? useRod() : sendFishing();
-  const id = primary();
-  if (!id || !canUseTool()) return;
-  if (id === 'rod') return useRod();
-  player.fishing = null;
-  if (TOOL_HITS[id]) swing(id, nearTarget(id));
-  else if (id === 'bow') shoot();
-  else if (id === 'shield') raiseShield();
-  else if (EDIBLE[id]) eat(id);
-  else if (id === 'stone') throwStone();
-  else if (id === 'wood' && fireNear(player.x, player.y)) dropItem('wood');
+// What a swing of `tool` would hit: the chore in reach, else game, else a bush or target.
+function swingAt(tool) {
+  const o = nearTarget(tool);
+  if (o && CHORES.has(kindOf(o))) return { o };
+  const prey = nearPrey(tool);
+  return prey ? { prey } : { o };
 }
 
-function swing(tool, o) {
-  if (player.chop) return;
-  if (o) faceToward(player, o.x - player.x, o.y - 2 - player.y);
-  player.chop = { o, t: 0, hit: false, tool };
-  Sfx.swish();
-}
-
-function toolHit(c) {
-  const o = c.o;
-  if (!o || boxDist(o.col) >= 14) return;
-  if (TOOL_HITS[c.tool].includes(kindOf(o))) return axeHit(o, c.tool);
-  if (c.tool !== 'hammer' || !mendable(o)) return;
+function mendWithWood(o) {
+  faceToward(player, o.x - player.x, o.y - 2 - player.y);
+  bag.wood--;
+  renderInventory();
   Object.assign(o, { mendNow: true, regrowT: 0.01, shakeT: 0.25 });
   Sfx.thunk(earshot(o.x, o.y));
   chips(o, [PAL.wood, PAL.woodLight], 3, 6);
 }
 
-// The prompt for the primary tool, or a nudge to ready the right one.
-function toolHint() {
-  const f = player.fishing;
-  if (f) return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}   ·   F  Reel in`;
-  if (sail) return has('rod') && castSpot() ? (primary() === 'rod' ? 'F  Cast your line' : `${slots.indexOf('rod') + 1}  Ready the ${ITEMS.rod.name.toLowerCase()}`) : '';
-  if (!canUseTool()) return '';
+const itemName = (id) => ITEMS[id].name.toLowerCase();
+// The key that readies `id`: a tool's number, or else Q/E round to it.
+const slotKey = (id) => (ITEMS[id].tool ? toolNumber(id) : 'Q/E');
+
+// F: uses the selected belt tool, or else whatever's in the selected slot.
+// At sea it casts the rod, or else sends the young dragon fishing.
+function useTool() {
+  if (hop || fade || naming || player.cook) return;
   const id = primary();
-  if (id === 'rod' && castSpot()) return 'F  Cast your line';
-  const o = nearTarget(id);
-  if (o) return `F  ${mendable(o) ? 'Mend the fence' : AXE[kindOf(o)].prompt}`;
-  if (has('wood') && fireNear(player.x, player.y)) return id === 'wood' ? 'F  Throw wood on the fire' : `${slots.indexOf('wood') + 1}  Ready some wood for the fire`;
-  for (const t of ['axe', 'pickaxe', 'hammer', 'rod']) {
-    if (t !== id && has(t) && (t === 'rod' ? castSpot() : nearTarget(t))) return `${slots.indexOf(t) + 1}  Ready the ${ITEMS[t].name.toLowerCase()}`;
+  if (sail) return id === 'rod' && (player.fishing || castSpot()) ? useRod() : sendFishing();
+  if (!id || !canUseTool()) return;
+  if (id === 'rod') return useRod();
+  player.fishing = null;
+  const fire = fireNear(player.x, player.y);
+  if (SWUNG.has(id)) {
+    const { o, prey } = swingAt(id);
+    swing(id, o, prey);
+  } else if (id === 'bow') drawBow();
+  else if (id === 'shield') raiseShield();
+  else if (COOKS[id] && fire) startCook(id);
+  else if (id === 'wood' && nearTarget('wood')) mendWithWood(nearTarget('wood'));
+  else if (id === 'wood' && fire) dropItem('wood');
+  else if (EDIBLE[id]) eat(id);
+  else if (id === 'meat') muse('Raw? Yuck. I should roast it over a fire first.');
+  else if (id === 'stone') throwStone();
+}
+
+function swing(tool, o, prey = null) {
+  if (player.chop) return;
+  const at = prey || o;
+  if (at) faceToward(player, at.x - player.x, at.y - 2 - player.y);
+  player.chop = { o, prey, t: 0, hit: false, tool };
+  Sfx.swish();
+}
+
+function toolHit(c) {
+  if (c.prey) return strikePrey(c.prey, c.tool);
+  const o = c.o;
+  if (o && boxDist(o.col) < 14 && TOOL_FOR[kindOf(o)]?.includes(c.tool)) axeHit(o, c.tool);
+}
+
+// The prompt for what F does with the selection, or a nudge to pick the thing that would help here.
+function toolHint() {
+  if (player.cook) return `${COOK_VERB[player.cook.id].replace(/e?$/, 'ing')} the ${itemName(player.cook.id)}...`;
+  const id = primary();
+  const f = player.fishing;
+  if (f && id === 'rod') return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}   ·   F  Reel in`;
+  if (f) return f.biting ? `${slotKey('rod')}  Ready the rod to reel it in!` : 'Waiting for a bite...';
+  const readyRod = id === 'rod' ? 'F  Cast your line' : `${slotKey('rod')}  Ready the rod to fish`;
+  if (sail) return has('rod') && castSpot() ? readyRod : '';
+  if (!canUseTool()) return '';
+  const fire = fireNear(player.x, player.y);
+  if (COOKS[id] && fire) return `F  ${COOK_VERB[id]} the ${itemName(id)}`;
+  if (id === 'wood' && nearTarget('wood')) return 'F  Mend the fence with a log';
+  if (id === 'wood' && fire) return 'F  Throw wood on the fire';
+  if (SWUNG.has(id)) {
+    const { o, prey } = swingAt(id);
+    if (prey) return `F  Strike the ${WILD[prey.kind].name}`;
+    if (o) return `F  ${AXE[kindOf(o)].prompt}`;
   }
-  if (!has('pickaxe') && ores.some((o) => kindOf(o) === 'ore' && boxDist(o.col) < 9)) return 'Iron ore. You need a pickaxe to mine it';
+  if (id === 'rod' && castSpot()) return readyRod;
+  if (id === 'bow' && player.nock) return drawPower() < 1 ? 'Drawing...   ·   Let go of F to shoot' : 'Full draw!   ·   Let go of F to shoot';
+  if (id === 'bow' && has('arrow')) return 'Hold F to draw the bow, let go to shoot. The longer the draw, the farther it flies';
+  if (fire) {
+    const raw = Object.keys(COOKS).find(has);
+    if (raw) return `${slotKey(raw)}  Ready the ${itemName(raw)} to cook`;
+    if (has('wood')) return `${slotKey('wood')}  Ready some wood for the fire`;
+  }
+  if (nearTarget('wood')) return `${slotKey('wood')}  Ready a log to mend the fence`;
+  const tool = ['axe', 'pickaxe'].find((t) => t !== id && nearTarget(t));
+  if (tool) return `${slotKey(tool)}  Ready the ${itemName(tool)}`;
+  if (has('rod') && castSpot()) return readyRod;
+  const vein = !has('pickaxe') && hittables.find((o) => (kindOf(o) === 'ore' || kindOf(o) === 'gold') && boxDist(o.col) < 9);
+  if (vein) return `${vein.axe === 'gold' ? 'Gold' : 'Iron ore'}. You need a pickaxe to mine it`;
   return '';
 }
 
@@ -618,7 +886,7 @@ const BOAT_CAST = { right: [-2, 14], left: [2, 14], down: [32, -8], up: [32, -30
 
 // Where the bobber lands: the first water in front of the player.
 function castSpot() {
-  if (indoors || !canCast()) return null;
+  if ((indoors && !inCave()) || !canCast()) return null;
   const water = (x, y) => tileAt(Math.floor(x / TILE), Math.floor(y / TILE)) === T.WATER;
   if (sail) {
     const [dx, dy] = BOAT_CAST[shipObj.facing];
@@ -641,9 +909,8 @@ function useRod() {
   if (f) {
     player.fishing = null;
     if (!f.biting) return Sfx.swish(0.6);
-    give('fish');
     const [hx, hy] = headPos();
-    popIcon('fish', hx, hy - 6);
+    popIcon(catchFish(f), hx, hy - 6);
     Sfx.splash(0.4);
     Sfx.reward();
     return;
@@ -658,14 +925,14 @@ function useRod() {
 // Seconds until the next nibble; a school nearby bites much sooner.
 function biteWait(x, y) {
   const school = seaLife.schools.some((s) => s.fish.length && Math.hypot(s.x - x, s.y - y) < 90);
-  return (school ? 0.8 : 2) + Math.random() * (school ? 1.5 : 3);
+  return ((school ? 0.8 : 2) + Math.random() * (school ? 1.5 : 3)) * (upgrades.lure ? 0.6 : 1);
 }
 
 function updateFishing(dt) {
   const f = player.fishing;
   if (!f) return;
   const moved = f.boat ? !sail || !shipStill() || Math.hypot(player.x - f.px, player.y - f.py) > 12 : Math.hypot(player.x - f.px, player.y - f.py) > 0.5;
-  if (moved || primary() !== 'rod' || !canCast()) {
+  if (moved || !has('rod') || !canCast()) {
     player.fishing = null;
     return;
   }
@@ -688,38 +955,111 @@ function updateFishing(dt) {
 
 const arrows = [];
 
-function shoot() {
-  if (player.bowT > 0) return;
+// Holding F draws the bow; the longer the draw, up to DRAW_TIME, the farther the arrow flies before it comes down.
+const DRAW_TIME = 1;
+const ARROW_SPEED = 260;
+const ARROW_REACH = [40, 200];
+const drawPower = () => (player.nock ? Math.min(1, player.nock.t / DRAW_TIME) : 0);
+
+function drawBow() {
+  if (player.bowT > 0 || player.nock) return;
+  if (!has('arrow')) {
+    player.bowT = 0.8;
+    muse('Out of arrows!');
+    return;
+  }
+  player.nock = { t: 0 };
+  Sfx.swish(0.3);
+}
+
+// Letting go of F.
+function loose() {
+  if (!player.nock) return;
+  const power = drawPower();
+  player.nock = null;
+  if (primary() !== 'bow' || !has('arrow') || !canUseTool()) return;
+  bag.arrow--;
+  renderInventory();
+  stats.shots++;
   player.bowT = 0.45;
   const [vx, vy] = DIR_VEC[player.dir];
-  arrows.push({ x: player.x + vx * 6, y: player.y + 1 + vy * 4, h: 9, vx: vx * 260, vy: vy * 260, t: 0, stuck: 0 });
+  const life = (ARROW_REACH[0] + (ARROW_REACH[1] - ARROW_REACH[0]) * power) / ARROW_SPEED;
+  arrows.push({ x: player.x + vx * 6, y: player.y + 1 + vy * 4, h: 9, vx: vx * ARROW_SPEED, vy: vy * ARROW_SPEED, t: 0, life, lob: 3 + 9 * power, stuck: 0, from: { x: player.x, y: player.y } });
   Sfx.twang();
 }
 
+function updateDraw(dt) {
+  if (!player.nock) return;
+  if (primary() !== 'bow' || !canUseTool()) player.nock = null;
+  else player.nock.t += dt;
+}
+
+// A little bar over the archer's head that fills as the string comes back.
+function drawDrawMeter(cx, cy) {
+  if (!player.nock) return;
+  const p = drawPower();
+  const [hx, hy] = headPos();
+  const x = Math.round(hx) - cx - 8;
+  const y = Math.round(hy) - cy - 12;
+  ctx.fillStyle = '#3a2414';
+  ctx.fillRect(x - 1, y - 1, 18, 4);
+  ctx.fillStyle = p >= 1 ? '#fff27a' : '#e1a03c';
+  ctx.fillRect(x, y, Math.round(16 * p), 2);
+}
+
+// A spent arrow can be picked up again: always from a target, half the time from the ground, never from the sea.
+// During one of the archer's challenges, hits stay `pinned` in the target and are never given back.
+const PINNED_MAX = 10;
+const TARGET_FACE = 17;
 function updateArrows(dt) {
   for (let i = arrows.length - 1; i >= 0; i--) {
     const a = arrows[i];
+    if (a.pinned) continue;
     if (a.stuck) {
-      if ((a.stuck += dt) > 1.6) arrows.splice(i, 1);
+      if ((a.stuck += dt) > 1.6) {
+        arrows.splice(i, 1);
+        if (a.keep) spawnDrop('arrow', a.keep.x, a.keep.y);
+      }
       continue;
     }
     a.t += dt;
     a.x += a.vx * dt;
     a.y += a.vy * dt;
-    a.h -= 8 * dt;
+    const u = Math.min(1, a.t / a.life);
+    a.h = 9 * (1 - u) + a.lob * Math.sin(Math.PI * u);
+    const prey = animalAt(a.x, a.y);
+    if (prey) {
+      arrows.splice(i, 1);
+      if (Math.random() < 0.5) spawnDrop('arrow', prey.x, prey.y + 2);
+      hurtAnimal(prey, ARROW_DAMAGE);
+      continue;
+    }
     const target = hittables.find((o) => o.axe === 'target' && !o.hidden && a.x > o.col.x0 - 3 && a.x < o.col.x1 + 3 && a.y > o.col.y0 - 4 && a.y < o.col.y1 + 2);
     if (target) {
       target.shakeT = 0.25;
-      hitTarget(target);
+      Sfx.thunk(earshot(target.x, target.y));
       a.stuck = 0.01;
-    } else if (a.t > 0.6 || blocked(a.x - 1, a.y - 1, a.x + 1, a.y, player)) {
-      if (!indoors && tileAt(Math.floor(a.x / TILE), Math.floor(a.y / TILE)) === T.WATER) {
+      const r = 6 * Math.sqrt(Math.random());
+      const ang = Math.random() * Math.PI * 2;
+      a.x = target.x + Math.max(-6, Math.min(6, (a.x - target.x) * 0.5 + r * Math.cos(ang)));
+      a.y = target.y + 1;
+      a.h = TARGET_FACE + 1 + r * Math.sin(ang);
+      if (archery.active) {
+        a.pinned = target;
+        const pinned = arrows.filter((p) => p.pinned === target);
+        if (pinned.length > PINNED_MAX) arrows.splice(arrows.indexOf(pinned[0]), 1);
+      } else a.keep = { x: target.x + (Math.random() - 0.5) * 8, y: target.y + 6 };
+      arrowHit(target, a);
+    } else if (a.t > a.life || blocked(a.x - 1, a.y - 1, a.x + 1, a.y, player)) {
+      if ((!indoors || inCave()) && tileAt(Math.floor(a.x / TILE), Math.floor(a.y / TILE)) === T.WATER) {
         seaSplash(a.x, a.y, 0.3);
         arrows.splice(i, 1);
       } else {
         a.stuck = 0.01;
+        if (Math.random() < 0.5) a.keep = { x: a.x, y: a.y + 2 };
         Sfx.thunk(0.4 * earshot(a.x, a.y));
       }
+      arrowMiss(a);
     }
   }
 }
@@ -756,6 +1096,84 @@ function eat(id) {
       c: EDIBLE[id], life: 0, max: 0.4 + Math.random() * 0.2,
     });
   }
+  if (id === 'mushroom') {
+    player.glowT = GLOW_TIME;
+    burst(player.x, player.y - 14, ['#5affd8', '#d8fff4', '#2fbfb0'], 12, 36);
+    Sfx.reward();
+    return;
+  }
+  if (!MEALS[id]) return;
+  stats.ate++;
+  player.fedT = Math.max(player.fedT || 0, MEALS[id]);
+  burst(player.x, player.y - 14, ['#fff27a', '#ffffff', '#ffb050'], 12, 36);
+  Sfx.reward();
+}
+
+// ---------- cooking ----------
+
+// Raw food held over a fire turns into a hot meal; eating one puts a spring in your step for `MEALS` seconds.
+const COOKS = { fish: 'grilledFish', cod: 'grilledFish', trout: 'grilledFish', eel: 'grilledFish', cavefish: 'grilledFish', apple: 'bakedApple', meat: 'roast' };
+const COOK_VERB = { fish: 'Grill', cod: 'Grill', trout: 'Grill', eel: 'Grill', cavefish: 'Grill', apple: 'Bake', meat: 'Roast' };
+const MEALS = { grilledFish: 90, bakedApple: 45, roast: 150 };
+const COOK_TIME = 2.6;
+const FED_SPEED = 1.3;
+const fedBoost = () => (player.fedT > 0 ? FED_SPEED : 1);
+
+function startCook(id) {
+  if (player.cook || player.chop) return;
+  const fire = fireNear(player.x, player.y);
+  bag[id]--;
+  renderInventory();
+  player.cook = { id, fire, t: 0, px: player.x, py: player.y, sizzleT: 0 };
+  faceToward(player, fire.x - player.x, fire.y - player.y);
+  Sfx.swish(0.6);
+}
+
+function updateCooking(dt) {
+  if (player.fedT > 0) {
+    player.fedT -= dt;
+    if (Math.random() < dt * 6 && !player.flying) {
+      particles.push({ type: 'sparkle', x: player.x + (Math.random() - 0.5) * 12, y: player.y - 4 - Math.random() * 16, vx: 0, vy: -10, life: 0, max: 0.5 });
+    }
+  }
+  const c = player.cook;
+  if (!c) return;
+  if (Math.hypot(player.x - c.px, player.y - c.py) > 2 || flight || sail || hop || player.swimming) {
+    player.cook = null;
+    give(c.id);
+    return;
+  }
+  c.t += dt;
+  if ((c.sizzleT -= dt) <= 0) {
+    c.sizzleT = 0.45;
+    Sfx.sizzle();
+    const [x, y] = cookSpot(c);
+    particles.push({ type: 'steam', x: x + (Math.random() - 0.5) * 4, y: y - 4, vx: (Math.random() - 0.5) * 4, vy: -14, life: 0, max: 1.1 });
+  }
+  if (c.t < COOK_TIME) return;
+  player.cook = null;
+  stats.cooked++;
+  if (c.id === 'meat') stats.roasted++;
+  const meal = COOKS[c.id];
+  give(meal);
+  popIcon(meal, player.x, player.y - 30);
+  Sfx.reward();
+}
+
+// Where the food hangs: on the end of a stick, over the flames.
+function cookSpot(c) {
+  return [c.fire.x + (player.x - c.fire.x) * 0.25, c.fire.y - 14 - (c.fire.blaze || 0) * 4];
+}
+
+function drawCooking(cx, cy) {
+  const c = player.cook;
+  if (!c || !sameSpace(player)) return;
+  const [fx, fy] = cookSpot(c);
+  const x = Math.round(fx + Math.sin(time * 5) * 0.8) - cx;
+  const y = Math.round(fy) - cy;
+  line(ctx, Math.round(player.x) - cx, Math.round(player.y) - 12 - cy, x, y, PAL.woodDark);
+  const img = SPR.icon[c.t > COOK_TIME * 0.6 ? COOKS[c.id] : c.id];
+  ctx.drawImage(img, x - Math.round(img.width / 2), y - Math.round(img.height / 2));
 }
 
 function throwStone() {
@@ -772,6 +1190,7 @@ function throwStone() {
 function updateTools(dt) {
   if (player.bowT > 0) player.bowT -= dt;
   if (player.blockT > 0) player.blockT -= dt;
+  updateDraw(dt);
   updateFishing(dt);
   updateArrows(dt);
 }
@@ -791,7 +1210,7 @@ function axeHit(o, tool = 'axe') {
   if (kind === 'tree') return hitTree(o);
   const k = AXE[kind];
   o.shakeT = 0.25;
-  if (kind === 'ore' || kind === 'boulder') Sfx.clang(0.5 * earshot(o.x, o.y));
+  if (kind === 'ore' || kind === 'gold' || kind === 'boulder') Sfx.clang(0.5 * earshot(o.x, o.y));
   else Sfx.chop(0.8);
   if (k.chips) chips(o, k.chips, 4, 6);
   if (k.leaves) shedLeaves(o, k.leaves);
@@ -867,12 +1286,23 @@ function regrow(o) {
 
 // The deposit cracks open into rubble and a lump or two of iron; the vein fills back in over time.
 function mineOre(o) {
+  stats.ore++;
   Object.assign(o, { key: 'oreSpent', broken: true, regrowT: REGROW_TIME });
   o.col.off = true;
   Sfx.smash(earshot(o.x, o.y));
   chips(o, ['#b0603a', '#d88a4a', PAL.rockDark], 10, 6);
   const n = Math.random() < 0.4 ? 2 : 1;
   for (let i = 0; i < n; i++) spawnDrop('iron', o.x + (i - (n - 1) / 2) * 9, o.y + 4, (i - (n - 1) / 2) * 24, 6, 60);
+}
+
+function mineGold(o) {
+  stats.gold++;
+  Object.assign(o, { key: 'goldOreSpent', broken: true, regrowT: REGROW_TIME });
+  o.col.off = true;
+  Sfx.smash(earshot(o.x, o.y));
+  chips(o, ['#f2c94a', '#fff0a0', '#3a4252'], 10, 6);
+  const n = Math.random() < 0.3 ? 2 : 1;
+  for (let i = 0; i < n; i++) spawnDrop('gold', o.x + (i - (n - 1) / 2) * 9, o.y + 4, (i - (n - 1) / 2) * 24, 6, 60);
 }
 
 function breakBoulder(o) {
@@ -987,8 +1417,10 @@ function drawHeldTool(e, x, top, behind) {
   if (behind !== (e.dir === 'up')) return;
   if (e.chop) drawSwing(e, x, top);
   if (e.fishing) drawFishingLine(e, x, top);
-  if (e.bowT > 0 && !e.chop && !(e.blockT > 0) && has('bow') && primary() === 'bow') drawHeld(e, SPR.icon.bow, x, top);
+  const bowUp = (e.bowT > 0 || e.nock) && has('bow');
+  if (bowUp && !e.chop && !(e.blockT > 0)) drawHeld(e, SPR.icon.bow, x, top);
   if (e.blockT > 0) drawHeld(e, SPR.icon.shield, x, top);
+  else if (e === player && torchLit() && !e.chop && !e.fishing && !bowUp) drawHeld(e, SPR.icon.torch, x, top);
 }
 
 function drawHeld(e, img, x, top) {

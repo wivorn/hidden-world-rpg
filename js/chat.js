@@ -7,7 +7,8 @@ const TOPICS = [
   ['insult', /\b(stupid|idiot|dumb|ugly|hate you|shut up|smelly?|loser|fool|moron)\b/],
   ['love', /\b(love|beautiful|pretty|cute|handsome|marry|like you)\b/],
   ['thanks', /\b(thanks|thank you|thx|ty|cheers)\b/],
-  ['bye', /\b(bye|goodbye|farewell|see you|see ya|later|good ?night)\b/],
+  ['goodnight', /\b(good ?night|night night|nighty night|sleep well|sleep tight)\b/],
+  ['bye', /\b(bye|goodbye|farewell|see you|see ya|later)\b/],
   ['yes', /^\W*(yes|yeah|yep|yup|aye|sure|ok(ay)?|of course|definitely|ready|i'?m ready)\b/],
   ['no', /^\W*(no|nope|nah|not really|not yet|never)\b/],
   ['wares', /\b(what|which|any) (tools?|things|stuff|items|wares)\b|\bwhat (kinds?|sorts?) of (tools?|things|stuff|wares)\b|\bwhat (can|do) you (make|sell|craft|forge|bake|sew|weave|offer|have)\b|\bwhat can you do\b|\bwhat'?s for sale\b|\bwhat else\b/],
@@ -21,7 +22,8 @@ const TOPICS = [
   ['map', /\b(maps?|charts?)\b/],
   ['string', /\b(strings?|twine|bowstrings?|spin|spinning)\b/],
   ['dog', /\b(dogs?|pupp(y|ies)|pup|fred|lost)\b/],
-  ['places', /\b(forest|woods|mountains?|peaks?|pass|hot ?springs?|springs?|volcano|fire mountain|jungle|frozen|ice|snow\w*|waterfall|clearing|valley)\b/],
+  ['hunt', /\b(hunt\w*|deer|stags?|boars?|wild pigs?|rabbits?|bunn(y|ies)|hares?|fox(es)?|goats?|frogs?|animals?|wildlife|meat|venison|roast)\b/],
+  ['places', /\b(forest|woods|mountains?|peaks?|pass|hot ?springs?|springs?|volcano|fire mountain|jungle|frozen|ice|snow\w*|waterfall|clearing|valley|caves?|caverns?)\b/],
   ['ship', /\b(ship|boat|sail|sailing|sea|ocean|islands?|longship|swim|swimming)\b/],
   ['craft', new RegExp(RECIPES.map((r) => r.words.source).join('|'))],
   ['forge', /\b(swords?|hammers?|forge|weapons?|armou?r|shields?|anvil|tools?|bows?|spears?|pick ?axes?)\b/],
@@ -34,13 +36,13 @@ const TOPICS = [
   ['sheep', /\b(sheep|lamb)\b/],
   ['fish', /\b(fish|fishing|catch)\b/],
   ['help', /\b(help|quest|what should i do|what do i do|bored|adventure|explore)\b/],
-  ['greet', /\b(hi|hello|hey|hiya|hail|greetings|yo|howdy|morning|good day|sup)\b/],
+  ['greet', /\b(hi|hello|hey|hiya|hail|greetings|yo|howdy|morning|evening|good day|sup)\b/],
 ];
 
 const TOPIC_EMOTES = {
-  follow: 'exclaim', stop: 'dots', insult: 'angry', love: 'heart', thanks: 'heart', bye: 'note',
+  follow: 'exclaim', stop: 'dots', insult: 'angry', love: 'heart', thanks: 'heart', goodnight: 'note', bye: 'note',
   yes: 'smile', no: 'dots', wares: 'smile', name: 'smile', mood: 'smile', joke: 'smile', dance: 'note', egg: 'exclaim', eggFound: 'exclaim', hatched: 'heart', grown: 'exclaim',
-  dragon: 'exclaim', places: 'exclaim', iron: 'dots', map: 'dots', string: 'dots', dog: 'question', ship: 'dots',
+  dragon: 'exclaim', places: 'exclaim', hunt: 'exclaim', iron: 'dots', map: 'dots', string: 'dots', dog: 'question', ship: 'dots',
   craft: 'dots', forge: 'dots', food: 'dots', clothes: 'dots', cloth: 'dots', leather: 'dots', shop: 'dots', backpack: 'question', sheep: 'question', fish: 'dots', help: 'dots', greet: 'exclaim',
   question: 'question', other: 'question',
 };
@@ -48,7 +50,7 @@ const TOPIC_EMOTES = {
 const NPC_NAMES = {
   chief: /\b(chief|elder)\b/,
   smith: /\b(smith|blacksmith)\b/,
-  baker: /\b(baker|merchant)\b/,
+  baker: /\bbaker\b/,
   weaver: /\bweaver\b/,
   seamstress: /\b(seamstress|tailor|dressmaker)\b/,
   tanner: /\b(tanner|leatherworker)\b/,
@@ -60,6 +62,7 @@ const NPC_NAMES = {
   fisher: /\b(fisher|fisherman|sailor)\b/,
   hermit: /\b(hermit|old man)\b/,
   mom: /\b(mom|mum|mother|ma|mama|mommy|mummy)\b/,
+  merchant: /\b(merchant|trader|ottar)\b/,
 };
 
 const REPLIES = {
@@ -69,6 +72,7 @@ const REPLIES = {
     insult: ['How rude!', 'Watch your tongue!'],
     love: ['Oh! Well... thank you.', 'You flatter me.'],
     thanks: ['Any time.', 'You\'re welcome!'],
+    goodnight: ['Good night? The sun\'s still up, {name}!', 'Bit early for bed, isn\'t it?'],
     bye: ['Safe travels!', 'Farewell, {name}.'],
     yes: ['Good!', 'That\'s the spirit!', 'Aye, aye.'],
     no: ['Suit yourself.', 'Fair enough.', 'Oh. Well, alright then.'],
@@ -88,6 +92,13 @@ const REPLIES = {
       'Behind the great hall the mountains rise. A pass climbs up to a snowy valley.',
       'The waterfall comes down off the mountains, west of the great hall.',
       'Sailors talk of a volcano to the north, a frozen isle and a jungle isle. I\'ve never been.',
+      'They say there\'s an ice cave on the frozen isle, dark as a troll\'s pocket. Take a torch if you go.',
+    ],
+    hunt: [
+      'Deer graze in the forest past the west gate. Quick as the wind, so take a bow.',
+      'Wild boar root about in the south of the forest. Poke one and it\'ll charge you!',
+      'Rabbits nibble the grass in the east meadow, past the fields.',
+      'Roast meat over a fire and you\'ll walk all day without tiring.',
     ],
     ship: ['The longship is down at the harbour, through the southern gate.', 'The sea goes on forever out there.'],
     iron: ['Iron? The smith would know where to find it.', 'Sailors say the black rock on the volcano isle is full of iron.'],
@@ -97,7 +108,7 @@ const REPLIES = {
     forge: ['The smith can help you with that.', 'Ask the smith. He makes all kinds of tools.'],
     craft: ['The smith can make you one. He\'s by the forge.', 'Ask the smith, he makes all our tools.'],
     food: ['The baker sells fresh bread on the square.', 'Follow the smell of bread to the baker\'s oven.'],
-    shop: ['The market is round the square: bread, cloth, clothes and leather.', 'Need a tool? The smith makes those.'],
+    shop: ['The market is round the square: bread, cloth, clothes and leather.', 'Need a tool? The smith makes those.', 'Ottar the merchant docks in the bay every third day. He pays silver for fish and wool.'],
     clothes: ['The seamstress on the north side of the square makes fine clothes.', 'Need a new tunic? See the seamstress.'],
     cloth: ['The weaver works her loom on the north side of the square.', 'The weaver makes all our cloth.'],
     leather: ['The tanner is on the west road, by the forge. Follow your nose!', 'Boots and belts? The tanner\'s your man.'],
@@ -128,16 +139,17 @@ const REPLIES = {
   smith: {
     name: ['Smith. I make things out of hot metal.', 'I\'m the smith. I can make all kinds of tools for you.'],
     greet: ['Oi.', 'Mind the sparks!', 'Need a tool, {lad}?'],
-    wares: ['Axe, hammer, pickaxe, bow, sword, shield, spear. You name it, I forge it.', 'All kinds! Axes, hammers, pickaxes, bows, swords, shields and spears.'],
+    wares: ['Axe, pickaxe, bow, sword, shield, spear, torch. You name it, I forge it.', 'All kinds! Axes, pickaxes, bows, swords, shields and spears.'],
     forge: [
-      'Axe, hammer, pickaxe, bow, sword, shield, spear. Hand-forged, every one.',
-      'Name the tool and bring me the makings. A hammer\'s wood and stone, a bow\'s wood and string. Swords, spears, shields and pickaxes need iron.',
+      'Axe, pickaxe, bow, sword, shield, spear. Hand-forged, every one. Ask the tanner for a tool belt to hang them on.',
+      'Name the tool and bring me the makings. A bow\'s wood and string. Swords, spears, shields and pickaxes need iron.',
+      'A hammer? Don\'t need one to mend a fence, {lad}. A spare log and your two hands will do.',
       'Every tool starts with an axe, {lad}. Then we\'ll talk.',
     ],
     iron: [
-      'Iron comes from the ore on the volcano isle, north of here. Black rock with rusty veins. Crack it with a hammer.',
+      'Iron comes from the ore on the volcano isle, north of here. Black rock with rusty veins. You\'ll want a pickaxe.',
       'Bring me iron and I\'ll make you a sword, a spear, a shield or a pickaxe. The volcano isle is full of the stuff.',
-      'A hammer will break ore, slowly. A pickaxe goes twice as fast, but that takes iron to make.',
+      'Ore needs a pickaxe, and a pickaxe takes iron to make. Funny old world.',
     ],
     help: ['Need a tool? An axe, say? Just ask.', 'Those woods won\'t chop themselves. Ask me for an axe.'],
     places: ['The best timber is in the forest, out the west gate. Take an axe.', 'Mountains? Good stone up there. Cold, though.'],
@@ -192,9 +204,10 @@ const REPLIES = {
   },
   tanner: {
     name: ['Tanner. I turn hides into leather.', 'I\'m the tanner. I can make you boots, belts or a pouch.'],
-    wares: ['Boots, belts and pouches. Strong and supple!', 'Anything leather: boots, belts, pouches, straps.'],
+    wares: ['Tool belts and hunter\'s pouches, two hides apiece. Strong and supple!', 'Anything leather: boots, tool belts, pouches, straps.'],
     greet: ['Ho there!', 'Don\'t mind the smell.'],
-    leather: ['Boots, belts, pouches. Good leather lasts a lifetime.', 'A hide sits weeks in the vat before it\'s ready.'],
+    leather: ['A tool belt takes two hides. Hang your axe and the rest off it and free up your pack.', 'A hide sits weeks in the vat before it\'s ready.'],
+    hunt: ['Deer in the western woods, boar further south. Boar\'s the tastier, but it bites back.', 'Hunting? Walk, don\'t run. Deer hear a running Viking a mile off.'],
     shop: ['Boots and belts! Strong and supple!'],
     clothes: ['Leather for boots, cloth for tunics. The seamstress does the rest.'],
     insult: ['I\'ve scraped tougher hides than you.'],
@@ -217,6 +230,7 @@ const REPLIES = {
     love: ['Love you too, {name}.'],
     thanks: ['That\'s what mothers are for.'],
     insult: ['Excuse me?! Not in this house!'],
+    goodnight: ['Good night? It\'s the middle of the day, silly!'],
     bye: ['Be home before dark!', 'Stay safe, {name}!'],
     dragon: ['Dragons?! Not in my house you don\'t!'],
     hatched: ['It\'s adorable, but it is NOT sleeping in your bed.'],
@@ -237,6 +251,7 @@ const REPLIES = {
     follow: ['Yay! An adventure!', 'Wait for me!'],
     leather: ['Phew! The tanner\'s stall stinks!'],
     places: ['The hot spring is the BEST! You can swim in it!', 'I went into the forest once. Only a little way. It was dark!'],
+    hunt: ['I saw a fox up in the snowy valley! It jumped head-first into the snow!', 'There are goats on the rocks by the hot spring. One tried to eat my shoe!', 'Frogs live by the lake in the forest. If you get close they go PLOP!'],
     food: ['The baker\'s honey cakes are the BEST!'],
     dance: ['Wheee!'],
     joke: ['What do dragons eat? Fire-flakes! Hahaha!'],
@@ -261,8 +276,13 @@ const REPLIES = {
     wares: ['I shoot arrows. That\'s the whole job.', 'I can hit a herring\'s eye at fifty paces. Want a bow? Ask the smith.'],
     greet: ['Shh...', 'Quiet, please.'],
     craft: ['A bow takes 1 wood and 1 string. The smith will shape it, and the weaver spins string from wool.', 'Bring the smith 1 wood and 1 string. String comes from the weaver.'],
-    forge: ['A bow takes 1 wood and 1 string. The smith will shape it, and the weaver spins string from wool.'],
+    forge: ['A bow takes 1 wood and 1 string. The smith will shape it, and the weaver spins string from wool.', 'Arrows I make myself: 1 wood, 1 stone and 1 feather for five.'],
     string: ['A good bowstring is spun from wool. The weaver does it best.', 'No wool? Help the shepherd out. He pays in wool.'],
+    hunt: [
+      'Deer bolt the moment you get close. Shoot from a distance, and walk, don\'t run.',
+      'One good arrow drops a deer or a rabbit. A boar takes two, and it\'ll come for you after the first.',
+      'A boar charging you? Get your shield up just before it hits, and let it bounce off.',
+    ],
     follow: ['Can\'t. Practising.'],
     insult: ['I never miss, you know.'],
     joke: ['...Shh.'],
@@ -279,6 +299,7 @@ const REPLIES = {
     dance: ['Not on duty.'],
     ship: ['Some jump off the cliffs and swim. Fools.'],
     places: ['Keep to the trail in the forest. It\'s easy to get lost.', 'Wolves in the mountains, they say. That\'s why we have a wall.'],
+    hunt: ['Wild boar in the south of the forest. I\'ve the scars to prove it.', 'Want a boar? Bring a spear and a shield. And a friend.'],
     other: ['Move along.', 'Hmm.'],
   },
   villager: {
@@ -297,7 +318,8 @@ const REPLIES = {
     wares: ['I can lend you the longship. She\'s at the dock, ready to sail.', 'Fish, mostly. And sailing tips: hold Shift for full sail!'],
     greet: ['Ahoy!', 'Ahoy there, {name}!'],
     ship: ['She\'s yours to sail. Fair winds!', 'Hold Shift for full sail!'],
-    fish: ['Biggest catch? A fish as long as the longship!', 'The deep water is where the big ones hide.'],
+    fish: ['Biggest catch? A fish as long as the longship!', 'Different waters, different fish: shallows, deep sea, the lake, the hot sea by the volcano. Fill your log!', 'There\'s a golden fish out there somewhere. Worth a fortune to the merchant.'],
+    shop: ['Ottar the merchant buys fish for silver. Cod and eels fetch the best price, and a golden fish... a fortune!'],
     help: ['Sail north-east. There\'s an old hermit out there.'],
     places: [
       'Due north there\'s a volcano, smoking day and night. Don\'t sail too close.',
@@ -329,15 +351,106 @@ const REPLIES = {
       'A grown dragon keeps to its island. Ask it to follow, and it will.',
       'Other eggs sleep on the far isles... the frozen isle to the north-west, the jungle isle to the south-east, and a speck of sand far to the south.',
     ],
-    places: ['The fire mountain, the frozen isle, the jungle... I have seen them all. Each one keeps a secret.', 'Look for nests. Dragons like the wild places.'],
+    places: ['The fire mountain, the frozen isle, the jungle... I have seen them all. Each one keeps a secret.', 'Look for nests. Dragons like the wild places.', 'Under the frozen isle runs an ice cave. Gold in its walls, mushrooms that glow... and at the very end, something precious.'],
     dragon: ['Dragons... I once saw an egg in the ancient ruin, far to the south-west.'],
     help: ['Sail south-west to the ancient ruin. Something special waits there...', 'A dragon egg sleeps among the stone towers.'],
     ship: ['The sea brought you. It will take you back.'],
+    hunt: ['Two deer share this isle with me. I never hunt them. We are old friends.'],
     follow: ['My feet are rooted here.'],
     dance: ['Heh. Once, long ago...'],
     mood: ['Peaceful. Lonely. Both.'],
     other: ['Hmm...', 'The wind whispers... of a dragon egg.', 'Indeed...'],
     question: ['Ask me about the ancient ruin...', 'The stone towers hold the answer.'],
+  },
+  merchant: {
+    name: ['Ottar, merchant of the seven seas!', 'Ottar. I buy, I sell, I sail on.'],
+    wares: ['Torches, arrows, a golden lure, and silk for your sail. Talk to me and have a look!', 'I buy fish, meat, wool, iron, gold and glowcaps. Fair prices, mostly.'],
+    greet: ['Welcome, friend! Coin in your pocket?', 'Ahoy! Ottar\'s open for business.'],
+    fish: ['Cod and fire eels pay best. A golden fish? I\'d give twenty-five silver!'],
+    hunt: ['Raw meat, three silver a cut. Sailors get hungry!'],
+    places: ['The ice cave on the frozen isle has gold in its walls. Bring me some!', 'I sail the whole Hidden World. Three days round, then back here.'],
+    follow: ['And leave my ship? Never!'],
+    joke: ['How do Vikings send secret messages? By Norse code!'],
+    bye: ['Fair winds! I\'ll be back in three days.'],
+    other: ['Hmm? Buying or selling?', 'Everything has a price, friend.'],
+  },
+};
+
+// After dark these take over from the replies above that only make sense by day.
+const NIGHT_REPLIES = {
+  default: {
+    greet: ['Good evening!', 'Evening, {name}!', 'Hail, {name}! Out late?'],
+    goodnight: ['Good night, {name}!', 'Sleep well!'],
+    bye: ['Good night, {name}!', 'Sleep well!', 'Mind how you go in the dark.'],
+    mood: ['Tired, but well.', 'Ready for my bed!'],
+    help: ['It\'s late. Get some sleep, the islands will keep till morning.', 'Talk to the chief by the great hall.', 'Heading out at night? Take a torch.'],
+  },
+  chief: {
+    greet: ['Good evening, {name}.', 'Ah, young {name}. Out under the stars?'],
+    mood: ['Tired, but the night is kind to old bones.'],
+  },
+  smith: {
+    greet: ['Oi. Late one, {lad}?', 'Forge is still warm.'],
+    mood: ['Warm. The coals keep me company.'],
+  },
+  baker: {
+    greet: ['Evening, dear! There\'s a crumb or two left.', 'Hello, dear! Up late?'],
+    wares: ['Rye loaves, honey cakes and berry pies! Tomorrow\'s batch is rising now.', 'What\'s left of today\'s bread, and plenty more in the morning!'],
+    food: ['The last loaf of the day, still a little warm!', 'The morning batch is rising. Come back at dawn!'],
+    mood: ['Floury and sleepy, thank you!'],
+  },
+  weaver: {
+    mood: ['Tired. Clack... clack...'],
+    other: ['Hmm? Sorry, I was nodding off over the loom.', 'Over, under, over... *yawn*'],
+  },
+  seamstress: {
+    clothes: ['A warm cloak for the night air?', 'Can\'t thread a needle in this light, dear!'],
+    mood: ['Sleepy, dear!'],
+  },
+  tanner: {
+    greet: ['Ho there! Late one, eh?', 'Don\'t mind the smell. It\'s worse in the dark.'],
+  },
+  mom: {
+    greet: ['Evening, sweetheart!', 'There you are, {name}! It\'s late.'],
+    goodnight: ['Good night, sweetheart. Sleep tight!', 'Night night, {name}. Your bed\'s made.'],
+    yes: ['Good! Bed first, adventures in the morning.'],
+    no: ['Then off to bed with you!', 'Bed, {name}. Now.'],
+    food: ['There\'s stew keeping warm by the fire.', 'Supper\'s long gone, but I saved you a bowl.'],
+    help: ['Get some sleep, love. Your bed\'s made.', 'It\'s dark out. See the village in the morning.'],
+    bye: ['Out again, at this hour? Take a torch, and don\'t be long!', 'Mind the dark, {name}. Come home safe.'],
+    mood: ['Tired, love. It\'s been a long day.'],
+  },
+  kid: {
+    greet: ['{name}! I\'m not supposed to be up!', 'Shhh! Hi!'],
+    mood: ['Not tired at all! *yawn*'],
+  },
+  girl: {
+    name: ['I watch the stars and dream of flying.', 'Just a girl who likes the night sky.'],
+    wares: ['I can name every star in the sky! ...Well, some of them.', 'I can find the North Star. Sailors steer by it!'],
+    dragon: ['A dragon flight under the stars... imagine!', 'Take me up there one day?'],
+    mood: ['Wonderful! Look at all those stars!'],
+  },
+  archer: {
+    greet: ['Shh... it\'s late.', 'Quiet, please.'],
+    other: ['Shh... I\'m listening for the target.', 'Too dark to tell if you made me miss.'],
+  },
+  guard: {
+    greet: ['Halt! Who goes there? ...Oh, it\'s you.', '{name}. Out late.'],
+    help: ['Carry a torch after dark.', 'Stay close to the village at night.'],
+  },
+  villager: {
+    greet: ['Shh! The sheep are sleeping.'],
+    sheep: ['They\'re all curled up in the pen. Shh!', 'I count them every night. Puts me right to sleep.'],
+    other: ['Shh... sheep sleeping.', 'Baa? ...Sorry, I was half asleep.'],
+  },
+  fisher: {
+    greet: ['Ahoy! Fine night for it.', 'Ahoy there, {name}! Out late?'],
+  },
+  hermit: {
+    greet: ['A visitor, by moonlight... how rare.', 'Few sail this far out, and never at night...'],
+  },
+  merchant: {
+    greet: ['Ottar\'s open, even at this hour!', 'Ahoy! Late trade is still trade.'],
   },
 };
 
@@ -355,7 +468,9 @@ function addresses(lookId, text) {
 }
 
 function npcReply(lookId, topic) {
-  const lines = (REPLIES[lookId] && REPLIES[lookId][topic]) || REPLIES.default[topic];
+  const night = isNight();
+  const lines = (night && NIGHT_REPLIES[lookId]?.[topic]) || REPLIES[lookId]?.[topic]
+    || (night && NIGHT_REPLIES.default[topic]) || REPLIES.default[topic];
   const key = lookId + topic;
   let i = Math.floor(Math.random() * lines.length);
   if (lines.length > 1 && i === lastReply.get(key)) i = (i + 1) % lines.length;

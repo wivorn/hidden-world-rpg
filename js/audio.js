@@ -6,6 +6,8 @@ const Sfx = (() => {
   let muted = false;
   let waves = null;
   let wind = null;
+  let rain = null;
+  let gust = null;
   const VOLUME = 0.55;
 
   function init() {
@@ -24,6 +26,8 @@ const Sfx = (() => {
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     waves = loopNoise('lowpass', 420);
     wind = loopNoise('bandpass', 900);
+    rain = loopNoise('highpass', 2400);
+    gust = loopNoise('bandpass', 320);
   }
 
   function loopNoise(type, freq) {
@@ -94,6 +98,18 @@ const Sfx = (() => {
       waves.gain.setTargetAtTime(sea * (0.05 + 0.03 * Math.sin(ac.currentTime * 0.7)), ac.currentTime, 0.3);
       wind.gain.setTargetAtTime(air * 0.07, ac.currentTime, 0.3);
     },
+    // wet: 0..1 rain on the roof or the ground, storm: 0..1 howling wind
+    weather(wet, storm) {
+      if (!ac) return;
+      rain.gain.setTargetAtTime(wet * 0.05, ac.currentTime, 0.6);
+      gust.gain.setTargetAtTime(storm * (0.04 + 0.03 * Math.sin(ac.currentTime * 0.4)), ac.currentTime, 0.6);
+    },
+    thunder(k = 1, delay = 0) {
+      noise({ dur: 0.25, vol: 0.12 * k, f0: 2400, f1: 300, delay });
+      noise({ dur: 2.8, vol: 0.2 * k, f0: 220, f1: 50, delay: delay + 0.08, attack: 0.1 });
+    },
+    sizzle(k = 1) { noise({ dur: 0.5, vol: 0.035 * k, f0: 5200, f1: 3000, type: 'bandpass', q: 0.8, attack: 0.08 }); },
+    yawn() { tone({ type: 'triangle', f0: 320, f1: 180, dur: 0.9, vol: 0.06, attack: 0.25 }); },
 
     step(surface, k = 1) {
       const v = 0.07 * k;
@@ -214,6 +230,37 @@ const Sfx = (() => {
         const [a, b] = i % 2 ? [1.05, 1] : [1, 1.05];
         tone({ type: 'sawtooth', f0: f * a, f1: f * b * (1 - i * 0.02), dur: 0.08, vol: 0.035 * k, delay: i * 0.065, attack: 0.02 });
       }
+    },
+    coin(k = 1) {
+      tone({ type: 'square', f0: 1568, dur: 0.06, vol: 0.04 * k });
+      tone({ type: 'square', f0: 2093, dur: 0.22, vol: 0.04 * k, delay: 0.06 });
+    },
+    cluck(k = 1) {
+      const f = rand(520, 640);
+      for (let i = 0; i < 3; i++) tone({ type: 'square', f0: f * (i === 2 ? 1.4 : 1), f1: f * 0.7, dur: 0.05, vol: 0.03 * k, delay: i * 0.09 });
+      noise({ dur: 0.2, vol: 0.05 * k, f0: 1200, f1: 600, type: 'bandpass', q: 2, delay: 0.05 });
+    },
+    grunt(k = 1) {
+      for (let i = 0; i < 2; i++) tone({ type: 'sawtooth', f0: rand(110, 130), f1: 70, dur: 0.12, vol: 0.06 * k, delay: i * 0.16, attack: 0.02 });
+      noise({ dur: 0.25, vol: 0.06 * k, f0: 400, f1: 200, type: 'bandpass', q: 2 });
+    },
+    snort(k = 1) { noise({ dur: 0.28, vol: 0.09 * k, f0: 900, f1: 250, type: 'bandpass', q: 1.5, attack: 0.03 }); },
+    bleat(k = 1) {
+      const f = rand(560, 680);
+      for (let i = 0; i < 4; i++) tone({ type: 'sawtooth', f0: f * (i % 2 ? 1.06 : 1), f1: f * 0.96, dur: 0.07, vol: 0.03 * k, delay: i * 0.06, attack: 0.02 });
+    },
+    yip(k = 1) {
+      tone({ type: 'triangle', f0: rand(850, 950), f1: 1500, dur: 0.06, vol: 0.06 * k });
+      tone({ type: 'triangle', f0: 1400, f1: 700, dur: 0.12, vol: 0.05 * k, delay: 0.07 });
+    },
+    croak(k = 1) {
+      for (let i = 0; i < 2; i++) tone({ type: 'square', f0: rand(130, 150), f1: 100, dur: 0.09, vol: 0.04 * k, delay: i * 0.13 });
+      noise({ dur: 0.2, vol: 0.03 * k, f0: 500, type: 'bandpass', q: 3 });
+    },
+    // a ship's horn, low and long
+    horn(k = 1) {
+      tone({ type: 'sawtooth', f0: 110, f1: 104, dur: 1.4, vol: 0.06 * k, attack: 0.2 });
+      tone({ type: 'triangle', f0: 165, f1: 156, dur: 1.4, vol: 0.05 * k, attack: 0.2 });
     },
     plip(k = 1, n = 1) {
       const f = 1500 + n * 220;

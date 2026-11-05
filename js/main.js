@@ -3,7 +3,6 @@ const screenCtx = screenCanvas.getContext('2d');
 const buffer = makeCanvas(1, 1);
 const ctx = buffer.getContext('2d');
 const bubbleLayer = document.getElementById('bubbles');
-const hint = document.getElementById('hint');
 const promptEl = document.getElementById('prompt');
 const chatForm = document.getElementById('chat');
 const chatInput = document.getElementById('chat-input');
@@ -39,7 +38,7 @@ function earshot(x, y) {
   return Math.max(0, Math.min(1, 1.3 - d / (viewW * 0.6)));
 }
 
-const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400 };
+const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400, merchant: 230 };
 
 function surfaceUnder(x, y) {
   const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
@@ -87,6 +86,7 @@ const npcs = NPCS.map((d) => Object.assign(makeEntity(LOOKS[d.look], d.x * TILE,
     effectT: 0,
   },
   lines: d.lines,
+  nightLines: d.nightLines || d.lines,
   line: null,
   lineI: 0,
   dir: d.fixed || 'down',
@@ -104,6 +104,10 @@ const sheep = SHEEP.map((s) => ({
   x: s.x * TILE, y: s.y * TILE, dir: Math.random() < 0.5 ? 'left' : 'right', state: 'graze', timer: Math.random() * 3,
   target: null, anim: 0, stuck: 0, phase: Math.random() * 3, baaT: 3 + Math.random() * 12, emote: null, emoteT: 0,
 }));
+initHens();
+initTrade();
+initCave();
+initWildlife();
 
 const cloudRng = mulberry32(42);
 const clouds = Array.from({ length: 9 }, (_, i) => ({
@@ -132,7 +136,8 @@ function blocked(x0, y0, x1, y1, self, swim = false) {
       if (x1 > sx0 && x0 < sx1 && y1 > sy0 && y0 < sy1) return true;
     }
   }
-  return false;
+  const hull = swim && merchantHull();
+  return !!hull && hullsMeet(hull, [x0, y0, x1, y1]);
 }
 
 const canStand = (e, x, y) => !blocked(x - 5, y - 4, x + 5, y, e, e.swimming);
@@ -196,8 +201,17 @@ function readInput() {
 
 function jump() {
   if (player.swimming || player.jumpT >= 0) return;
-  const spot = diveSpot();
   Sfx.jump();
+  const over = fenceHopSpot();
+  if (over) {
+    startHop(over.x, over.y, 0, 0, () => {
+      player.flying = false;
+      dust(player.x, player.y);
+      Sfx.land();
+    });
+    return;
+  }
+  const spot = diveSpot();
   if (!spot) {
     player.jumpT = 0;
     for (const n of npcs) if (n.followT > 0 && n.jumpT < 0) n.jumpDelay = 0.12 + Math.random() * 0.1;
@@ -214,6 +228,24 @@ function jump() {
 }
 
 // Where a jump from the shore edge would land in the sea, or null when not at an edge.
+// A fence right in front of the player, and clear ground just beyond it to land on.
+const FENCES = new Set(['fenceH', 'fenceV', 'post']);
+function fenceHopSpot() {
+  if (indoors || player.swimming || player.flying || hop || sail) return null;
+  const [vx, vy] = DIR_VEC[player.dir];
+  const near = objects.filter((o) => FENCES.has(o.key) && !o.col.off && Math.abs(o.x - player.x) < 32 && Math.abs(o.y - player.y) < 32);
+  const hits = (x, y) => near.some(({ col: c }) => x + 5 > c.x0 && x - 5 < c.x1 && y > c.y0 && y - 4 < c.y1);
+  let d = 1;
+  while (d <= 6 && !hits(player.x + vx * d, player.y + vy * d)) d++;
+  if (d > 6) return null;
+  for (d += 2; d <= 30; d += 2) {
+    const x = player.x + vx * d;
+    const y = player.y + vy * d;
+    if (!hits(x, y) && canStand(player, x, y)) return { x, y };
+  }
+  return null;
+}
+
 function diveSpot() {
   let [vx, vy] = readInput();
   if (!vx && !vy) [vx, vy] = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[player.dir];
@@ -274,7 +306,7 @@ function updateSwim(dt) {
     player.frame = 0;
     return;
   }
-  const speed = (boosting() ? 62 : 42) * dt;
+  const speed = (boosting() ? 62 : 42) * fedBoost() * dt;
   move(player, ix * speed, iy * speed);
   faceToward(player, ix, iy);
   const prev = Math.floor(player.anim);
@@ -325,7 +357,7 @@ function updatePlayer(dt) {
     return;
   }
   const running = player.running;
-  const speed = (running ? 115 : 68) * dt;
+  const speed = (running ? 115 : 68) * fedBoost() * dt;
   if (!move(player, ix * speed, iy * speed) && player.jumpT < 0 && wadeIn(ix, iy)) return;
   updateDoors(iy);
 
@@ -484,7 +516,8 @@ function nearNpc() {
 function talk() {
   const best = nearNpc();
   if (!best) return false;
-  if (!welcomeGift(best) && !dogTalk(best) && !spinWool(best)) npcSay(best, tipLine(best) || nextLine(best));
+  const special = welcomeGift(best) || dogTalk(best) || spinWool(best) || tradeTalk(best) || archerTalk(best) || fisherTalk(best);
+  if (!special) npcSay(best, tipLine(best) || skyLine(best) || nextLine(best));
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
 }
@@ -499,26 +532,48 @@ const TIPS = {
     needed: () => !has('bow'),
     text: 'Want a bow of your own? Take some wool to the weaver and she\'ll spin you string. Then bring the smith 1 wood and 1 string.',
   },
+  baker: {
+    needed: () => !stats.cooked,
+    text: 'Caught a fish, {name}? Hold it over a fire and grill it. Apples bake nicely too. A hot meal puts a spring in your step!',
+  },
   weaver: {
     needed: () => !has('bow') && !has('string'),
     text: 'Got any wool, dear? Bring it to me and I\'ll spin it into string. The shepherd has plenty, if you lend him a hand.',
   },
+  fisher: {
+    needed: () => has('fishLog') && kindsCaught() < FISH_IDS.length,
+    text: fisherTip,
+  },
+  tanner: {
+    needed: () => has('backpack') && (!has('toolBelt') || (has('hide') && !has('pouch'))),
+    text: () => (has('toolBelt')
+      ? 'That\'s a fine hide you\'ve got! Bring me two and I\'ll stitch you a hunter\'s pouch. Room for two more things in your pack.'
+      : 'Tools clogging up your pack, {name}? Bring me two hides and I\'ll make you a tool belt to hang them on. Deer and boar in the south woods give hides.'),
+  },
+  smith: {
+    needed: () => has('pickaxe') && !has('torch') && !stats.caves,
+    text: 'Heard of the ice cave on the frozen isle? Black as pitch inside. Bring me 1 wood and 1 wool and I\'ll make you a torch.',
+  },
 };
 
+// `text` may be a function, for tips that change as the player gets on.
 function tipLine(n) {
   const tip = TIPS[n.look.id];
   if (!tip || !tip.needed() || (n.tipTold = (n.tipTold || 0) + 1) % 2 === 0) return null;
-  return tip.text;
+  return typeof tip.text === 'function' ? tip.text() : tip.text;
 }
 
-// Cycles through an NPC's lines. A story or situation line (`line`) comes first whenever it changes, then every other time.
+// Cycles through an NPC's lines (their `nightLines` after dark), some of which are worked out when said.
+// A story or situation line (`line`) comes first whenever it changes, then every other time.
 function nextLine(n) {
   if (n.line !== n.saidLine) {
     n.saidLine = n.line;
     n.turn = 0;
   }
   if (n.line && n.turn++ % 2 === 0) return n.line;
-  return n.lines[n.lineI++ % n.lines.length];
+  const lines = isNight() ? n.nightLines : n.lines;
+  const line = lines[n.lineI++ % lines.length];
+  return typeof line === 'function' ? line() : line;
 }
 
 function npcSay(n, text) {
@@ -613,6 +668,7 @@ function react(n, { topic: heard, text, reply }) {
   if (topic !== 'insult' && welcomeGift(n)) return;
   if (topic === 'craft' && askCraft(n, text)) return;
   if ((topic === 'string' || topic === 'cloth' || topic === 'sheep') && spinWool(n)) return;
+  if ((topic === 'shop' || topic === 'wares') && tradeTalk(n)) return;
   npcSay(n, npcReply(n.look.id, topic));
   playerSayT = Math.min(playerSayT, 0.01);
   if (n.fixed || n.stays) return;
@@ -682,6 +738,13 @@ function say(text) {
   playerSayT = 3 + text.length * 0.06;
   Sfx.babble(VOICES[player.look.id], text);
   hear(text);
+}
+
+// The player thinking aloud: shown over their head, but nobody hears it.
+function muse(text) {
+  playerBubble.textContent = text;
+  playerBubble.classList.add('show');
+  playerSayT = 2.5 + text.length * 0.05;
 }
 
 // Screen point (world pixels) just above the player's head, wherever they are.
@@ -1694,8 +1757,14 @@ function petSheep() {
   Object.assign(s, { dir: player.x > s.x ? 'right' : 'left', state: 'idle', timer: 1.5, emote: 'heart', emoteT: 1.8 });
   s.baaT = 8 + Math.random() * 12;
   Sfx.baa(1);
+  // a happy sheep now and then sheds a tuft of wool
+  if (time >= (s.tuftAt || 0)) {
+    s.tuftAt = time + SHEAR_WAIT;
+    spawnDrop('wool', s.x + (player.x > s.x ? -10 : 10), s.y + 3, 0, 10, 40);
+  }
   return true;
 }
+const SHEAR_WAIT = 90;
 
 function drawSheep(s, cx, cy) {
   const chewing = (time + s.phase) % 3 < 0.6;
@@ -1708,6 +1777,7 @@ function drawSheep(s, cx, cy) {
 // The girl's dog is lost in the forest. Carrying him home is how the player gets their first iron.
 const dogOwner = npcs.find((n) => n.look.id === 'girl');
 const DOG_ASK = 'Have you seen my dog Fred? He chased a squirrel into the forest, past the west gate! Please find him and carry him home.';
+const DOG_THANKS = ['Fred hasn\'t left my side since you brought him home!', 'Thank you for finding Fred, {name}!'];
 const dog = { dir: 'left', anim: 0, state: 'lost', asked: false, walking: false, stuck: 0, barkT: 3, emote: null, emoteT: 0 };
 Object.assign(dog, dogHideout());
 
@@ -1775,7 +1845,8 @@ function bringDogHome() {
   npcSay(n, 'Fred! You found him! Thank you, {name}! Here, Papa brought this lump of iron back from the volcano isle. The smith could make you a pickaxe with it!');
   Object.assign(n, { emote: 'heart', emoteT: 1.8 });
   faceToward(n, player.x - n.x, player.y - n.y);
-  n.lines = ['Fred hasn\'t left my side since you brought him home!', 'Thank you for finding Fred, {name}!', ...n.lines];
+  n.lines = [...DOG_THANKS, ...n.lines];
+  n.nightLines = [...DOG_THANKS, ...n.nightLines];
   give('iron');
   popIcon('iron', player.x, player.y - 30);
   Sfx.reward();
@@ -1852,7 +1923,9 @@ function shipBoxes(facing, x, y) {
 }
 
 function shipBlocked(facing, x, y) {
+  const hull = merchantHull();
   for (const [x0, y0, x1, y1] of shipBoxes(facing, x, y)) {
+    if (hull && hullsMeet(hull, [x0, y0, x1, y1])) return true;
     for (let ty = Math.floor(y0 / TILE); ty <= Math.floor(y1 / TILE); ty++) {
       for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
         if (!inBounds(tx, ty) || tileAt(tx, ty) !== T.WATER) return true;
@@ -1937,7 +2010,7 @@ function updateSail(dt) {
   const o = shipObj;
   const [ix, iy] = readInput();
   const full = boosting() && (ix || iy);
-  const max = full ? 170 : 95;
+  const max = (full ? 170 : 95) * sailBoost();
   const k = 1 - Math.exp(-dt * (ix || iy ? 1.1 : 0.6));
   s.vx += (ix * max - s.vx) * k;
   s.vy += (iy * max - s.vy) * k;
@@ -2021,15 +2094,16 @@ function fadeTo(act) {
 }
 
 function updateFade(dt) {
+  const len = fade.len || FADE;
   fade.t += dt;
-  if (fade.act && fade.t >= FADE) {
+  if (fade.act && fade.t >= len) {
     fade.act();
     fade.act = null;
     zoom = zoomTarget();
     applyView();
     updateCamera(0, true);
   }
-  if (fade.t >= FADE * 2) fade = null;
+  if (fade.t >= len * 2) fade = null;
 }
 
 // A young follower and any villagers tagging along come through the door too.
@@ -2045,7 +2119,7 @@ function enterBuilding(b) {
   fadeTo(() => {
     const r = ROOMS[b.room];
     indoors = r;
-    Object.assign(player, { x: (r.door + 0.5) * TILE, y: (r.ry + r.h + 2) * TILE - 2, dir: 'up' });
+    Object.assign(player, { x: (r.door + 0.5) * TILE, y: r.doorY * TILE - 2, dir: 'up' });
     bringAlong();
   });
 }
@@ -2086,14 +2160,20 @@ function nearBackpack() {
 }
 
 function pickUpBackpack() {
+  wearBackpack();
+  Sfx.pickup();
+  faceToward(player, backpack.x - player.x, backpack.y - player.y);
+  npcSay(mom, 'That\'s it! Off you go then, and be back for supper.');
+}
+
+function wearBackpack() {
   backpack.hidden = true;
   bag.backpack = 1;
   renderInventory();
   player.look = { ...player.look, pack: true };
-  Sfx.pickup();
-  faceToward(player, backpack.x - player.x, backpack.y - player.y);
-  npcSay(mom, 'That\'s it! Off you go then, and be back for supper.');
-  mom.lines = ['Be home before dark, {name}!', 'The smith makes a fine axe, I hear. Go and ask him.', 'Say hello to the chief for me.', 'Off you go! The island won\'t explore itself.'];
+  journalBtn.hidden = false;
+  mom.lines = ['Be home before dark, {name}!', 'The smith makes a fine axe, I hear. Go and ask him.', 'Say hello to the chief for me.', 'Off you go! The island won\'t explore itself.', 'When it gets dark, come home. Your bed\'s made.'];
+  mom.nightLines = ['There you are! It\'s late, {name}. Your bed\'s made.', 'Get some sleep, love. The island will still be there in the morning.', 'There\'s stew keeping warm by the fire.', 'Going out again in the dark? Take a torch, and don\'t be long.'];
   mom.lineI = 0;
 }
 
@@ -2120,7 +2200,10 @@ function action() {
   else if (nearDragon()) mount(nearDragon());
   else if (nearEgg()) pickUpEgg(nearEgg());
   else if (nearBackpack()) pickUpBackpack();
+  else if (nearBed()) sleep();
+  else if (nearChest()) toggleChest(true);
   else if (nearWallMap()) takeMap();
+  else if (nearGlowcap()) pickGlowcap(nearGlowcap());
   else if (nearDrop()) pickUp(nearDrop());
   else if (dogFirst()) dog.state === 'lost' ? pickUpDog() : petDog();
   else if (doorAhead()) enterBuilding(doorAhead());
@@ -2275,6 +2358,10 @@ function update(dt) {
   for (const o of objects) if (o.shakeT > 0) o.shakeT -= dt;
   updateChopping(dt);
   updateDrops(dt);
+  updateHens(dt);
+  updateMerchant(dt);
+  updateCave(dt);
+  updateWildlife(dt);
   updateMap();
   for (const d of dragons) {
     updateBaby(d, dt);
@@ -2285,6 +2372,10 @@ function update(dt) {
     if (playerSayT <= 0) playerBubble.classList.remove('show');
   }
   for (const c of clouds) c.x += c.v * dt;
+  if (started) updateClock(dt);
+  updateWeather(dt);
+  updateCooking(dt);
+  updateJournal(dt);
   updateSea(dt);
   updateFireballs(dt);
   updateAmbience(dt);
@@ -2314,6 +2405,21 @@ function glowSprite(r, color) {
     glowCache.set(key, c);
   }
   return c;
+}
+
+// Warm flickering glows round fires, torches and the like; brighter after dark.
+function drawLights(cx, cy, visible) {
+  const boost = lampBoost();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const o of visible) {
+    const l = SPR[o.key].light;
+    if (!l) continue;
+    const r = o.blaze ? Math.round((l.r * (1 + o.blaze * 0.7)) / 4) * 4 : l.r;
+    ctx.globalAlpha = Math.min(1, boost * (0.8 + 0.2 * Math.sin(time * 9 + o.phase) * Math.sin(time * 5.7 + o.phase)));
+    ctx.drawImage(glowSprite(r, l.color), Math.round(o.x + l.dx - r - cx), Math.round(o.y + l.dy - (o.blaze || 0) * 10 - r - cy));
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
 }
 
 function clippedStreak(X, Y, i, wy0, sy, len, color) {
@@ -2609,6 +2715,7 @@ function render() {
   drawAnimatedTiles(cx, cy);
   drawParticles(cx, cy, 'water');
   drawSeaUnder(cx, cy);
+  drawShootingLine(cx, cy);
 
   const visible = objects.filter((o) => !o.hidden && o.x > cx - 90 && o.x < cx + viewW + 90 && o.y > cy - 10 && o.y < cy + viewH + 120);
   const walkers = entities.filter((e) => !e.flying);
@@ -2641,7 +2748,8 @@ function render() {
   const sheepItems = flock.map((s) => ({ y: s.y, draw: () => drawSheep(s, cx, cy) }));
   const dropItems = drops.filter((d) => onScreen(d.x, d.y, cx, cy, 20)).map((d) => ({ y: d.y - 2, draw: () => drawDrop(d, cx, cy) }));
   const dogItems = dog.state !== 'carried' && !indoors && onScreen(dog.x, dog.y, cx, cy, 20) ? [{ y: dog.y, draw: () => drawDog(cx, cy) }] : [];
-  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems).sort((a, b) => a.y - b.y);
+  const henItems = indoors ? [] : hens.filter((h) => onScreen(h.x, h.y, cx, cy, 20)).map((h) => ({ y: h.y, draw: () => drawHen(h, cx, cy) }));
+  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy)).sort((a, b) => a.y - b.y);
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -2649,17 +2757,6 @@ function render() {
   }
 
   drawParticles(cx, cy, 'world');
-
-  ctx.globalCompositeOperation = 'lighter';
-  for (const o of visible) {
-    const l = SPR[o.key].light;
-    if (!l) continue;
-    const r = o.blaze ? Math.round((l.r * (1 + o.blaze * 0.7)) / 4) * 4 : l.r;
-    ctx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 9 + o.phase) * Math.sin(time * 5.7 + o.phase);
-    ctx.drawImage(glowSprite(r, l.color), Math.round(o.x + l.dx - r - cx), Math.round(o.y + l.dy - (o.blaze || 0) * 10 - r - cy));
-  }
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
 
   if (hop) {
     const lift = hop.lift0 + (hop.lift1 - hop.lift0) * hop.t + Math.sin(hop.t * Math.PI) * 16;
@@ -2671,8 +2768,14 @@ function render() {
   if (flight) drawFlight(cx, cy);
   drawFireballs(cx, cy);
   drawArrows(cx, cy);
+  drawDrawMeter(cx, cy);
+  drawCooking(cx, cy);
   drawSky(cx, cy);
   drawParticles(cx, cy, 'sky');
+  drawWeather(cx, cy);
+  drawNight(cx, cy, visible);
+  drawLights(cx, cy, visible);
+  drawLightning();
   if (indoors) maskRoom(cx, cy);
 
   for (const n of npcs) {
@@ -2709,7 +2812,8 @@ function render() {
   } else if (sail) {
     const shore = sail.shore ? 'SPACE  Go ashore' : 'Sail close to land to go ashore';
     const rod = toolHint();
-    const fish = !(rod && primary() === 'rod') && canFish(follower) && fishNearShip() ? `   ·   F  Send ${follower.name} fishing` : '';
+    const casting = primary() === 'rod' && castSpot();
+    const fish = !casting && canFish(follower) && fishNearShip() ? `   ·   F  Send ${follower.name} fishing` : '';
     setPrompt(`${shore}   ·   SHIFT  Full sail${rod ? `   ·   ${rod}` : ''}${fish}`);
   } else if (player.fishing) {
     setPrompt(toolHint());
@@ -2723,8 +2827,14 @@ function render() {
     setPrompt('SPACE  Set the egg by the fire');
   } else if (nearBackpack()) {
     setPrompt('SPACE  Pick up your backpack');
+  } else if (nearBed()) {
+    setPrompt('SPACE  Sleep until morning');
+  } else if (nearChest()) {
+    setPrompt('SPACE  Open the chest');
   } else if (nearWallMap()) {
     setPrompt('SPACE  Take the map');
+  } else if (nearGlowcap()) {
+    setPrompt('SPACE  Pick the glowcap');
   } else if (nearDrop()) {
     const { item } = nearDrop();
     setPrompt(bagFull(item) ? 'Your backpack is full. Press X or click the selected item to drop it' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
@@ -2734,6 +2844,8 @@ function render() {
     setPrompt('SPACE  Give Fred back');
   } else if (doorAhead()) {
     setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
+  } else if (!nearNpc() && fenceHopSpot()) {
+    setPrompt('SPACE  Hop over the fence');
   } else if (player.fishing) {
     setPrompt(toolHint());
   } else if (!nearNpc() && nearSheep()) {
@@ -2754,7 +2866,10 @@ function render() {
   }
 
   if (fade) {
-    ctx.globalAlpha = Math.max(0, 1 - Math.abs(fade.t - FADE) / FADE);
+    // a long fade (sleeping) stays black for a while in the middle
+    const len = fade.len || FADE;
+    const hold = fade.len ? 1.6 : 1;
+    ctx.globalAlpha = Math.max(0, Math.min(1, hold * (1 - Math.abs(fade.t - len) / len)));
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, viewW, viewH);
     ctx.globalAlpha = 1;
@@ -2782,14 +2897,24 @@ function resize() {
   updateCamera(0, true);
 }
 
+// Held down, these keep stepping, a little slower than the keyboard repeats.
+const PICK_KEYS = { Tab: () => cycleSelection(1), KeyQ: () => cycleSelection(-1), KeyE: () => cycleSelection(1) };
+const PICK_REPEAT_MS = 140;
+let pickRepeatAt = 0;
 const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
 
 const soundBtn = document.getElementById('sound');
 
+function toggleIcon(btn, key) {
+  const img = btn.querySelector('img');
+  img.src = iconUrls[`ui-${key}`] ||= SPR.ui[key].toDataURL();
+  img.style.width = `${SPR.ui[key].width * 2}px`;
+}
+
 function toggleSound() {
   Sfx.init();
   const muted = Sfx.toggleMute();
-  soundBtn.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
+  toggleIcon(soundBtn, muted ? 'soundOff' : 'soundOn');
   soundBtn.setAttribute('aria-pressed', String(!muted));
 }
 
@@ -2802,10 +2927,15 @@ const hintsBtn = document.getElementById('hints');
 
 function toggleHints() {
   hintsOn = !hintsOn;
-  hintsBtn.textContent = hintsOn ? 'HINTS ON' : 'HINTS OFF';
   hintsBtn.setAttribute('aria-pressed', String(hintsOn));
   promptEl.classList.toggle('show', !!promptText && hintsOn);
 }
+
+toggleIcon(hintsBtn, 'hints');
+toggleIcon(soundBtn, 'soundOn');
+toggleIcon(journalBtn, 'journal');
+toggleIcon(mapBtn, 'map');
+toggleIcon(fishLogBtn, 'fishLog');
 
 hintsBtn.addEventListener('click', () => {
   toggleHints();
@@ -2815,7 +2945,7 @@ window.addEventListener('pointerdown', () => Sfx.init());
 
 window.addEventListener('keydown', (e) => {
   Sfx.init();
-  if (!started || naming || mapOpen || document.activeElement === chatInput) return;
+  if (!started || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || document.activeElement === chatInput) return;
   if (invEl.contains(document.activeElement) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
@@ -2823,8 +2953,17 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (BLOCKED_KEYS.has(e.code)) e.preventDefault();
+  const cycle = PICK_KEYS[e.code];
+  if (cycle) {
+    e.preventDefault();
+    const now = performance.now();
+    if (!e.repeat || now - pickRepeatAt >= PICK_REPEAT_MS) {
+      pickRepeatAt = now;
+      cycle();
+    }
+  }
   if (!e.repeat) {
-    if (e.code === 'Space' || e.code === 'KeyE') action();
+    if (e.code === 'Space') action();
     if (e.code === 'KeyF') {
       if (flight) breatheFire();
       else useTool();
@@ -2833,7 +2972,9 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyN') toggleSound();
     if (e.code === 'KeyH') toggleHints();
     if (e.code === 'KeyM') toggleMap(true);
-    if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code[5] - 1);
+    if (e.code === 'KeyJ') toggleJournal(true);
+    if (e.code === 'KeyL') toggleFishLog(true);
+    if (/^Digit\d$/.test(e.code)) pickTool(+e.code[5] || 10);
     if (e.code === 'KeyX') dropActive();
   }
   keys.add(e.code);
@@ -2852,8 +2993,14 @@ chatForm.addEventListener('submit', (e) => {
   chatInput.value = '';
   chatInput.blur();
 });
-window.addEventListener('keyup', (e) => keys.delete(e.code));
-window.addEventListener('blur', () => keys.clear());
+window.addEventListener('keyup', (e) => {
+  keys.delete(e.code);
+  if (e.code === 'KeyF') loose();
+});
+window.addEventListener('blur', () => {
+  keys.clear();
+  player.nock = null;
+});
 window.addEventListener('resize', resize);
 
 const pointerPos = (e) => {
@@ -2971,13 +3118,7 @@ for (const r of heroInputs) {
 }
 nameInput.focus();
 
-startForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const look = chosenLook();
-  player.name = nameInput.value.trim() || DEFAULT_NAMES[look];
-  try {
-    localStorage.setItem('hw-hero', JSON.stringify({ look }));
-  } catch (err) { /* storage unavailable */ }
+function beginGame() {
   started = true;
   fade = { t: FADE, act: null };
   zoom = zoomTarget();
@@ -2986,7 +3127,19 @@ startForm.addEventListener('submit', (e) => {
   keys.clear();
   startEl.remove();
   document.body.classList.remove('title');
-  setTimeout(() => hint.classList.add('hide'), 8000);
+  layoutPack();
+}
+
+startForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (savedGame && !confirm('Start a new game? Your saved adventure will be lost.')) return;
+  const look = chosenLook();
+  player.name = nameInput.value.trim() || DEFAULT_NAMES[look];
+  try {
+    localStorage.setItem('hw-hero', JSON.stringify({ look }));
+  } catch (err) { /* storage unavailable */ }
+  clearSave();
+  beginGame();
   setTimeout(() => {
     npcSay(mom, 'Good morning, {name}! Are you ready for a new adventure today?');
     setTimeout(() => {

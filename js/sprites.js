@@ -558,8 +558,157 @@ function buildBench() {
   });
 }
 
-function buildChest() {
+// Icons for the buttons in the top right corner. Each letter in a row is one pixel of that colour.
+function pixmap(rows, colors) {
+  return sprite(rows[0].length, rows.length, (g) => rows.forEach((row, y) => [...row].forEach((ch, x) => colors[ch] && px(g, x, y, colors[ch]))));
+}
+
+function buildHide() {
+  return pixmap([
+    '..H......H..',
+    '.HHH....HHH.',
+    '..HHHHHHHH..',
+    '..HhHHHHHH..',
+    '.HHHHHHhHHH.',
+    '.HHhHHHHHHH.',
+    '..HHHHHhHH..',
+    '..HHHHHHHH..',
+    '.HHH....HHH.',
+    '..H......H..',
+  ], { H: '#b07a48', h: '#7a4e2a' });
+}
+
+function buildSatchel() {
+  return pixmap([
+    '...SSSSSS...',
+    '..S......S..',
+    '.S........S.',
+    '.BBBBBBBBBB.',
+    '.BFFFFFFFFB.',
+    '.BFFFFFFFFB.',
+    '.BBBBGGBBBB.',
+    '.BBBBGGBBBB.',
+    '.BBBBBBBBBB.',
+    '.BBBBBBBBBB.',
+    '.DDDDDDDDDD.',
+  ], { S: '#5a3418', B: '#9a6a3a', F: '#b88450', G: '#ffd36b', D: '#6a4422' });
+}
+
+function buildPouch() {
+  return pixmap([
+    '....SSS...',
+    '...S...S..',
+    '...TTTTT..',
+    '....PPP...',
+    '..PPPPPPP.',
+    '.PPPpPPPPP',
+    '.PPPPPPpPP',
+    '.PPpPPPPPP',
+    '..PPPPPPP.',
+    '...PPPPP..',
+  ], { S: '#d8c8a0', T: '#5a3418', P: '#b07a48', p: '#7a4e2a' });
+}
+
+// A leather strap with a brass buckle and two tool loops.
+function buildToolBelt() {
+  return pixmap([
+    '..LL.....GGGG.LL',
+    'DDLLDDDDDGDDGDLL',
+    'BBLLBBBBBGBBGBLL',
+    'BBLLBBBBBGBBGBLL',
+    'DDLLDDDDDGDDGDLL',
+    '..LL.....GGGG.LL',
+  ], { B: '#9a6a3a', D: '#6a4422', L: '#5a3418', G: '#ffd36b' });
+}
+
+function buildUiIcons() {
+  const ink = { '#': '#e8f4ff' };
+  const speaker = [
+    '.....#',
+    '....##',
+    '...###',
+    '######',
+    '######',
+    '######',
+    '...###',
+    '....##',
+    '.....#',
+  ];
+  const withSide = (side) => ['............', ...speaker.map((r, i) => r + side[i]), '............', '............'];
+  return {
+    hints: pixmap([
+      '...######...',
+      '..########..',
+      '.###....###.',
+      '.###....###.',
+      '.......###..',
+      '......###...',
+      '.....###....',
+      '.....###....',
+      '............',
+      '.....###....',
+      '.....###....',
+      '............',
+    ], { '#': '#ffd36b' }),
+    soundOn: pixmap(withSide(['....#.', '..#..#', '...#.#', '.#.#.#', '.#.#.#', '.#.#.#', '...#.#', '..#..#', '....#.']), ink),
+    soundOff: pixmap(withSide(['......', '......', '.#...#', '..#.#.', '...#..', '..#.#.', '.#...#', '......', '......']), ink),
+    journal: pixmap([
+      '............',
+      '.SCCCCCCCC..',
+      '.SCCCCCCCCP.',
+      '.SCCGGGGCCP.',
+      '.SCCCCCCCCP.',
+      '.SCCGGGGCCP.',
+      '.SCCCCCCCCP.',
+      '.SCCCCCCCCP.',
+      '.SCCCCCCCCP.',
+      '.SCCCCCCCCP.',
+      '.SPPPPPPPPP.',
+      '............',
+    ], { S: '#5a3418', C: '#9a5a2a', G: '#ffd36b', P: '#f6e7c1' }),
+    map: pixmap([
+      '............',
+      '.PPP....PPP.',
+      '.PPPLLLLXPX.',
+      '.PPPLLLLPXP.',
+      '.PPPLLLLXPX.',
+      '.PPPLLdLPPP.',
+      '.PPPLdLLPPP.',
+      '.PPdLLLLPPP.',
+      '.PdPLLLLPPP.',
+      '.PPPLLLLPPP.',
+      '....LLLL....',
+      '............',
+    ], { P: '#f2dca8', L: '#cfae6e', X: '#d0342c', d: '#7a4a22' }),
+    fishLog: pixmap([
+      '............',
+      '............',
+      '.....BBB....',
+      '#..BBBBBBB..',
+      '##BBBBBBBWB.',
+      '.#BBBBBBBBBB',
+      '.#bbbbbbbbb.',
+      '##bbbbbbbb..',
+      '#..bbbbbb...',
+      '.....bb.....',
+      '............',
+      '............',
+    ], { B: '#6aa8d8', b: '#d8e8f0', '#': '#4a7aa8', W: '#1d3263' }),
+  };
+}
+
+function buildChest(open = false) {
   return sprite(20, 16, (g) => {
+    if (open) {
+      // The lid tipped back against the wall, its underside showing, over the dark inside.
+      rect(g, 2, 1, 16, 5, PAL.woodDark);
+      rect(g, 2, 1, 16, 1, PAL.woodLight);
+      rect(g, 2, 7, 16, 8, PAL.wood);
+      rect(g, 3, 6, 14, 3, PAL.woodDeep);
+      for (const x of [4, 14]) rect(g, x, 9, 2, 6, METAL_D);
+      rect(g, 9, 9, 3, 2, PAL.gold);
+      return;
+    }
     rect(g, 2, 6, 16, 9, PAL.wood);
     rect(g, 2, 2, 16, 5, PAL.woodLight);
     rect(g, 2, 6, 16, 1, PAL.woodDeep);
@@ -1450,17 +1599,6 @@ function buildWool() {
   });
 }
 
-function buildHammer() {
-  return sprite(12, 14, (g) => {
-    rect(g, 5, 4, 2, 9, PAL.woodLight);
-    rect(g, 6, 4, 1, 9, PAL.wood);
-    rect(g, 1, 1, 10, 4, '#8b8b94');
-    rect(g, 1, 1, 10, 1, '#c9ccd4');
-    rect(g, 1, 4, 10, 1, '#56565e');
-    rect(g, 4, 1, 1, 4, '#56565e');
-  });
-}
-
 function buildBow() {
   return sprite(10, 17, (g) => {
     line(g, 3, 1, 6, 4, PAL.wood, 2);
@@ -1515,6 +1653,24 @@ function buildRod() {
   });
 }
 
+// A browned copy of a raw food icon, with char lines from the grill if `grill`.
+function buildCooked(src, tint, grill) {
+  const c = makeCanvas(src.width, src.height);
+  const g = c.getContext('2d');
+  g.drawImage(src, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = tint;
+  g.fillRect(0, 0, c.width, c.height);
+  if (grill) {
+    g.fillStyle = 'rgba(60,28,10,0.7)';
+    for (let x = 5; x < c.width - 4; x += 4) g.fillRect(x, 3, 1, c.height - 6);
+  } else {
+    g.fillStyle = 'rgba(255,214,140,0.8)';
+    g.fillRect(Math.floor(c.width / 2) - 2, Math.floor(c.height / 2) - 1, 2, 1);
+  }
+  return c;
+}
+
 function buildFish() {
   return sprite(14, 9, (g) => {
     poly(g, [[10, 4], [13, 1], [13, 7]], '#5f7fa6');
@@ -1523,6 +1679,406 @@ function buildFish() {
     rect(g, 3, 2, 6, 1, '#5f7fa6');
     px(g, 6, 1, '#5f7fa6');
     px(g, 3, 3, '#10141c');
+  });
+}
+
+// The other catches, all facing left like the herring: `len` stretches the body, `spots` speckle the back.
+function buildFishKind({ body, belly, fin, len = 5, tall = 3, spots, stripe, eye = true, shine }) {
+  const w = len * 2 + 6;
+  const h = tall * 2 + 3;
+  const cy = tall + 1;
+  return sprite(w, h, (g) => {
+    poly(g, [[len * 2 - 1, cy], [w - 1, cy - tall + 0.5], [w - 1, cy + tall - 0.5]], fin);
+    ellipse(g, len + 1, cy, len, tall, body);
+    ellipse(g, len + 1, cy + tall * 0.5, len * 0.7, Math.max(1, tall * 0.4), belly);
+    rect(g, 3, cy - tall + 1, len + 1, 1, fin);
+    if (stripe) rect(g, 3, cy, len * 2 - 3, 1, stripe);
+    for (const [x, y] of spots || []) px(g, x, y, fin);
+    if (shine) for (const [x, y] of [[4, cy - 1], [len, cy - tall + 2], [len + 3, cy - 1]]) px(g, x, y, shine);
+    if (eye) px(g, 3, cy - 1, '#10141c');
+  });
+}
+
+// A heap of icy rock with a dark mouth at the bottom, 64x46, snow on top and icicles over the opening.
+function buildCaveMouth() {
+  return sprite(64, 46, (g) => {
+    ellipse(g, 32, 30, 30, 15, PAL.rockDeep);
+    ellipse(g, 30, 27, 27, 14, PAL.rockDark);
+    ellipse(g, 26, 22, 18, 10, PAL.rock);
+    ellipse(g, 44, 28, 10, 7, PAL.rock);
+    ellipse(g, 22, 17, 9, 5, PAL.rockLight);
+    ellipse(g, 30, 16, 22, 8, PAL.snow);
+    ellipse(g, 26, 13, 14, 5, PAL.snowLight);
+    ellipse(g, 50, 22, 7, 3, PAL.snow);
+    poly(g, [[22, 45], [22, 32], [26, 26], [32, 24], [38, 26], [42, 32], [42, 45]], '#05070c');
+    poly(g, [[25, 45], [25, 33], [28, 28], [32, 27], [36, 28], [39, 33], [39, 45]], '#000000');
+    for (const [x, len] of [[24, 4], [27, 6], [30, 3], [33, 7], [36, 4], [39, 5]]) {
+      poly(g, [[x - 1, 27], [x + 1, 27], [x, 27 + len]], PAL.iceLight);
+      px(g, x - 1, 27, PAL.ice);
+    }
+    rect(g, 14, 43, 36, 2, PAL.snowDark);
+  });
+}
+
+// Pale cave mushrooms with glowing caps; `picked` leaves only the stubs.
+function buildGlowcaps(picked) {
+  return sprite(16, 13, (g) => {
+    for (const [x, h, r] of [[4, 6, 3], [9, 8, 4], [13, 4, 2]]) {
+      rect(g, x - 1, 12 - (picked ? 2 : h), 2, picked ? 2 : h, '#d8e4e8');
+      if (picked) continue;
+      ellipse(g, x, 12 - h, r, r * 0.6, '#2fbfb0');
+      ellipse(g, x, 11 - h, r - 0.5, r * 0.45, '#5affd8');
+      px(g, x - 1, 11 - h, '#d8fff4');
+    }
+    rect(g, 1, 11, 14, 2, '#3a4456');
+  });
+}
+
+function buildGlowcapIcon() {
+  return sprite(11, 11, (g) => {
+    rect(g, 4, 5, 3, 5, '#d8e4e8');
+    ellipse(g, 5, 4, 4.5, 3, '#2fbfb0');
+    ellipse(g, 5, 3, 3.5, 2, '#5affd8');
+    px(g, 3, 3, '#d8fff4');
+    px(g, 7, 2, '#d8fff4');
+  });
+}
+
+function buildGoldNugget() {
+  return sprite(11, 9, (g) => {
+    poly(g, [[2, 7], [1, 4], [4, 1], [8, 2], [10, 6], [7, 8]], '#c8922a');
+    poly(g, [[2, 6], [2, 4], [4, 2], [7, 3], [8, 5], [5, 6]], '#f2c94a');
+    px(g, 4, 3, '#fff4b0');
+    px(g, 7, 4, '#fff4b0');
+  });
+}
+
+// An icy spike of rock rising from the cave floor.
+function buildStalagmite(seed) {
+  const r = mulberry32(seed);
+  const h = 16 + Math.floor(r() * 8);
+  return sprite(14, 26, (g) => {
+    poly(g, [[1, 25], [5, 25 - h * 0.5], [7, 25 - h], [9, 25 - h * 0.55], [13, 25]], '#3e4a5e');
+    poly(g, [[1, 25], [5, 25 - h * 0.5], [7, 25 - h], [7, 25]], '#5a6a82');
+    line(g, 5, 23, 6, 26 - h * 0.8, '#9fc4dc');
+    px(g, 7, 25 - h, PAL.iceLight);
+    rect(g, 0, 24, 14, 2, '#2a3242');
+  });
+}
+
+function buildArrowIcon() {
+  return sprite(14, 14, (g) => {
+    line(g, 2, 11, 10, 3, PAL.woodLight);
+    poly(g, [[9, 2], [12, 1], [11, 4]], '#c9ccd4');
+    px(g, 11, 2, '#e8eaf0');
+    for (const [x, y] of [[1, 10], [2, 12], [3, 11], [1, 12]]) px(g, x, y, PAL.red);
+  });
+}
+
+function buildFeather() {
+  return sprite(11, 14, (g) => {
+    poly(g, [[2, 12], [3, 6], [6, 2], [9, 1], [8, 5], [5, 10]], '#f4f1ea');
+    poly(g, [[3, 6], [6, 2], [9, 1], [6, 5]], '#d6cfc2');
+    line(g, 1, 13, 8, 2, '#9a8f80');
+  });
+}
+
+function buildTorchIcon() {
+  return sprite(9, 16, (g) => {
+    rect(g, 3, 6, 3, 9, PAL.woodDark);
+    rect(g, 3, 6, 1, 9, PAL.wood);
+    rect(g, 2, 5, 5, 2, '#d8d0bc');
+    ellipse(g, 4.5, 3, 2.5, 3, '#e5481c');
+    ellipse(g, 4.5, 3.5, 1.5, 2, '#ff9a26');
+    px(g, 4, 3, '#ffe066');
+  });
+}
+
+function buildLure() {
+  return sprite(10, 14, (g) => {
+    line(g, 5, 0, 5, 3, '#e8e0c8');
+    ellipse(g, 5, 6, 3, 3.5, '#d8a83a');
+    ellipse(g, 4.5, 5.5, 1.5, 2, '#fff0a0');
+    line(g, 5, 10, 5, 12, '#c9ccd4');
+    line(g, 5, 12, 7, 11, '#c9ccd4');
+    px(g, 8, 10, '#c9ccd4');
+    px(g, 3, 8, '#c8322a');
+  });
+}
+
+function buildSailIcon() {
+  return sprite(15, 13, (g) => {
+    rect(g, 1, 1, 13, 2, PAL.woodDark);
+    for (let i = 0; i < 5; i++) rect(g, 2 + i * 2.2, 3, 2.2, 8, i % 2 ? '#f4efe2' : '#3d6ca3');
+    rect(g, 2, 10, 11, 1, '#2a4a7a');
+    px(g, 7, 6, '#ffffff');
+  });
+}
+
+function buildCoin() {
+  return sprite(10, 10, (g) => {
+    ellipse(g, 5, 5, 4, 4, '#8f9098');
+    ellipse(g, 5, 5, 3, 3, '#c9ccd4');
+    rect(g, 4, 3, 2, 4, '#8f9098');
+    px(g, 3, 3, '#ffffff');
+  });
+}
+
+// A brown-and-white hen facing right, 14x13 with her feet at the bottom: two walking frames, pecking, flapping.
+function buildHen() {
+  const BODY = '#f4f0e6';
+  const SHADE = '#d8cfbe';
+  const frame = (step, peck, flap) => sprite(16, 14, (g) => {
+    g.translate(1, 0);
+    const legs = step ? [[5, 10], [8, 11]] : [[6, 11], [7, 11]];
+    for (const [x, y] of legs) rect(g, x, y, 1, 13 - y, '#e8a23a');
+    ellipse(g, 6, 8, 5, 3.5, SHADE);
+    ellipse(g, 6, 7, 4.5, 3, BODY);
+    poly(g, [[1, 5], [0, 2], [3, 5]], SHADE);
+    if (flap) {
+      poly(g, [[4, 6], [2, 1], [9, 5]], BODY);
+      poly(g, [[5, 7], [12, 2], [9, 7]], SHADE);
+    } else {
+      ellipse(g, 6, 8, 2.5, 1.5, SHADE);
+    }
+    const hx = peck ? 11 : 10;
+    const hy = peck ? 9 : 4;
+    ellipse(g, hx, hy, 2, 2, BODY);
+    rect(g, hx - 1, hy - 3, 2, 1, '#d8322a');
+    px(g, hx, hy - 3, '#d8322a');
+    px(g, hx + 2, hy, '#f0b030');
+    px(g, hx + 1, hy + 1, '#d8322a');
+    px(g, hx + 1, hy - 1, '#22160f');
+  });
+  const right = [frame(false, false, false), frame(true, false, false), frame(false, true, false), frame(true, false, true)];
+  return { right, left: right.map(mirror) };
+}
+
+// ---------- wild animals ----------
+// All face right with the ground point at the bottom middle; `left` is the mirror image.
+
+const sides = (right) => ({ right, left: right.map(mirror) });
+
+// Frames: standing, mid-step, grazing, galloping. Stags carry antlers.
+function buildDeer(stag) {
+  const FUR = '#a8703c';
+  const DARK = '#7a4e28';
+  const BELLY = '#d8b080';
+  const RUMP = '#f4ead8';
+  const HOOF = '#3a2414';
+  const frame = (pose) => sprite(28, 26, (g) => {
+    g.translate(1, 4);
+    const legs = {
+      stand: [[6, 13, 6, 20], [8, 13, 8, 20], [16, 13, 16, 20], [18, 13, 18, 20]],
+      step: [[6, 13, 4, 20], [8, 13, 9, 20], [16, 13, 15, 20], [18, 13, 20, 20]],
+      graze: [[6, 13, 6, 20], [8, 13, 8, 20], [16, 13, 17, 20], [18, 13, 19, 20]],
+      run: [[6, 12, 1, 17], [8, 13, 4, 19], [16, 12, 21, 16], [18, 13, 23, 18]],
+    }[pose];
+    for (const [x0, y0, x1, y1] of legs) {
+      line(g, x0, y0, x1, y1, DARK);
+      px(g, x1, y1, HOOF);
+    }
+    const lift = pose === 'run' ? -1 : 0;
+    ellipse(g, 12, 10 + lift, 7.5, 3.5, FUR);
+    ellipse(g, 12, 12 + lift, 5.5, 1.5, BELLY);
+    ellipse(g, 5, 9 + lift, 1.5, 2, RUMP);
+    px(g, 3, 8 + lift, FUR);
+    const [hx, hy] = pose === 'graze' ? [21, 16] : [21, 3 + lift];
+    poly(g, pose === 'graze' ? [[16, 8], [19, 8], [22, 15], [19, 16]] : [[16, 9 + lift], [19, 3 + lift], [22, 4 + lift], [20, 11 + lift]], FUR);
+    ellipse(g, hx, hy, 2.5, 2, FUR);
+    rect(g, hx + 1, hy, 3, 2, FUR);
+    px(g, hx + 4, hy, HOOF);
+    px(g, hx + 1, hy - 1, '#10141c');
+    poly(g, [[hx - 3, hy - 4], [hx - 1, hy - 2], [hx - 2, hy - 1]], DARK);
+    if (!stag) return;
+    const ax = hx - 1;
+    const ay = hy - 2;
+    const up = pose === 'graze' ? 1 : -1;
+    line(g, ax, ay, ax - 2, ay + up * 5, BELLY);
+    line(g, ax - 1, ay + up * 3, ax + 1, ay + up * 5, BELLY);
+    line(g, ax - 2, ay + up * 5, ax - 4, ay + up * 6, BELLY);
+  });
+  return sides(['stand', 'step', 'graze', 'run'].map(frame));
+}
+
+// Frames: standing, mid-step, rooting about with the snout, charging.
+function buildBoar() {
+  const HIDE = '#74482e';
+  const BRISTLE = '#43291b';
+  const BELLY = '#946244';
+  const frame = (pose) => sprite(24, 16, (g) => {
+    g.translate(1, 1);
+    const legs = {
+      stand: [[4, 4], [7, 7], [13, 13], [15, 15]],
+      step: [[3, 5], [8, 7], [12, 14], [16, 15]],
+      root: [[4, 4], [7, 7], [13, 13], [15, 15]],
+      run: [[2, 0], [6, 4], [14, 17], [16, 19]],
+    }[pose];
+    for (const [top, foot] of legs) {
+      line(g, top, 10, foot, 13, BRISTLE, 2);
+      rect(g, foot, 13, 2, 1, '#22160f');
+    }
+    ellipse(g, 10, 7, 8, 4.5, HIDE);
+    ellipse(g, 10, 9.5, 6, 1.5, BELLY);
+    for (let x = 4; x <= 15; x += 2) rect(g, x, 2 + (x % 4 ? 0 : 1), 1, 2, BRISTLE);
+    px(g, 1, 6, HIDE);
+    px(g, 2, 5, HIDE);
+    const dy = pose === 'root' ? 3 : pose === 'run' ? 1 : 0;
+    poly(g, [[15, 3 + dy], [20, 6 + dy], [21, 10 + dy], [15, 11]], HIDE);
+    rect(g, 20, 7 + dy, 2, 3, '#b08070');
+    px(g, 21, 8 + dy, '#5a2a20');
+    px(g, 19, 10 + dy, '#f4ead8');
+    px(g, 19, 9 + dy, '#f4ead8');
+    px(g, 17, 6 + dy, '#10141c');
+    poly(g, [[14, 4 + dy], [16, 1 + dy], [17, 4 + dy]], BRISTLE);
+  });
+  return sides(['stand', 'step', 'root', 'run'].map(frame));
+}
+
+// Frames: sitting up, mid-hop, nibbling.
+function buildRabbit() {
+  const FUR = '#9a8470';
+  const LIGHT = '#c8b8a4';
+  const EAR = '#e8a8a8';
+  const frame = (pose) => sprite(14, 13, (g) => {
+    g.translate(1, 1);
+    if (pose === 'hop') {
+      line(g, 3, 8, 0, 10, FUR);
+      ellipse(g, 6, 6, 4.5, 2.5, FUR);
+      ellipse(g, 6, 7.5, 3, 1, LIGHT);
+      ellipse(g, 1.5, 5, 1.3, 1.3, '#ffffff');
+      ellipse(g, 10, 4.5, 2, 1.8, FUR);
+      line(g, 9, 3, 6, 1, FUR);
+      line(g, 9, 2, 7, 0, FUR);
+      px(g, 7, 1, EAR);
+      px(g, 11, 4, '#10141c');
+      rect(g, 10, 7, 1, 3, FUR);
+      return;
+    }
+    const nib = pose === 'nibble';
+    rect(g, 2, 10, 4, 1, FUR);
+    ellipse(g, 5, 7, 4, 3, FUR);
+    ellipse(g, 5, 9, 2.5, 1, LIGHT);
+    ellipse(g, 1, 6, 1.3, 1.3, '#ffffff');
+    const [hx, hy] = nib ? [9, 7] : [8.5, 4];
+    ellipse(g, hx, hy, 2.2, 2, FUR);
+    rect(g, hx - 2, hy - 6, 1, 5, FUR);
+    rect(g, hx - 1, hy - 6, 1, 5, FUR);
+    rect(g, hx - 1, hy - 5, 1, 3, EAR);
+    px(g, hx + 1, hy - 1, '#10141c');
+    px(g, hx + 2, hy, EAR);
+    px(g, 8, 10, FUR);
+  });
+  return sides(['sit', 'hop', 'nibble'].map(frame));
+}
+
+// Frames: standing, mid-step, sitting, mid-leap. `c` is the coat: fur, light chest and tail tip, legs.
+function buildFox(c) {
+  const frame = (pose) => sprite(22, 15, (g) => {
+    g.translate(1, 2);
+    const sit = pose === 'sit';
+    const run = pose === 'run';
+    const legs = {
+      stand: [[6, 9, 6, 12], [8, 9, 8, 12], [13, 9, 13, 12], [15, 9, 15, 12]],
+      step: [[6, 9, 5, 12], [8, 9, 9, 12], [13, 9, 12, 12], [15, 9, 16, 12]],
+      sit: [[13, 7, 13, 12], [14, 7, 14, 12]],
+      run: [[6, 8, 2, 10], [8, 9, 5, 11], [13, 8, 17, 10], [15, 9, 19, 11]],
+    }[pose];
+    for (const [x0, y0, x1, y1] of legs) line(g, x0, y0, x1, y1, c.legs);
+    if (sit) {
+      poly(g, [[6, 12], [2, 10], [1, 12], [8, 12]], c.fur);
+      px(g, 1, 11, c.light);
+      px(g, 2, 11, c.light);
+      ellipse(g, 9, 9, 3.5, 3, c.fur);
+      poly(g, [[10, 6], [13, 2], [15, 4], [14, 10]], c.fur);
+      ellipse(g, 13.5, 7, 1.5, 2, c.light);
+    } else {
+      poly(g, [[5, 6], [1, run ? 5 : 3], [0, run ? 7 : 6], [2, 8]], c.fur);
+      px(g, 0, run ? 6 : 4, c.light);
+      px(g, 1, run ? 6 : 4, c.light);
+      ellipse(g, 10, 7, 5.5, 2.5, c.fur);
+      ellipse(g, 14, 8, 1.5, 1.5, c.light);
+    }
+    const [hx, hy] = sit ? [15, 2] : [16, run ? 5 : 4];
+    ellipse(g, hx, hy, 2.5, 2, c.fur);
+    poly(g, [[hx, hy], [hx + 4, hy + 1], [hx, hy + 2]], c.fur);
+    px(g, hx + 1, hy + 1, c.light);
+    px(g, hx + 4, hy + 1, '#10141c');
+    poly(g, [[hx - 2, hy - 1], [hx - 1.5, hy - 4], [hx, hy - 1]], c.fur);
+    poly(g, [[hx, hy - 1], [hx + 1, hy - 4], [hx + 1.5, hy - 1]], c.fur);
+    px(g, hx + 1, hy - 1, '#10141c');
+  });
+  return sides(['stand', 'step', 'sit', 'run'].map(frame));
+}
+
+// Frames: standing, mid-step, grazing.
+function buildGoat() {
+  const COAT = '#e8e2d6';
+  const SHADE = '#c8c0b0';
+  const HORN = '#8a7a64';
+  const frame = (pose) => sprite(20, 18, (g) => {
+    g.translate(1, 2);
+    const legs = pose === 'step' ? [[4, 3], [6, 7], [11, 10], [13, 14]] : [[4, 4], [6, 6], [11, 11], [13, 13]];
+    for (const [top, foot] of legs) {
+      line(g, top, 11, foot, 14, SHADE);
+      px(g, foot, 14, '#3a3030');
+    }
+    ellipse(g, 8, 9, 6, 3.5, COAT);
+    ellipse(g, 8, 11, 4.5, 1.2, SHADE);
+    px(g, 2, 6, COAT);
+    px(g, 2, 5, COAT);
+    const graze = pose === 'graze';
+    const [hx, hy] = graze ? [16, 11] : [15, 3];
+    poly(g, graze ? [[12, 7], [14, 7], [17, 11], [15, 12]] : [[12, 8], [13, 3], [16, 3], [15, 9]], COAT);
+    ellipse(g, hx, hy, 2, 2, COAT);
+    rect(g, hx + 1, hy, 2, 2, COAT);
+    poly(g, [[hx, hy + 2], [hx + 1, hy + 5], [hx + 2, hy + 2]], SHADE);
+    line(g, hx - 1, hy - 2, hx - 3, hy - 4, HORN);
+    line(g, hx - 3, hy - 4, hx - 4, hy - 2, HORN);
+    px(g, hx - 2, hy, SHADE);
+    px(g, hx, hy - 1, '#10141c');
+  });
+  return sides(['stand', 'step', 'graze'].map(frame));
+}
+
+// Frames: sitting, mid-hop, croaking with the throat puffed out.
+function buildFrog() {
+  const GREEN = '#5aa83a';
+  const LIGHT = '#a8d860';
+  const DARK = '#2e6a24';
+  const frame = (pose) => sprite(12, 9, (g) => {
+    g.translate(1, 1);
+    if (pose === 'hop') {
+      line(g, 3, 5, 0, 7, DARK);
+      ellipse(g, 5, 4, 4, 1.6, GREEN);
+      rect(g, 3, 3, 3, 1, LIGHT);
+      px(g, 7, 2, '#ffe040');
+      px(g, 8, 6, DARK);
+      return;
+    }
+    ellipse(g, 3, 5.5, 2, 1.2, DARK);
+    ellipse(g, 5, 4.5, 3.5, 2.2, GREEN);
+    rect(g, 3, 3, 3, 1, LIGHT);
+    px(g, 6, 2, GREEN);
+    px(g, 8, 2, GREEN);
+    px(g, 6, 2, '#ffe040');
+    px(g, 8, 2, '#ffe040');
+    px(g, 7, 6, DARK);
+    if (pose === 'croak') ellipse(g, 7.5, 5.5, 1.5, 1.2, '#f4f0c0');
+  });
+  return sides(['sit', 'hop', 'croak'].map(frame));
+}
+
+function buildMeat(cooked) {
+  const [flesh, light, dark] = cooked ? ['#9a4a1e', '#d8823a', '#6a2e12'] : ['#c84a3a', '#f4c8b8', '#8a2a22'];
+  return sprite(14, 11, (g) => {
+    ellipse(g, 5, 5, 4.5, 3.5, flesh);
+    ellipse(g, 4, 4, 2.5, 1.5, light);
+    rect(g, 2, 7, 5, 1, dark);
+    rect(g, 9, 5, 3, 2, '#f4ead8');
+    ellipse(g, 12, 4.5, 1.2, 1.2, '#f4ead8');
+    ellipse(g, 12, 7, 1.2, 1.2, '#f4ead8');
+    if (cooked) for (const [x, y] of [[3, 3], [6, 5], [4, 6]]) px(g, x, y, '#fff0c0');
   });
 }
 
@@ -1561,25 +2117,33 @@ function buildIron() {
   });
 }
 
-// A lump of black rock shot through with rusty iron veins.
-function buildOre(spent) {
+// Rock colours (base, light, shade, edge, rubble) and vein colours (vein, glint, nugget) for each kind of ore.
+const ORE_KINDS = {
+  iron: { rock: ['#4e444a', '#6a5e64', '#5a4e54', '#84767c', '#2e282c', '#3e3a40', '#5e5860'], vein: ['#b0603a', '#e8964e', '#f4c890', '#8a4a2e'] },
+  gold: { rock: ['#3a4252', '#525c70', '#454e60', '#6e7a90', '#232a36', '#323a48', '#4a5468'], vein: ['#c8922a', '#f2c94a', '#fff0a0', '#a87a1a'] },
+};
+
+// A lump of rock shot through with veins of ore.
+function buildOre(spent, kind = 'iron') {
+  const [base, light, mid, top, edge, rubble, rubbleLight] = ORE_KINDS[kind].rock;
+  const [vein, glint, nugget, dull] = ORE_KINDS[kind].vein;
   return sprite(24, 16, (g) => {
     if (spent) {
-      for (const [x, y, r] of [[6, 12, 3], [12, 13, 4], [18, 12, 3], [9, 10, 2], [15, 10, 2]]) ellipse(g, x, y, r, r * 0.6, '#3e3a40');
-      for (const [x, y] of [[6, 11], [12, 12], [17, 11]]) px(g, x, y, '#5e5860');
-      px(g, 10, 13, '#8a4a2e');
+      for (const [x, y, r] of [[6, 12, 3], [12, 13, 4], [18, 12, 3], [9, 10, 2], [15, 10, 2]]) ellipse(g, x, y, r, r * 0.6, rubble);
+      for (const [x, y] of [[6, 11], [12, 12], [17, 11]]) px(g, x, y, rubbleLight);
+      px(g, 10, 13, dull);
       return;
     }
-    ellipse(g, 12, 9.5, 10.5, 6, '#4e444a');
-    ellipse(g, 10, 7.5, 7.5, 4.5, '#6a5e64');
-    ellipse(g, 15, 10, 6, 3.5, '#5a4e54');
-    rect(g, 6, 3, 6, 1, '#84767c');
-    rect(g, 3, 14, 18, 1, '#2e282c');
-    line(g, 4, 10, 9, 5, '#b0603a', 2);
-    line(g, 9, 5, 13, 8, '#b0603a', 2);
-    line(g, 12, 12, 19, 8, '#b0603a', 2);
-    for (const [x, y] of [[5, 9], [10, 5], [13, 7], [16, 9], [18, 8], [13, 11]]) px(g, x, y, '#e8964e');
-    for (const [x, y] of [[7, 7], [12, 6], [15, 10]]) rect(g, x, y, 2, 2, '#f4c890');
+    ellipse(g, 12, 9.5, 10.5, 6, base);
+    ellipse(g, 10, 7.5, 7.5, 4.5, light);
+    ellipse(g, 15, 10, 6, 3.5, mid);
+    rect(g, 6, 3, 6, 1, top);
+    rect(g, 3, 14, 18, 1, edge);
+    line(g, 4, 10, 9, 5, vein, 2);
+    line(g, 9, 5, 13, 8, vein, 2);
+    line(g, 12, 12, 19, 8, vein, 2);
+    for (const [x, y] of [[5, 9], [10, 5], [13, 7], [16, 9], [18, 8], [13, 11]]) px(g, x, y, glint);
+    for (const [x, y] of [[7, 7], [12, 6], [15, 10]]) rect(g, x, y, 2, 2, nugget);
     for (const [x, y] of [[7, 7], [12, 6], [17, 9]]) px(g, x, y, '#ffffff');
   });
 }
@@ -1674,16 +2238,6 @@ function buildHeldSword() {
     rect(g, 1, 11, 6, 1, '#c89a3a');
     rect(g, 3, 12, 2, 2, PAL.woodDark);
     rect(g, 3, 14, 2, 1, '#c89a3a');
-  });
-}
-
-function buildHeldHammer() {
-  return sprite(10, 15, (g) => {
-    rect(g, 3, 4, 2, 10, PAL.woodLight);
-    rect(g, 4, 4, 1, 10, PAL.wood);
-    rect(g, 0, 1, 8, 4, '#8b8b94');
-    rect(g, 0, 1, 8, 1, '#c9ccd4');
-    rect(g, 0, 4, 8, 1, '#56565e');
   });
 }
 
@@ -2191,6 +2745,7 @@ const LOOKS = {
   fisher: { id: 'fisher', hair: '#8a7b6a', hairStyle: 'short', beard: '#8a7b6a', tunic: '#3b5c6c' },
   hermit: { id: 'hermit', hair: '#b9b4ab', hairStyle: 'long', beard: '#b9b4ab', tunic: '#5b5a3a', collar: '#8a7a5a' },
   mom: { id: 'mom', hair: '#7a4320', hairStyle: 'long', tunic: '#7b5a8f', apron: '#e9dcc0', collar: '#c9ae84' },
+  merchant: { id: 'merchant', hair: '#1e1410', hairStyle: 'short', beard: '#1e1410', tunic: '#2f7d5a', pants: '#3a2c22', collar: '#e8c860' },
 };
 
 const EYE = '#2a1a10';
@@ -2523,12 +3078,35 @@ function buildSprites() {
     backpack: buildBackpack(), axe: SPR.axe, wood: buildLog(),
     apple: buildApple(), pear: buildPear(), banana: buildBanana(), pineapple: buildPineapple(),
     berries: buildBerries(), coconut: buildCoconut(), stone: buildPebble(), wool: buildWool(),
-    hammer: buildHammer(), bow: buildBow(), sword: buildSword(), shield: buildShield(), spear: buildSpear(),
+    bow: buildBow(), sword: buildSword(), shield: buildShield(), spear: buildSpear(),
     rod: buildRod(), fish: buildFish(), pickaxe: buildPickaxe(), iron: buildIron(), string: buildString(),
+    cod: buildFishKind({ body: '#9a8a56', belly: '#e4dcc0', fin: '#6e6238', len: 6, tall: 3, spots: [[6, 2], [9, 3], [11, 2], [8, 5]] }),
+    trout: buildFishKind({ body: '#7a8a4a', belly: '#e8d8c0', fin: '#4e5a2e', len: 5, tall: 2.5, stripe: '#e07a8a', spots: [[5, 2], [8, 2], [10, 3]] }),
+    eel: buildFishKind({ body: '#d8502a', belly: '#ffc040', fin: '#8a2a14', len: 8, tall: 1.6, spots: [[6, 1], [10, 1], [14, 1]] }),
+    cavefish: buildFishKind({ body: '#e8d4d4', belly: '#fff4f4', fin: '#c8a8b0', len: 4, tall: 2.5, eye: false }),
+    goldenFish: buildFishKind({ body: '#f2c03a', belly: '#fff0a0', fin: '#c88a1a', len: 5, tall: 3, shine: '#ffffff' }),
+    arrow: buildArrowIcon(), feather: buildFeather(), torch: buildTorchIcon(), gold: buildGoldNugget(), mushroom: buildGlowcapIcon(),
+    lure: buildLure(), sail: buildSailIcon(), silver: buildCoin(), meat: buildMeat(false), roast: buildMeat(true),
+    hide: buildHide(), satchel: buildSatchel(), pouch: buildPouch(), toolBelt: buildToolBelt(),
   };
-  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), hammer: buildHeldHammer(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe() };
+  SPR.ui = buildUiIcons();
+  SPR.icon.grilledFish = buildCooked(SPR.icon.fish, 'rgba(214,140,50,0.45)', true);
+  SPR.icon.bakedApple = buildCooked(SPR.icon.apple, 'rgba(110,40,10,0.45)', false);
+  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe() };
   def('ore', { img: buildOre(false), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 } });
   def('oreSpent', { img: buildOre(true) });
+  def('goldOre', { img: buildOre(false, 'gold'), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 }, light: { dx: 0, dy: -8, r: 10, color: '#f2c94a' } });
+  def('goldOreSpent', { img: buildOre(true, 'gold') });
+  def('caveMouth', { img: buildCaveMouth(), foot: { w: 52, h: 10 }, door: { dx: 0, w: 14 } });
+  def('glowcaps', { img: buildGlowcaps(false), light: { dx: 0, dy: -6, r: 20, color: '#5affd8' } });
+  def('glowcapsPicked', { img: buildGlowcaps(true) });
+  for (let v = 0; v < 3; v++) def(`stalagmite-${v}`, { img: buildStalagmite(v + 1), foot: { w: 8, h: 4 }, shadow: { rx: 6, ry: 2 } });
+  SPR.hen = buildHen();
+  SPR.wild = {
+    deer: buildDeer(false), stag: buildDeer(true), boar: buildBoar(), rabbit: buildRabbit(), goat: buildGoat(), frog: buildFrog(),
+    fox: buildFox({ fur: '#d8642a', light: '#f4e6d0', legs: '#3a2414' }),
+    arcticFox: buildFox({ fur: '#f4f4f8', light: '#ffffff', legs: '#9aa4b8' }),
+  };
   SPR.heldFront = { axe: buildAxeFront() };
   def('bushCut', { img: buildBushCut() });
   def('fenceHBroken', { img: buildBrokenFence(false) });
@@ -2541,6 +3119,7 @@ function buildSprites() {
   def('stool', { img: buildStool(), foot: { w: 8, h: 3 } });
   def('bench', { img: buildBench(), foot: { w: 32, h: 3 } });
   def('chest', { img: buildChest(), foot: { w: 16, h: 6 } });
+  def('chestOpen', { img: buildChest(true), foot: { w: 16, h: 6 } });
   def('throne', { img: buildThrone(), foot: { w: 22, h: 8 } });
   def('backpack', { img: SPR.icon.backpack, shadow: { rx: 5, ry: 2 } });
   const wallMap = buildWallMap();
@@ -2618,14 +3197,15 @@ function buildSprites() {
   SPR.dog = buildDog();
   SPR.dogHeld = buildDogHeld();
 
-  const side = buildShip();
-  const ne = buildShipDiagonal(false);
-  const se = buildShipDiagonal(true);
-  // seat = where the rider's waist meets the gunwale
-  def('ship', {
-    img: side,
-    bob: 1.5,
-    dirs: {
+  // The sail stripes are PAL.red and PAL.cream, so swapping those repaints the whole ship.
+  const shipDirs = ([red, cream]) => {
+    const keep = { red: PAL.red, cream: PAL.cream };
+    Object.assign(PAL, { red, cream });
+    const side = buildShip();
+    const ne = buildShipDiagonal(false);
+    const se = buildShipDiagonal(true);
+    // seat = where the rider's waist meets the gunwale
+    const dirs = {
       right: { img: side, ox: 52, oy: 80, seat: [30, 62] },
       left: { img: mirror(side), ox: 52, oy: 80, seat: [74, 62] },
       down: { img: buildShipVertical(true), ox: 32, oy: 86, seat: [32, 69] },
@@ -2634,7 +3214,17 @@ function buildSprites() {
       nw: { img: mirror(ne), ox: 52, oy: 88, seat: [60, 69] },
       se: { img: se, ox: 52, oy: 88, seat: [60, 69] },
       sw: { img: mirror(se), ox: 52, oy: 88, seat: [44, 69] },
-    },
+    };
+    Object.assign(PAL, keep);
+    return dirs;
+  };
+  const dirs = shipDirs([PAL.red, PAL.cream]);
+  SPR.plainSail = dirs;
+  SPR.silkSail = shipDirs(['#3d6ca3', '#f4efe2']);
+  def('ship', {
+    img: dirs.right.img,
+    bob: 1.5,
+    dirs,
     after: (g, x, y, t, o) => {
       const w = 3 + Math.round(Math.sin(t * 2) * 2);
       g.globalAlpha = 0.6;
@@ -2657,4 +3247,6 @@ function buildSprites() {
       g.globalAlpha = 1;
     },
   });
+  def('merchantShip', { ...SPR.ship, dirs: shipDirs(['#2f7d5a', '#e8c860']) });
+  SPR.merchantShip.img = SPR.merchantShip.dirs.right.img;
 }

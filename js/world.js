@@ -5,11 +5,11 @@ const OX = 172;
 const OY = 124;
 const T = {
   WATER: 0, GRASS: 1, PATH: 2, WOOD: 3, DIRT: 4, CLIFF: 5, STAIRS: 6, FALL: 7, HAY: 8, SAND: 9, FLOOR: 10, WALL: 11, VOID: 12, DOOR: 13,
-  ROCK: 14, SNOW: 15, MOUNT: 16, SPRING: 17, ASH: 18, LAVA: 19, ICE: 20, FIELD: 21, JUNGLE: 22,
+  ROCK: 14, SNOW: 15, MOUNT: 16, SPRING: 17, ASH: 18, LAVA: 19, ICE: 20, FIELD: 21, JUNGLE: 22, CAVE: 23,
 };
-// Building interiors live in a strip of rows below the outdoor map.
+// Building interiors live in a strip of rows below the outdoor map; the ice cave is the tallest.
 const ROOM_Y = MAP_H + 2;
-const ROWS = MAP_H + 16;
+const ROWS = MAP_H + 38;
 
 const map = new Uint8Array(MAP_W * ROWS);
 const woodNS = new Uint8Array(MAP_W * ROWS);
@@ -22,7 +22,7 @@ const elev = new Uint8Array(MAP_W * MAP_H);
 const inBounds = (x, y) => x >= 0 && y >= 0 && x < MAP_W && y < ROWS;
 const tileAt = (x, y) => (inBounds(x, y) ? map[y * MAP_W + x] : T.WATER);
 const setTile = (x, y, t) => { if (inBounds(x, y)) map[y * MAP_W + x] = t; };
-const WALKABLE = new Set([T.GRASS, T.PATH, T.DIRT, T.HAY, T.STAIRS, T.SAND, T.ROCK, T.SNOW, T.ASH, T.ICE, T.FIELD, T.JUNGLE]);
+const WALKABLE = new Set([T.GRASS, T.PATH, T.DIRT, T.HAY, T.STAIRS, T.SAND, T.ROCK, T.SNOW, T.ASH, T.ICE, T.FIELD, T.JUNGLE, T.CAVE]);
 const isLand = (t) => WALKABLE.has(t);
 const isSolidTile = (t) => t === T.WATER || t === T.CLIFF || t === T.FALL || t === T.WALL || t === T.VOID || t === T.MOUNT || t === T.LAVA || t === T.SPRING;
 const isWet = (t) => t === T.WATER || t === T.SPRING;
@@ -414,6 +414,8 @@ const ROOMS = {
     rugs: [[2.2, 2.4, 2.5, 1.5, '#6a6a3a']],
     furniture: [['bed', 0.9, 2.1], ['hearth', 3.5, 0.2], ['stool', 4.7, 2.7], ['chest', 5.4, 1]],
   },
+  // Carved out of rock by carveCave rather than walled; its spots are in tiles from the top-left.
+  cave: { name: 'the ice cave', cave: true, w: 46, h: 34, wall: [], rugs: [], furniture: [] },
 };
 
 // Lay the rooms out left to right: walls take one column each side, two rows on top, one below.
@@ -422,10 +424,35 @@ const ROOMS = {
   for (const r of Object.values(ROOMS)) {
     r.rx = x;
     r.ry = ROOM_Y;
-    r.door = r.rx + 1 + Math.floor(r.w / 2);
-    r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w + 2) * TILE, y1: (r.ry + r.h + 3) * TILE };
+    if (r.cave) {
+      r.door = r.rx + 23;
+      r.doorY = r.ry + r.h - 1;
+      r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w) * TILE, y1: (r.ry + r.h) * TILE };
+    } else {
+      r.door = r.rx + 1 + Math.floor(r.w / 2);
+      r.doorY = r.ry + r.h + 2;
+      r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w + 2) * TILE, y1: (r.ry + r.h + 3) * TILE };
+    }
     x += r.w + 5;
   }
+}
+const inCave = () => !!indoors?.cave;
+const caveSpot = (x, y) => [ROOMS.cave.rx + x, ROOMS.cave.ry + y];
+
+// Tunnels from the mouth: west to a grotto with a pool, east to a gold seam, north to the egg chamber.
+function carveCave(r) {
+  const at = (x, y, t) => { if (x > 0 && y > 0 && x < r.w - 1 && y < r.h - 1) setTile(r.rx + x, r.ry + y, t); };
+  const floor = (x, y) => at(x, y, T.CAVE);
+  alongLine([[23, 33], [23, 27]], 1.6, floor);
+  inBlob(23, 27, 5, 3.5, 51, 0.5, floor);
+  alongLine([[20, 27], [14, 23], [9, 19]], 1.5, floor);
+  inBlob(9, 15, 6.5, 5, 52, 0.5, floor);
+  inBlob(6, 12.5, 3, 2, 53, 0.3, (x, y) => at(x, y, T.WATER));
+  alongLine([[23, 25], [25, 19], [21, 14], [23, 9]], 1.5, floor);
+  inBlob(23, 6, 7, 4, 54, 0.4, floor);
+  alongLine([[26, 26], [32, 22], [37, 18]], 1.4, floor);
+  inBlob(38, 15, 5.5, 4.5, 55, 0.5, floor);
+  setTile(r.door, r.doorY, T.DOOR);
 }
 
 // Absolute tile coordinates of a spot given in a room's floor tiles.
@@ -434,6 +461,11 @@ const roomSpot = (r, x, y) => [r.rx + 1 + x, r.ry + 2 + y];
 function buildRooms() {
   for (let y = MAP_H; y < ROWS; y++) for (let x = 0; x < MAP_W; x++) setTile(x, y, T.VOID);
   for (const r of Object.values(ROOMS)) {
+    if (r.cave) {
+      for (let y = r.ry; y < r.ry + r.h; y++) for (let x = r.rx; x < r.rx + r.w; x++) setTile(x, y, T.WALL);
+      carveCave(r);
+      continue;
+    }
     for (let y = r.ry; y <= r.ry + r.h + 2; y++) {
       for (let x = r.rx; x <= r.rx + r.w + 1; x++) {
         const inside = x > r.rx && x <= r.rx + r.w && y >= r.ry + 2 && y <= r.ry + r.h + 1;
@@ -529,6 +561,49 @@ function drawRoom(g, r) {
   rect(g, dx, by, TILE, TILE, '#8f6035');
   rect(g, dx + 2, by + 1, TILE - 4, TILE - 3, '#c9a36a');
   for (let y = by + 4; y < by + TILE - 2; y += 3) rect(g, dx + 3, y, TILE - 6, 1, '#a8804f');
+}
+
+const caveOpen = (t) => t === T.CAVE || t === T.WATER || t === T.DOOR;
+
+function caveTile(g, x, y) {
+  const X = x * TILE;
+  const Y = y * TILE;
+  const t = tileAt(x, y);
+  if (t === T.CAVE) {
+    speckle(g, x, y, X, Y, '#2c3444', '#3c4658', '#20262f', 10);
+    if (hash(x, y, 61) < 0.14) {
+      const ix = X + 2 + Math.floor(hash(x, y, 62) * 8);
+      const iy = Y + 3 + Math.floor(hash(x, y, 63) * 9);
+      rect(g, ix, iy, 5, 2, '#4e6a82');
+      rect(g, ix + 1, iy, 2, 1, '#8fb4cc');
+    }
+    if (!caveOpen(tileAt(x, y - 1))) {
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      g.fillRect(X, Y, 16, 4);
+    }
+  } else if (t === T.WATER) {
+    rect(g, X, Y, 16, 16, '#0f2a36');
+    if (hash(x, y, 64) < 0.6) rect(g, X + 2 + Math.floor(hash(x, y, 65) * 9), Y + 3 + Math.floor(hash(x, y, 66) * 10), 5, 1, '#2a5a6a');
+    if (!caveOpen(tileAt(x, y - 1))) rect(g, X, Y, 16, 2, '#3a4456');
+  } else if (t === T.DOOR) {
+    rect(g, X, Y, 16, 16, '#9fb8c8');
+    rect(g, X + 2, Y, 12, 16, '#dceaf2');
+    rect(g, X + 4, Y + 6, 8, 10, '#f4f8fb');
+  } else if (caveOpen(tileAt(x, y + 1))) {
+    // a rock face above open floor, frosted along the top
+    rect(g, X, Y, 16, 16, '#3a4456');
+    rect(g, X, Y, 16, 4, '#141822');
+    rect(g, X, Y + 13, 16, 3, '#262d3a');
+    for (let i = 0; i < 3; i++) {
+      const ix = X + 2 + Math.floor(hash(x, y, 70 + i) * 12);
+      rect(g, ix, Y + 4, 1, 3 + Math.floor(hash(x, y, 73 + i) * 5), '#7fa0b8');
+    }
+    if (hash(x, y, 76) < 0.4) rect(g, X + 3 + Math.floor(hash(x, y, 77) * 9), Y + 8, 3, 2, '#4e5a70');
+  } else {
+    let edge = false;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]) if (caveOpen(tileAt(x + dx, y + dy))) edge = true;
+    rect(g, X, Y, 16, 16, edge ? '#141822' : '#06080c');
+  }
 }
 
 // ---------- ground tiles ----------
@@ -993,7 +1068,14 @@ function paintChunk(c, ci, cj) {
     g.fillStyle = '#000';
     g.fillRect(x0 * TILE, top * TILE, CHUNK_PX, (y0 + CHUNK - top) * TILE);
     for (const r of Object.values(ROOMS)) {
-      if (r.px.x1 > x0 * TILE && r.px.x0 < (x0 + CHUNK) * TILE && r.px.y1 > top * TILE && r.px.y0 < (y0 + CHUNK) * TILE) drawRoom(g, r);
+      if (!(r.px.x1 > x0 * TILE && r.px.x0 < (x0 + CHUNK) * TILE && r.px.y1 > top * TILE && r.px.y0 < (y0 + CHUNK) * TILE)) continue;
+      if (r.cave) {
+        for (let y = Math.max(top, r.ry); y < Math.min(y0 + CHUNK, r.ry + r.h); y++) {
+          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) caveTile(g, x, y);
+        }
+      } else {
+        drawRoom(g, r);
+      }
     }
   }
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -1195,50 +1277,62 @@ const VILLAGE_NPCS = [
   {
     look: 'chief', x: 78, y: 42.6, roam: 1.5,
     lines: ['Welcome to the Hidden World, {name}.', 'Every island hides a story. Go and find them.', 'Our smith can make you all kinds of tools. Pay him a visit.', 'The great hall is always open to you.', 'Behind the hall the mountains rise. Only the pass leads through them, up to the snow.'],
+    nightLines: ['Still about, {name}? The fire in the great hall burns all night.', 'Look at those stars. Our ancestors steered their ships by them.', 'Night is for the old stories. Sit a while.', 'Rest well tonight. The islands will still be waiting in the morning.'],
   },
   {
     look: 'smith', x: 61.6, y: 59, roam: 1,
     lines: ['I can make all kinds of tools for you. Just ask!', 'Mind the sparks, {lad}!', 'Those woods won\'t chop themselves. Bring me wood and stone and I\'ll make you more tools.', 'Hot iron waits for no one.', 'The best timber grows in the forest, out past the west gate.'],
+    nightLines: ['The forge is banked for the night, but I can still make you something. Just ask.', 'Late one, {lad}. Even hot iron has to cool some time.', 'Best light in the village, these coals.', 'Heading out in the dark? Bring me 1 wood and 1 wool and I\'ll make you a torch.'],
   },
   {
     look: 'baker', x: 69.5, y: 65.5, job: { station: [67, 65.5], face: 'left', prop: 'oven' },
     lines: ['Fresh bread! Still warm.', 'I bake rye loaves, honey cakes and berry pies.', 'Mind the oven, dear. It bites!', 'The best berries grow on the bushes in the forest.'],
+    nightLines: ['The oven\'s still warm. I\'m setting the dough for the morning.', 'Up late, dear? The first loaves come out at dawn.', 'Night baking is the best baking. Nobody pinching the buns.', 'Mind the oven in the dark, dear. It still bites!'],
   },
   {
     look: 'weaver', x: 72, y: 53.5, job: { station: [69.4, 53.5], face: 'left', prop: 'loom' },
     lines: ['Wool in, cloth out. Clack, clack!', 'I can weave you linen or wool, in any colour you like.', 'The shepherd\'s sheep give me the softest wool.'],
+    nightLines: ['Weaving by firelight. My eyes aren\'t what they were.', 'One more row, then bed. ...I said that an hour ago.', 'The sheep are all asleep. Lucky things.'],
   },
   {
     look: 'seamstress', x: 84.5, y: 53.5, job: { station: [81.7, 53.5], face: 'left', prop: 'dressForm' },
     lines: ['Every stitch by hand, dear.', 'I can sew you a tunic, a dress or a warm cloak.', 'Hold still, I\'m measuring you with my eyes.', 'Going up the mountain pass? Take a warm cloak, it snows up there all year.'],
+    nightLines: ['Can\'t see my stitches in this light! I\'ll finish in the morning.', 'A warm cloak is just the thing on a chilly night, dear.', 'Out late? Mind you don\'t snag your sleeve in the dark.'],
   },
   {
     look: 'tanner', x: 60.5, y: 63.6, job: { station: [58, 63.6], face: 'left', prop: 'hideFrame' },
-    lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'I make boots, belts and pouches. Leather that lasts a lifetime.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.'],
+    lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'Tools filling your pack? Bring me two hides and I\'ll make you a tool belt.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.'],
+    nightLines: ['Hides dry slower at night. Patience.', 'A soak in the hot spring under the stars. That\'s the life.', 'Still after a tool belt? Two hides, day or night.'],
   },
   {
     look: 'kid', x: 82.5, y: 61.3, roam: 1.5,
     lines: ['I wish I had a dragon!', 'Wanna race? I\'m the fastest in the village!', 'The old hermit says there are dragon eggs out at sea!', 'I swam in the hot spring! It\'s like a big warm bath!'],
+    nightLines: ['I\'m not tired! ...*yawn*', 'I\'m meant to be in bed. Don\'t tell anyone you saw me!', 'Do dragons sleep at night? I bet they fly about!', 'I saw a shooting star! I wished for a dragon!'],
   },
   {
     look: 'girl', x: 86.5, y: 64.3, roam: 3,
     lines: ['Lovely day for flying.', 'I counted forty clouds this morning.', 'Do you think dragons dream?', 'Have you seen the waterfall? It comes all the way down from the mountains.'],
+    nightLines: ['Look at all the stars! I got to a hundred and lost my place.', 'Do you think dragons dream?', 'The moon looks close enough to fly to.', 'I love the night. The sky goes on forever.'],
   },
   {
     look: 'archer', x: 97, y: 78.5, fixed: 'up',
-    lines: ['Shh... I\'m aiming.', 'I can hit a herring\'s eye at fifty paces.', 'Mind the targets. And don\'t you dare take an axe to them.'],
+    lines: ['Shh... I\'m aiming.', 'I can hit a herring\'s eye at fifty paces.', 'Mind the targets. And don\'t you dare take an axe to them.', 'Get yourself a bow and I\'ll set you a few challenges.', 'Deer graze in the western forest. Shoot from a distance, they spook easily.'],
+    nightLines: ['Too dark to aim properly. I\'m practising by ear.', 'Hear that thunk? That\'s a hit. You learn the sound.', 'Careful on the range at night. I can\'t see where you\'re standing.'],
   },
   {
     look: 'guard', x: 75.6, y: 94.6, fixed: 'down',
-    lines: ['Stay close to the village.', 'The cliffs are steep. Mind your step.', 'All quiet at the southern gate.', 'Keep to the trail in the forest. It\'s easy to get lost in there.'],
+    lines: ['Stay close to the village.', 'The cliffs are steep. Mind your step.', 'All quiet at the southern gate.', 'Keep to the trail in the forest. It\'s easy to get lost in there.', 'Wild boar in the south woods. Leave them be, or bring a shield.'],
+    nightLines: ['Quiet night at the southern gate. Just how I like it.', 'Don\'t wander far in the dark. The cliffs are steep.', 'Going into the forest at night? Take a torch.', 'Wolves howl up in the mountains at night. That\'s what the wall is for.'],
   },
   {
     look: 'villager', x: 118.8, y: 58.6, roam: 1.2,
     lines: ['Give my sheep a pat, they love it.', 'I count them every night. Puts me right to sleep.', 'Their wool goes to the weaver for her cloth.'],
+    nightLines: ['Shh! The sheep are sleeping.', 'Counting sheep... forty-one, forty-two... *yawn*', 'Night\'s when the wolves get ideas. I keep one eye open.'],
   },
   {
     look: 'fisher', x: 80, y: 99.5, roam: 2,
-    lines: ['She\'s yours to sail. Fair winds!', 'Hold Shift for full sail!', 'The deep water is where the big fish hide.', 'Sail north-east and you\'ll find an old hermit.', 'Due north a volcano smokes day and night. Far to the north-west lies a frozen isle.', 'South-east, a long way out, there\'s a jungle isle with palms as tall as masts.'],
+    lines: ['She\'s yours to sail. Fair winds!', () => merchantNews(), 'Hold Shift for full sail!', 'The deep water is where the big fish hide.', 'Sail north-east and you\'ll find an old hermit.', () => merchantNews(), 'Due north a volcano smokes day and night. Far to the north-west lies a frozen isle.', 'South-east, a long way out, there\'s a jungle isle with palms as tall as masts.'],
+    nightLines: ['A calm night on the water. Just you and the stars.', () => merchantNews(), 'Sailing in the dark? Keep the village fires behind you and you\'ll find your way home.', 'Fish don\'t mind the dark. Cast away, if you\'ve the patience.'],
   },
 ];
 
@@ -1250,12 +1344,23 @@ const NPCS = [
   {
     look: 'hermit', x: HERMIT.x - 1, y: HERMIT.y + 1.4, roam: 2.5,
     lines: ['Sail south-west to the ancient ruin. A dragon egg sleeps among its stones.', 'Few sail this far out...', 'The stone towers remember the dragons.', 'I have seen them all: the fire mountain, the frozen isle, the jungle isle. Each keeps its secrets.'],
+    nightLines: ['Few sail this far out... and fewer still by night.', 'The stars were old when the dragons were young.', 'I watch the sea at night. Sometimes something watches back.', 'Sail south-west to the ancient ruin. A dragon egg sleeps among its stones.'],
   },
   {
     look: 'mom', ...xy(roomSpot(ROOMS.home, 5.8, 2.4)), roam: 1.2, stays: true,
     lines: ['Don\'t forget your backpack when you go out!', 'Your backpack is by your bed, sweetheart.', 'Breakfast is on the table if you\'re hungry.'],
+    nightLines: ['Your backpack is by your bed, sweetheart.', 'It\'s dark out! Adventures can wait for the morning.', 'There\'s stew keeping warm by the fire.'],
+  },
+  // the travelling merchant waits out of the world until his ship docks
+  {
+    look: 'merchant', x: MAP_W - 4, y: ROWS - 2, fixed: 'left',
+    lines: ['Silver for fish, silver for wool! Ottar buys it all!', 'I sail the whole Hidden World. Three days round, then back here.', 'Mind the gangplank, friend.'],
+    nightLines: ['Late trade? Ottar never sleeps!', 'Silver for fish, silver for wool, night or day!', 'Mind the gangplank, friend. It\'s slippery in the dark.'],
   },
 ];
+// Where the merchant's ship ties up in the bay, east of the longship, and where he stands on the beach beside it.
+const MERCHANT_DOCK = { x: 93 + OX, y: 106.2 + OY };
+const MERCHANT_STAND = { x: 96.4 + OX, y: 104.4 + OY };
 
 function xy([x, y]) { return { x, y }; }
 
@@ -1449,9 +1554,14 @@ function placeIslands() {
   addAbs('stone', r.x + 4, r.y + 9);
   woods(r.x - r.rx, r.y - r.ry, r.x + r.rx, r.y + r.ry, 2.2, 1404, 0.5, mixed, (x, y) => Math.hypot((x + OX - r.x) / 9, (y + OY - r.y) / 7) > 1 && Math.abs(x + OX - r.x) > 4);
 
-  // the frozen isle: snow, a frozen lake, ice crystals, and a light fury's nest
+  // the frozen isle: snow, a frozen lake, ice crystals, and an ice cave with a light fury's nest at the end
   const f = isle('frozen');
-  nest('lightFury', f.x - 6, f.y - 2.5);
+  nest('lightFury', ...caveSpot(23, 6.5));
+  addAbs('caveMouth', f.x - 6, f.y - 1.6).room = 'cave';
+  for (const [x, y] of [[4, 17.5], [12.5, 18.5], [13.5, 12.5], [8, 10.5], [16, 23.6], [24.6, 20], [31, 23.4], [18.5, 7], [28, 7.5], [21.5, 14.5]]) addAbs('glowcaps', ...caveSpot(x, y));
+  for (const [x, y] of [[36, 13.5], [41, 15.5], [38.5, 18.6], [34.6, 16]]) addAbs('goldOre', ...caveSpot(x, y));
+  [[19.5, 26.2], [27.5, 28.6], [10.5, 12], [26.5, 4.6], [41.5, 12.6], [5, 19]].forEach(([x, y], i) => addAbs(`stalagmite-${i % 3}`, ...caveSpot(x, y)));
+  for (const [x, y] of [[19.5, 4.6], [27.6, 5.6]]) addAbs('iceCrystal', ...caveSpot(x, y));
   for (const [x, y] of [[f.x - 2.4, f.y - 3.2], [f.x + 9.6, f.y - 2], [f.x + 4, f.y + 3.4], [f.x - 4, f.y + 1.6], [f.x + 1, f.y - 5.4], [f.x - 10, f.y + 8.4]]) addAbs('iceCrystal', x, y);
   for (const [x, y] of [[f.x - 12, f.y - 2], [f.x + 13, f.y + 4], [f.x + 6, f.y + 8], [f.x - 5, f.y + 9.5], [f.x + 15, f.y - 6]]) addAbs('boulderSnow', x, y);
   addAbs('cairn', f.x - 8.6, f.y - 6.2);

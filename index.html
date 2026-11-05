@@ -13,13 +13,20 @@
   <div class="vignette"></div>
   <div id="bubbles"></div>
   <div id="prompt"></div>
-  <ul id="inventory" aria-label="Inventory" aria-live="polite"></ul>
-  <div id="toggles">
-    <button id="hints" class="toggle" type="button" aria-pressed="false">HINTS OFF</button>
-    <button id="sound" class="toggle" type="button" aria-pressed="true">SOUND ON</button>
-    <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="World map (M)" hidden>MAP</button>
+  <div id="pack">
+    <ul id="belt" aria-label="Tool belt. Number keys pick a tool; E or Tab steps forward and Q back through the tools and then the backpack" hidden></ul>
+    <ul id="inventory" aria-label="Backpack" aria-live="polite"></ul>
   </div>
-  <div id="hint">WASD / Arrows to move &middot; Shift to run &middot; Space to talk / jump &middot; 1-6 to pick a slot &middot; F to use it &middot; X to drop it &middot; Enter to chat &middot; M for map &middot; H for hints &middot; N for sound</div>
+  <div id="clock" role="img"><img alt="" /><span aria-hidden="true"></span></div>
+  <div id="purse" role="status" hidden><img alt="" /><span></span></div>
+  <div id="toggles">
+    <button id="hints" class="toggle" type="button" aria-pressed="false" aria-label="Hints" title="Hints (H)"><img alt="" /></button>
+    <button id="sound" class="toggle" type="button" aria-pressed="true" aria-label="Sound" title="Sound (N)"><img alt="" /></button>
+    <button id="journal-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Quest journal" title="Quest journal (J)" hidden><img alt="" /></button>
+    <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="World map" title="World map (M)" hidden><img alt="" /></button>
+    <button id="fishlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Fish log" title="Fish log (L)" hidden><img alt="" /></button>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
   <form id="chat" autocomplete="off">
     <label for="chat-input">SAY</label>
     <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
@@ -38,6 +45,56 @@
       <h2 id="worldmap-title">MAP OF THE HIDDEN WORLD</h2>
       <canvas id="worldmap-canvas" role="img" aria-label="World map"></canvas>
       <button id="worldmap-close" type="button">CLOSE</button>
+    </div>
+  </div>
+  <div id="journal" class="overlay" role="dialog" aria-modal="true" aria-labelledby="journal-title" hidden>
+    <div class="panel journal-panel">
+      <h2 id="journal-title">QUEST JOURNAL</h2>
+      <p id="journal-when"></p>
+      <ul id="journal-list"></ul>
+      <button id="journal-close" type="button">CLOSE</button>
+    </div>
+  </div>
+  <div id="fishlog" class="overlay" role="dialog" aria-modal="true" aria-labelledby="fishlog-title" hidden>
+    <div class="panel log-panel">
+      <h2 id="fishlog-title">FISH LOG</h2>
+      <p id="fishlog-sum"></p>
+      <ul id="fishlog-list"></ul>
+      <button id="fishlog-close" type="button">CLOSE</button>
+    </div>
+  </div>
+  <div id="trade" class="overlay" role="dialog" aria-modal="true" aria-labelledby="trade-title" hidden>
+    <div class="panel trade-panel">
+      <h2 id="trade-title">OTTAR'S SHIP</h2>
+      <p id="trade-purse"></p>
+      <div class="trade-cols">
+        <section aria-labelledby="trade-sell-title">
+          <h3 id="trade-sell-title">SELL</h3>
+          <ul id="trade-sell"></ul>
+        </section>
+        <section aria-labelledby="trade-buy-title">
+          <h3 id="trade-buy-title">BUY</h3>
+          <ul id="trade-buy"></ul>
+        </section>
+      </div>
+      <button id="trade-close" type="button">CLOSE</button>
+    </div>
+  </div>
+  <div id="chest" class="overlay" role="dialog" aria-modal="true" aria-labelledby="chest-title" hidden>
+    <div class="panel trade-panel">
+      <h2 id="chest-title">STORAGE CHEST</h2>
+      <p id="chest-sum"></p>
+      <div class="trade-cols">
+        <section aria-labelledby="chest-bag-title">
+          <h3 id="chest-bag-title">BACKPACK</h3>
+          <ul id="chest-bag"></ul>
+        </section>
+        <section aria-labelledby="chest-store-title">
+          <h3 id="chest-store-title">CHEST</h3>
+          <ul id="chest-store"></ul>
+        </section>
+      </div>
+      <button id="chest-close" type="button">CLOSE</button>
     </div>
   </div>
   <div id="start" class="overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
@@ -59,6 +116,7 @@
       <label class="name-label" for="hero-name">YOUR NAME</label>
       <input id="hero-name" class="name-input" maxlength="12" placeholder="Hickory" spellcheck="false" />
       <button type="submit">START</button>
+      <button id="continue" class="continue" type="button" hidden>CONTINUE</button>
     </form>
   </div>
 
@@ -70,7 +128,16 @@
   <script src="js/audio.js"></script>
   <script src="js/sea.js"></script>
   <script src="js/map.js"></script>
+  <script src="js/sky.js"></script>
+  <script src="js/fishing.js"></script>
+  <script src="js/trade.js"></script>
+  <script src="js/chest.js"></script>
+  <script src="js/archery.js"></script>
+  <script src="js/cave.js"></script>
+  <script src="js/wildlife.js"></script>
+  <script src="js/journal.js"></script>
   <script src="js/title.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/save.js"></script>
 </body>
 </html>

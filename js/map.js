@@ -21,10 +21,16 @@ const POIS = [
   { id: 'ruin', name: 'Ancient Ruin', icon: 'ruin', x: 52, y: 292.5, words: /\b(ancient ruins?|ruins?|stone towers)\b/i },
   { id: 'volcano', name: 'Fire Mountain', icon: 'volcano', x: 250, y: 50, r: 14, words: /\b(volcano|fire mountain)\b/i },
   { id: 'frozen', name: 'Frozen Isle', icon: 'frozen', x: 70, y: 60, r: 14, words: /\bfrozen isle\b/i },
+  { id: 'cave', name: 'Ice Cave', icon: 'cave', x: 64, y: 58.4, words: /\b(ice cave|caves?)\b/i },
   { id: 'jungle', name: 'Jungle Isle', icon: 'jungle', x: 410, y: 280, r: 14, words: /\bjungle( isle)?\b/i },
   { id: 'speck', name: 'Speck of Sand', icon: 'isle', x: 262, y: 326, words: /\b(speck of sand|far isles)\b/i },
 ];
-for (const p of POIS) Object.assign(p, { learned: !!p.known, seen: !!p.known });
+for (const p of POIS) {
+  const isle = ISLANDS.some((i) => Math.hypot((p.x - i.x) / (i.rx + 2), (p.y - i.y) / (i.ry + 2)) < 1);
+  Object.assign(p, { learned: !!p.known, seen: !!p.known, isle });
+}
+// Places across the sea stay off the map until the player has been out there to see them.
+const onMap = (p) => p.seen || (p.learned && !p.isle);
 
 const seen = new Uint8Array(MAP_W * MAP_H);
 const VISIT = 5;
@@ -60,7 +66,7 @@ function updateMap() {
 function learnPlace(p) {
   if (p.learned) return;
   p.learned = true;
-  if (hasMap()) flashMapButton();
+  if (hasMap() && onMap(p)) flashMapButton();
 }
 
 // Anything a villager says out loud to the player can put a name on the map.
@@ -184,6 +190,7 @@ const MAP_ICONS = {
   spring: (g) => { ellipse(g, 5, 7, 5, 2.5, '#4dbab2'); ellipse(g, 5, 7, 3, 1, '#8fe2d6'); for (const x of [2, 5, 8]) { px(g, x, 3, '#ffffff'); px(g, x + 1, 1, '#ffffff'); px(g, x, 4, '#e6f6ff'); } },
   mountain: (g) => { poly(g, [[0, 10], [4, 2], [8, 10]], '#7a7a80'); poly(g, [[4, 10], [8, 0], [12, 10]], '#8f8f96'); poly(g, [[7, 2], [8, 0], [9, 2]], '#ffffff'); poly(g, [[3, 4], [4, 2], [5, 4]], '#ffffff'); },
   volcano: (g) => { poly(g, [[0, 10], [4, 3], [8, 3], [12, 10]], '#4c4547'); rect(g, 4, 3, 4, 1, '#ff7a1a'); rect(g, 5, 4, 1, 4, '#ff7a1a'); ellipse(g, 6, 1, 2, 1, '#8a7f80'); },
+  cave: (g) => { ellipse(g, 6, 7, 6, 4, '#7a7a80'); ellipse(g, 6, 4.5, 5, 2, '#f4f6fa'); poly(g, [[3, 11], [3, 7], [6, 5], [9, 7], [9, 11]], MAP_INK); px(g, 6, 9, '#5affd8'); },
   frozen: (g) => { poly(g, [[1, 9], [4, 3], [7, 9]], '#c3d0e3'); poly(g, [[5, 9], [8, 1], [11, 9]], '#e6edf6'); rect(g, 2, 9, 9, 2, '#bfe2f2'); px(g, 8, 1, '#ffffff'); },
   jungle: (g) => { ellipse(g, 6, 9, 5, 2, '#e8d49a'); rect(g, 6, 3, 1, 6, '#8a5a3a'); poly(g, [[1, 4], [6, 1], [11, 4], [6, 3]], '#2f7d3a'); poly(g, [[2, 6], [6, 2], [10, 6], [6, 4]], '#4fa648'); },
 };
@@ -258,7 +265,7 @@ function drawMap() {
   const placed = [];
   const labels = [];
   for (const p of POIS) {
-    if (!p.seen && !p.learned) continue;
+    if (!onMap(p)) continue;
     const x = Math.round((p.x - ox) * S);
     const y = Math.round((p.y - oy) * S);
     if (x < -iconPx || y < -iconPx || x > W + iconPx || y > H + iconPx) continue;
@@ -305,7 +312,7 @@ function drawMap() {
     g.fillText('SCROLL OR +/- TO ZOOM', W - 6, H - 6);
   }
 
-  mapCanvas.setAttribute('aria-label', `World map. Known places: ${POIS.filter((p) => p.learned).map((p) => p.name).join(', ')}.`);
+  mapCanvas.setAttribute('aria-label', `World map. Known places: ${POIS.filter((p) => p.learned && onMap(p)).map((p) => p.name).join(', ')}.`);
 }
 
 function toggleMap(open = !mapOpen) {

@@ -570,14 +570,16 @@ function updateWaves(dt) {
     if (w.t >= w.max) waves.splice(i, 1);
   }
   if (indoors) return;
-  waveT -= dt;
+  // wind whips up more and bigger whitecaps
+  const wind = weatherNow('wind');
+  waveT -= dt * (1 + wind * 2.5);
   while (waveT <= 0) {
     waveT += 0.15 + Math.random() * 0.2;
-    if (waves.length >= viewW * viewH / 12000) break;
+    if (waves.length >= (viewW * viewH / 12000) * (1 + wind * 2)) break;
     const x = cam.x + Math.random() * viewW;
     const y = cam.y + Math.random() * viewH;
     if (depthAt(x, y) < 2 || depthAt(x + 14, y) < 2 || overHull(x, y)) continue;
-    waves.push({ x, y, t: 0, max: 2.4 + Math.random() * 1.8, len: 7 + Math.floor(Math.random() * 8), cap: Math.random() < 0.35 });
+    waves.push({ x, y, t: 0, max: 2.4 + Math.random() * 1.8, len: 7 + Math.floor(Math.random() * (8 + wind * 8)), cap: Math.random() < 0.35 + wind * 0.4 });
   }
 }
 

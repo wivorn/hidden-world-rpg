@@ -58,25 +58,6 @@ body {
   border-top-color: #3a2414;
 }
 
-#hint {
-  position: fixed;
-  left: 50%;
-  bottom: 68px;
-  transform: translateX(-50%);
-  padding: 10px 14px;
-  background: rgba(40, 24, 12, 0.8);
-  color: #f6e7c1;
-  border: 3px solid #e1a03c;
-  font: 10px/1.4 'Press Start 2P', monospace;
-  white-space: nowrap;
-  pointer-events: none;
-  transition: opacity 1s;
-}
-
-#hint.hide {
-  opacity: 0;
-}
-
 #prompt {
   position: fixed;
   left: 50%;
@@ -101,25 +82,375 @@ body {
   position: fixed;
   top: 14px;
   right: 14px;
-  display: grid;
-  grid-template-columns: auto auto;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-#map {
-  grid-column: 2;
-}
-
-#map[hidden] {
+body.title #toggles {
   display: none;
 }
 
-#map.bump {
+.toggle[hidden] {
+  display: none;
+}
+
+#map.bump,
+#journal-btn.bump {
   animation: bump 0.35s ease-out 2;
 }
 
+/* Top right, level with the first menu button and just left of the column (a 44px button and a gap). */
+#purse {
+  position: fixed;
+  top: 14px;
+  right: 66px;
+  box-sizing: border-box;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 8px;
+  background: rgba(40, 24, 12, 0.8);
+  border: 3px solid #8f9098;
+  font: 11px/1 'Press Start 2P', monospace;
+  color: #e8eaf0;
+  pointer-events: none;
+}
+
+#purse[hidden] {
+  display: none;
+}
+
+#clock {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 9px;
+  background: rgba(40, 24, 12, 0.8);
+  border: 3px solid #e1a03c;
+  font: 11px/1 'Press Start 2P', monospace;
+  color: #f6e7c1;
+  white-space: pre;
+  pointer-events: none;
+}
+
+#clock img {
+  width: 22px;
+  height: 22px;
+  image-rendering: pixelated;
+}
+
+body.title #clock {
+  display: none;
+}
+
+#purse img,
+#trade img,
+#fishlog img {
+  image-rendering: pixelated;
+}
+
+.panel.log-panel {
+  width: min(640px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  align-items: stretch;
+}
+
+#fishlog-close,
+#trade-close {
+  align-self: center;
+}
+
+#fishlog-sum,
+#trade-purse {
+  margin: -6px 0 0;
+  font-size: 8px;
+  color: #c8b48a;
+  text-align: center;
+}
+
+#fishlog-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0 4px 0 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.fish {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(20, 24, 40, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.3);
+  text-align: center;
+}
+
+.fish.got {
+  border-color: rgba(225, 160, 60, 0.75);
+}
+
+.fish img {
+  height: 30px;
+  object-fit: contain;
+}
+
+.fish h3 {
+  margin: 0;
+  font: 9px/1.4 'Press Start 2P', monospace;
+  color: #ffd36b;
+}
+
+.fish p {
+  margin: 0;
+  font-size: 7px;
+  line-height: 1.6;
+  color: #c8b48a;
+}
+
+.fish p.tally {
+  color: #f6e7c1;
+}
+
+.panel.trade-panel {
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  align-items: stretch;
+}
+
+#trade-purse {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #e8eaf0;
+}
+
+.trade-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .trade-cols { grid-template-columns: 1fr; }
+}
+
+.trade-cols h3 {
+  margin: 0 0 8px;
+  font: 10px/1.4 'Press Start 2P', monospace;
+  color: #ffd36b;
+}
+
+.trade-cols ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trade-cols li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(20, 24, 40, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.3);
+  font-size: 8px;
+}
+
+.trade-cols li.none {
+  color: #c8b48a;
+  line-height: 1.6;
+}
+
+.trade-cols img {
+  width: 30px;
+  flex: none;
+}
+
+.trade-cols .what {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.trade-cols .what small {
+  font-size: 7px;
+  color: #c8b48a;
+}
+
+.trade-cols .price {
+  color: #e8eaf0;
+  white-space: nowrap;
+}
+
+.panel .trade-cols button {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 8px;
+}
+
+.panel .trade-cols button:disabled {
+  background: #6a5a44;
+  color: #3a2414;
+  cursor: not-allowed;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #map.bump { animation: none; }
+  #map.bump,
+  #journal-btn.bump { animation: none; }
+}
+
+#toast {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  transform: translate(-50%, -12px);
+  padding: 10px 16px;
+  background: rgba(40, 24, 12, 0.92);
+  color: #f6e7c1;
+  border: 3px solid #e1a03c;
+  font: 11px/1.5 'Press Start 2P', monospace;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#toast small {
+  display: block;
+  font-size: 8px;
+  color: #ffd36b;
+}
+
+body.title #toast {
+  display: none;
+}
+
+/* Below this width the clock would run into the inventory, so it drops a row and the toast with it. */
+@media (max-width: 960px) {
+  #clock { top: 76px; }
+  #toast { top: 128px; }
+}
+.journal-panel {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  align-items: stretch;
+}
+
+#journal-when {
+  margin: -6px 0 0;
+  font-size: 8px;
+  color: #c8b48a;
+  text-align: center;
+}
+
+#journal-list {
+  margin: 0;
+  padding: 0 4px 0 0;
+  list-style: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#journal-list ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quest {
+  padding: 10px 12px;
+  background: rgba(20, 24, 40, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.45);
+}
+
+.quest h3 {
+  margin: 0;
+  font: 10px/1.4 'Press Start 2P', monospace;
+  color: #ffd36b;
+}
+
+.quest.empty {
+  color: #c8b48a;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.quest.finished h3 {
+  color: #9ab08a;
+}
+
+.step {
+  position: relative;
+  padding-left: 18px;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.step::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #e1a03c;
+}
+
+.step.done {
+  color: rgba(246, 231, 193, 0.55);
+  text-decoration: line-through;
+}
+
+.step.done::before {
+  background: #7cf05a;
+  border-color: #7cf05a;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.panel button.continue {
+  margin-top: 0;
+  background: #7cf05a;
+}
+
+.panel button.continue:hover {
+  background: #b6ff98;
 }
 
 .map-panel {
@@ -140,16 +471,26 @@ body {
 }
 
 .toggle {
-  padding: 8px 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   background: rgba(20, 24, 40, 0.6);
-  color: #e8f4ff;
   border: 3px solid rgba(232, 244, 255, 0.35);
-  font: 9px/1 'Press Start 2P', monospace;
   cursor: pointer;
 }
 
-.toggle[aria-pressed='false'] {
-  color: rgba(232, 244, 255, 0.5);
+.toggle img {
+  image-rendering: pixelated;
+}
+
+.toggle:hover {
+  border-color: rgba(232, 244, 255, 0.7);
+}
+
+.toggle[aria-pressed='false'] img {
+  opacity: 0.45;
 }
 
 .toggle:focus-visible {
@@ -208,11 +549,20 @@ body {
   color: rgba(232, 244, 255, 0.5);
 }
 
-#inventory {
+/* Top left: the tool belt, with the backpack beside it on the same row. */
+#pack {
   position: fixed;
   top: 14px;
   left: 14px;
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  pointer-events: none;
+}
+
+#inventory {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 6), auto);
   gap: 6px;
   margin: 0;
   padding: 0;
@@ -239,7 +589,9 @@ body {
   background: rgba(40, 24, 12, 0.5);
   border-color: #8a6534;
 }
-#inventory li.primary {
+/* Only the one thing F works from is lit, and it wears a little F. */
+#inventory li.primary,
+#belt li.primary {
   border-color: #fff0a0;
   background: rgba(92, 56, 18, 0.9);
   box-shadow: 0 0 0 2px #3a2414, 0 0 10px 2px rgba(255, 211, 107, 0.55);
@@ -250,7 +602,8 @@ body {
   background: rgba(60, 36, 14, 0.7);
 }
 
-#inventory li b {
+#inventory li b,
+#belt li b {
   position: absolute;
   top: 2px;
   left: 3px;
@@ -260,13 +613,19 @@ body {
   pointer-events: none;
 }
 
-#inventory li.primary b {
+#inventory li i,
+#belt li i {
+  position: absolute;
   top: -9px;
-  left: -9px;
+  right: -9px;
+  z-index: 2;
   padding: 3px 4px;
+  font: 8px/1 'Press Start 2P', monospace;
+  font-style: normal;
   color: #3a2414;
   background: #ffd36b;
   border: 2px solid #3a2414;
+  pointer-events: none;
 }
 
 #inventory button {
@@ -315,10 +674,76 @@ body {
   #inventory .bump { animation: none; }
 }
 
-body.title #inventory,
-body.title #hint,
+#belt {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 6), auto);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#belt[hidden] {
+  display: none;
+}
+
+#belt li {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(20, 24, 40, 0.6);
+  border: 3px solid rgba(232, 244, 255, 0.3);
+  transition: border-color 0.15s, background 0.15s;
+  pointer-events: auto;
+}
+
+#belt button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+#belt button:hover {
+  background: rgba(255, 211, 107, 0.15);
+}
+
+#belt button:focus-visible {
+  outline: 2px solid #ffd36b;
+  outline-offset: 2px;
+}
+
+#belt img {
+  image-rendering: pixelated;
+}
+
+#belt span {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  font: 10px/1 'Press Start 2P', monospace;
+  color: #f6e7c1;
+  text-shadow: 2px 2px 0 #3a2414;
+}
+
+#belt .bump {
+  animation: bump 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #belt .bump { animation: none; }
+}
+
+body.title #pack,
+body.title #purse,
 body.title #chat,
-body.title #toggles,
 body.title #prompt {
   display: none;
 }

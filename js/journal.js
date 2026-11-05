@@ -1,0 +1,227 @@
+// The quest journal: each quest shows up once the player hears of it, and ticks off its steps as they happen.
+// Starts and steps are worked out from the game itself, then remembered so they stay ticked.
+
+const journal = { started: {}, done: {} };
+const npcBy = (id) => npcs.find((n) => n.look.id === id);
+const eggPast = (stage) => STAGES.indexOf(eggStage) >= STAGES.indexOf(stage);
+
+// `text` may be a function, for steps that count something.
+const QUESTS = [
+  {
+    id: 'backpack', title: 'Off You Go', start: () => true,
+    steps: [{ id: 'backpack', text: 'Pick up your backpack at home', done: () => has('backpack') }],
+  },
+  {
+    id: 'axe', title: 'Every Viking Needs an Axe', start: () => has('backpack'),
+    steps: [{ id: 'axe', text: 'Visit the smith at the forge', done: () => has('axe') }],
+  },
+  {
+    id: 'map', title: 'The Old Sea Map', start: () => npcBy('chief').tipTold > 0 || hasMap(),
+    steps: [{ id: 'map', text: 'Take the map from the wall of the great hall', done: hasMap }],
+  },
+  {
+    id: 'sheep', title: 'Runaway Sheep', start: () => flockAsked || flockDone,
+    steps: [{ id: 'sheep', text: () => `Herd the sheep back into the pen (${sheep.filter(inPen).length}/${sheep.length})`, done: () => flockDone }],
+  },
+  {
+    id: 'dog', title: 'Where\'s Fred?', start: () => dog.asked || dog.state !== 'lost',
+    steps: [
+      { id: 'dogFound', text: 'Find Fred in the forest past the west gate', done: () => dog.state !== 'lost' },
+      { id: 'dogHome', text: 'Carry him home to the girl in the village', done: () => dog.state === 'home' },
+    ],
+  },
+  {
+    id: 'iron', title: 'Iron from the Fire Mountain', start: () => dog.state === 'home' || has('iron') || has('pickaxe'),
+    steps: [
+      { id: 'pickaxe', text: 'Ask the smith for a pickaxe (2 wood, 1 iron)', done: () => has('pickaxe') },
+      { id: 'ore', text: 'Mine iron ore on the volcano isle', done: () => stats.ore > 0 },
+    ],
+  },
+  {
+    id: 'bow', title: 'A Bow of Your Own', start: () => npcBy('archer').tipTold > 0 || npcBy('weaver').tipTold > 0 || has('string') || has('bow'),
+    steps: [
+      { id: 'string', text: 'Bring wool to the weaver to spin into string', done: () => has('string') || has('bow') },
+      { id: 'bow', text: 'Ask the smith for a bow (1 wood, 1 string)', done: () => has('bow') },
+    ],
+  },
+  {
+    id: 'egg', title: 'The Dragon Egg', start: () => eggPast('carried') || POIS.find((p) => p.id === 'ruin').learned,
+    steps: [
+      { id: 'egg', text: 'Find the dragon egg at the ancient ruin', done: () => eggPast('carried') },
+      { id: 'hatch', text: 'Keep it warm by the village fire until it hatches', done: () => eggPast('hatched') },
+      { id: 'grow', text: 'Feed your dragon three fish from the open sea', done: () => eggPast('grown') },
+    ],
+  },
+  {
+    id: 'cook', title: 'A Hot Meal', start: () => npcBy('baker').tipTold > 0 || stats.cooked > 0,
+    steps: [
+      { id: 'cooked', text: 'Grill a fish or bake an apple over a fire', done: () => stats.cooked > 0 },
+      { id: 'ate', text: 'Eat it while it\'s hot', done: () => stats.ate > 0 },
+    ],
+  },
+  {
+    id: 'hunt', title: 'The Hunt', start: () => has('bow') || has('spear') || stats.hunted > 0,
+    steps: [
+      { id: 'hunted', text: 'Hunt a rabbit, deer or boar for meat. Deer graze in the western forest', done: () => stats.hunted > 0 },
+      { id: 'roasted', text: 'Roast the meat over a fire', done: () => stats.roasted > 0 },
+      { id: 'boar', text: 'Bring down a wild boar. Raise a shield as it charges and it bounces off!', done: () => stats.boar > 0 },
+    ],
+  },
+  {
+    id: 'fishlog', title: 'Fill the Fish Log', start: () => has('fishLog'),
+    steps: [{ id: 'fishlog', text: () => `Catch every kind of fish (${kindsCaught()}/${FISH_IDS.length}). Press L to read the log`, done: () => kindsCaught() >= FISH_IDS.length }],
+  },
+  {
+    id: 'trade', title: 'The Travelling Merchant', start: () => merchant.state !== 'away' || stats.sold > 0,
+    steps: [
+      { id: 'sold', text: () => `Sell something to Ottar${merchantHere() ? ', on the beach by his ship' : ' (his ship docks every third day)'}`, done: () => stats.sold > 0 },
+      { id: 'bought', text: 'Buy something with your silver', done: () => stats.bought > 0 },
+    ],
+  },
+  {
+    id: 'fletch', title: 'Feathers and Fletching', start: () => archery.intro || has('feather'),
+    steps: [
+      { id: 'feather', text: 'Chase a hen in the farmyard until she drops a feather', done: () => has('feather') || stats.fletched > 0 },
+      { id: 'fletch', text: 'Ask the archer for arrows (1 wood, 1 stone, 1 feather)', done: () => stats.fletched > 0 },
+    ],
+  },
+  {
+    id: 'archery', title: 'The Archer\'s Challenges', start: () => archery.active || archery.stage > 0,
+    steps: CHALLENGES.map((c, i) => ({
+      id: `archery${i}`, text: () => `${c.title}${archery.active && archery.stage === i && c.progress ? c.progress() : ''}`, done: () => archery.stage > i,
+    })),
+  },
+  {
+    id: 'cave', title: 'The Ice Cave', start: () => POIS.find((p) => p.id === 'cave').learned || stats.caves > 0,
+    steps: [
+      { id: 'caveFound', text: 'Find the ice cave on the frozen isle', done: () => stats.caves > 0 },
+      { id: 'torch', text: 'Get a torch: the smith makes one from 1 wood and 1 wool', done: () => has('torch') },
+      { id: 'caveEnd', text: 'Find what waits at the far end of the cave', done: () => eggs.find((e) => e.species === 'lightFury').state !== 'wild' },
+    ],
+  },
+];
+
+const questDone = (q) => q.steps.every((s) => journal.done[s.id]);
+const stepText = (s) => (typeof s.text === 'function' ? s.text() : s.text);
+
+let journalT = 0;
+
+function updateJournal(dt) {
+  if (!started || (journalT -= dt) > 0) return;
+  journalT = 0.5;
+  for (const q of QUESTS) {
+    if (!journal.started[q.id]) {
+      if (!q.start()) continue;
+      journal.started[q.id] = true;
+      toast('NEW QUEST', q.title);
+    }
+    const was = questDone(q);
+    for (const s of q.steps) if (!journal.done[s.id] && s.done()) journal.done[s.id] = true;
+    if (!was && questDone(q)) toast('QUEST COMPLETE', q.title);
+  }
+  if (journalOpen) renderJournal();
+}
+
+// ---------- toasts ----------
+
+const toastEl = document.getElementById('toast');
+const toasts = [];
+let toastTimer = null;
+
+function toast(kind, text) {
+  toasts.push([kind, text]);
+  if (!toastTimer) nextToast();
+  if (has('backpack')) flashJournalButton();
+}
+
+function nextToast() {
+  const t = toasts.shift();
+  toastEl.classList.toggle('show', !!t);
+  if (!t) {
+    toastTimer = null;
+    return;
+  }
+  toastEl.replaceChildren(Object.assign(document.createElement('small'), { textContent: t[0] }), document.createTextNode(t[1]));
+  toastTimer = setTimeout(nextToast, 3200);
+}
+
+// ---------- the journal screen ----------
+
+const journalBtn = document.getElementById('journal-btn');
+const journalEl = document.getElementById('journal');
+const journalWhen = document.getElementById('journal-when');
+const journalList = document.getElementById('journal-list');
+const journalClose = document.getElementById('journal-close');
+let journalOpen = false;
+
+function flashJournalButton() {
+  journalBtn.classList.remove('bump');
+  void journalBtn.offsetWidth;
+  journalBtn.classList.add('bump');
+}
+
+function weatherName() {
+  if (snowy) return 'Snow';
+  return WEATHER[weather.level > 0.4 ? weather.kind : weather.want === weather.kind ? weather.kind : 'clear'].name;
+}
+
+// Quests in progress come first, each with its finished steps ticked and only the next one still to do.
+function renderJournal() {
+  journalWhen.textContent = `DAY ${dayCount}  ·  ${timeOfDay().toUpperCase()}  ·  ${weatherName().toUpperCase()}`;
+  const open = QUESTS.filter((q) => journal.started[q.id] && !questDone(q));
+  const done = QUESTS.filter((q) => journal.started[q.id] && questDone(q));
+  const items = [];
+  for (const q of open) {
+    const li = document.createElement('li');
+    li.className = 'quest';
+    li.append(Object.assign(document.createElement('h3'), { textContent: q.title }));
+    const steps = document.createElement('ul');
+    for (const s of q.steps) {
+      const fin = !!journal.done[s.id];
+      const step = document.createElement('li');
+      step.className = fin ? 'step done' : 'step';
+      step.textContent = stepText(s);
+      if (fin) step.prepend(Object.assign(document.createElement('span'), { className: 'sr', textContent: 'Done: ' }));
+      steps.append(step);
+      if (!fin) break;
+    }
+    li.append(steps);
+    items.push(li);
+  }
+  if (!open.length) items.push(Object.assign(document.createElement('li'), { className: 'quest empty', textContent: 'Nothing to do right now. Go and explore, or talk to the villagers!' }));
+  if (done.length) {
+    const li = document.createElement('li');
+    li.className = 'quest finished';
+    li.append(Object.assign(document.createElement('h3'), { textContent: `COMPLETED (${done.length})` }));
+    const list = document.createElement('ul');
+    for (const q of done) list.append(Object.assign(document.createElement('li'), { className: 'step done', textContent: q.title }));
+    li.append(list);
+    items.push(li);
+  }
+  journalList.replaceChildren(...items);
+}
+
+function toggleJournal(open = !journalOpen) {
+  if (open && (!has('backpack') || naming || mapOpen)) return;
+  journalOpen = open;
+  journalEl.hidden = !open;
+  journalBtn.setAttribute('aria-expanded', String(open));
+  keys.clear();
+  if (open) {
+    Sfx.door();
+    renderJournal();
+    journalClose.focus();
+  } else {
+    journalBtn.blur();
+  }
+}
+
+journalBtn.addEventListener('click', () => toggleJournal());
+journalClose.addEventListener('click', () => toggleJournal(false));
+journalEl.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' && e.code !== 'KeyJ') return;
+  e.preventDefault();
+  e.stopPropagation();
+  toggleJournal(false);
+});
+journalEl.addEventListener('pointerdown', (e) => { if (e.target === journalEl) toggleJournal(false); });
