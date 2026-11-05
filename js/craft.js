@@ -22,6 +22,7 @@ const ITEMS = {
   fish: { name: 'Fish', stack: true },
   pickaxe: { name: 'Pickaxe' },
   iron: { name: 'Iron', stack: true },
+  string: { name: 'String', stack: true },
 };
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 
@@ -37,7 +38,7 @@ const RECIPES = [
     done: 'One hammer. Try not to hit your thumb.',
   },
   {
-    item: 'bow', maker: 'smith', words: /\bbows?\b/, time: 2, needs: { wood: 3 },
+    item: 'bow', maker: 'smith', words: /\bbows?\b/, time: 2, needs: { wood: 1, string: 1 },
     done: 'A fine bow! The archer will be jealous.',
   },
   {
@@ -58,7 +59,18 @@ const RECIPES = [
   },
 ];
 
-const IRON_HINT = 'Iron comes from the ore on the volcano isle, north of here. Crack it with a hammer.';
+// Where the smith sends you for iron. A pickaxe needs iron to make, so the first lump comes from the dog's owner;
+// if that's been spent on something else, the smith spares one scrap so the player can't get stuck.
+function ironHint(n) {
+  if (has('pickaxe')) return 'Iron ore lies on the volcano isle, north of here. Your pickaxe will crack it.';
+  if (dog.state !== 'home') return 'Ore needs a pickaxe, and a pickaxe needs iron. That girl by the square lost her dog, and her papa mines iron. Help her out.';
+  if (n.scrapGiven) return 'Iron ore lies on the volcano isle, north of here. Make yourself a pickaxe first, mind.';
+  n.scrapGiven = true;
+  give('iron');
+  popIcon('iron', player.x, player.y - 30);
+  Sfx.reward();
+  return 'No pickaxe and no iron? Here, a scrap from my own pile. Make a pickaxe with it this time!';
+}
 
 const bag = {};
 const has = (item) => (bag[item] || 0) > 0;
@@ -203,6 +215,8 @@ function dropItem(id) {
   if (!has(id) || !started || naming || flight || sail || hop || player.swimming) return;
   bag[id]--;
   renderInventory();
+  const fire = id === 'wood' && fireNear(player.x, player.y);
+  if (fire) return tossLog(fire);
   const [vx, vy] = DIR_VEC[player.dir];
   const x = player.x + vx * 12;
   const y = player.y + vy * 10 + 2;
@@ -254,11 +268,33 @@ function updateDrops(dt) {
     if (d.z > 0) continue;
     d.z = 0;
     d.vz = 0;
-    if (d.thrown && d.y < MAP_H * TILE && tileAt(Math.floor(d.x / TILE), Math.floor(d.y / TILE)) === T.WATER) {
+    if (d.fuel) {
       drops.splice(i, 1);
-      seaSplash(d.x, d.y, 0.4);
-      Sfx.splash(0.3 * earshot(d.x, d.y));
+      stoke(d.fuel);
+    } else if (d.thrown && d.y < MAP_H * TILE && tileAt(Math.floor(d.x / TILE), Math.floor(d.y / TILE)) === T.WATER) {
+      // a fast stone skips off the surface a few times, each hop lower and shorter, then sinks
+      const sp = Math.hypot(d.vx, d.vy || 0);
+      if (sp > 40 && (d.skips = (d.skips || 0) + 1) <= 4) {
+        const k = 0.72 ** d.skips;
+        Object.assign(d, { vz: 75 * k, vx: d.vx * 0.75, vy: (d.vy || 0) * 0.75 });
+        skipRipple(d.x, d.y);
+        Sfx.plip(earshot(d.x, d.y), d.skips);
+      } else {
+        drops.splice(i, 1);
+        seaSplash(d.x, d.y, 0.4);
+        Sfx.splash(0.3 * earshot(d.x, d.y));
+      }
     }
+  }
+}
+
+function skipRipple(x, y) {
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    particles.push({ type: 'wake', layer: 'water', x, y, vx: Math.cos(a) * 10, vy: Math.sin(a) * 4, life: 0, max: 0.7 });
+  }
+  for (let i = 0; i < 3; i++) {
+    particles.push({ type: 'drop', x: x + (Math.random() - 0.5) * 4, y, vx: (Math.random() - 0.5) * 20, vy: -25 - Math.random() * 20, life: 0, max: 0.35 });
   }
 }
 
@@ -293,7 +329,8 @@ function askCraft(n, text) {
   else if (!has('backpack')) npcSay(n, 'And carry it how, {lad}? Fetch your backpack first.');
   else if (needs.length && !has('axe')) npcSay(n, `A ${name}? All in good time, {lad}. Start with an axe.`);
   else if (shortN) {
-    const hint = short.iron && !has('iron') ? ` ${IRON_HINT}` : '';
+    let hint = short.iron && !has('iron') ? ` ${ironHint(n)}` : '';
+    if (short.string && !has('string')) hint += ' String comes from the weaver. She spins it from wool.';
     if (shortN === needs.length) npcSay(n, `A ${name}? Get me ${listNeeds(r.needs)} and I'll make you one.${hint}`);
     else npcSay(n, `A ${name} takes ${listNeeds(r.needs)}. You're still short ${listNeeds(short)}.${hint}`);
   }
@@ -304,6 +341,21 @@ function askCraft(n, text) {
     npcSay(n, r.start || `${listNeeds(r.needs)}, that'll do. One ${name}, coming up!`);
     startCraft(n, r);
   }
+  return true;
+}
+
+// The weaver spins whatever wool the player brings into string, one length per wool.
+function spinWool(n) {
+  if (n.look.id !== 'weaver' || !has('wool')) return false;
+  const k = bag.wool;
+  bag.wool = 0;
+  give('string', k);
+  npcSay(n, k === 1
+    ? 'Ooh, lovely wool! A twist here, a twist there... One length of string for you. Just right for a bowstring!'
+    : `Ooh, lovely wool! A twist here, a twist there... ${k} lengths of string for you. Just right for bowstrings!`);
+  faceToward(n, player.x - n.x, player.y - n.y);
+  popIcon('string', player.x, player.y - 30);
+  Sfx.reward();
   return true;
 }
 
@@ -424,11 +476,12 @@ function initCrafting() {
 }
 
 // Iron ore deposits on the volcano isle's black rock, clear of lava and of each other.
+let ores = [];
 function placeOre() {
   const isl = ISLANDS.find((i) => i.id === 'volcano');
   if (!isl) return;
   const rng = mulberry32(57);
-  const placed = [];
+  const placed = ores;
   const ash = (x, y) => tileAt(Math.floor(x), Math.floor(y)) === T.ASH;
   for (let i = 0; i < 3000 && placed.length < 8; i++) {
     const a = rng() * Math.PI * 2;
@@ -478,12 +531,15 @@ const TOOL_HITS = {
   axe: ['tree', 'stump', 'barrel', 'bush', 'fence', 'target'],
   sword: ['bush', 'barrel', 'target'],
   spear: ['bush', 'target'],
-  hammer: ['ore'],
+  hammer: [],
   pickaxe: ['ore', 'boulder'],
 };
 const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2' };
 
-const canUseTool = () => !flight && !sail && !hop && !carried && !player.swimming && grounded();
+const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded();
+// The rod is the one tool that also works from the deck, once the ship has all but stopped.
+const shipStill = () => Math.hypot(sail.vx, sail.vy) < 20;
+const canCast = () => (sail ? !hop && !carrying() && shipStill() : canUseTool());
 const mendable = (o) => o.broken && o.axe === 'fence' && !o.mendNow;
 
 function nearTarget(tool = primary()) {
@@ -499,10 +555,10 @@ function nearTarget(tool = primary()) {
   return best;
 }
 
-// F: uses whatever is in the first slot. At sea it sends the young dragon fishing instead.
+// F: uses whatever is in the first slot. At sea it casts the rod, or else sends the young dragon fishing.
 function useTool() {
   if (hop || fade || naming) return;
-  if (sail) return sendFishing();
+  if (sail) return primary() === 'rod' && (player.fishing || castSpot()) ? useRod() : sendFishing();
   const id = primary();
   if (!id || !canUseTool()) return;
   if (id === 'rod') return useRod();
@@ -512,6 +568,7 @@ function useTool() {
   else if (id === 'shield') raiseShield();
   else if (EDIBLE[id]) eat(id);
   else if (id === 'stone') throwStone();
+  else if (id === 'wood' && fireNear(player.x, player.y)) dropItem('wood');
 }
 
 function swing(tool, o) {
@@ -535,24 +592,36 @@ function toolHit(c) {
 function toolHint() {
   const f = player.fishing;
   if (f) return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}   ·   F  Reel in`;
+  if (sail) return has('rod') && castSpot() ? (primary() === 'rod' ? 'F  Cast your line' : `${slots.indexOf('rod') + 1}  Ready the ${ITEMS.rod.name.toLowerCase()}`) : '';
   if (!canUseTool()) return '';
   const id = primary();
   if (id === 'rod' && castSpot()) return 'F  Cast your line';
   const o = nearTarget(id);
   if (o) return `F  ${mendable(o) ? 'Mend the fence' : AXE[kindOf(o)].prompt}`;
+  if (has('wood') && fireNear(player.x, player.y)) return id === 'wood' ? 'F  Throw wood on the fire' : `${slots.indexOf('wood') + 1}  Ready some wood for the fire`;
   for (const t of ['axe', 'pickaxe', 'hammer', 'rod']) {
     if (t !== id && has(t) && (t === 'rod' ? castSpot() : nearTarget(t))) return `${slots.indexOf(t) + 1}  Ready the ${ITEMS[t].name.toLowerCase()}`;
   }
+  if (!has('pickaxe') && ores.some((o) => kindOf(o) === 'ore' && boxDist(o.col) < 9)) return 'Iron ore. You need a pickaxe to mine it';
   return '';
 }
 
 // ---------- fishing ----------
 
+// From the deck the bobber goes over the near gunwale, a little ahead of the rider; offsets are from the ship's waterline point.
+const BOAT_CAST = { right: [-2, 14], left: [2, 14], down: [32, -8], up: [32, -30], ne: [16, 4], nw: [-16, 4], se: [44, 8], sw: [-44, 8] };
+
 // Where the bobber lands: the first water in front of the player.
 function castSpot() {
-  if (indoors || !canUseTool()) return null;
-  const [vx, vy] = DIR_VEC[player.dir];
+  if (indoors || !canCast()) return null;
   const water = (x, y) => tileAt(Math.floor(x / TILE), Math.floor(y / TILE)) === T.WATER;
+  if (sail) {
+    const [dx, dy] = BOAT_CAST[shipObj.facing];
+    const x = shipObj.x + dx;
+    const y = shipObj.y + dy;
+    return water(x, y) ? [x, y] : null;
+  }
+  const [vx, vy] = DIR_VEC[player.dir];
   for (let d = 12; d <= 44; d += 4) {
     const x = player.x + vx * d;
     const y = player.y - 3 + vy * d;
@@ -568,7 +637,8 @@ function useRod() {
     player.fishing = null;
     if (!f.biting) return Sfx.swish(0.6);
     give('fish');
-    popIcon('fish', player.x, player.y - 30);
+    const [hx, hy] = headPos();
+    popIcon('fish', hx, hy - 6);
     Sfx.splash(0.4);
     Sfx.reward();
     return;
@@ -576,15 +646,21 @@ function useRod() {
   const spot = castSpot();
   if (!spot) return;
   const [x, y] = spot;
-  const school = seaLife.schools.some((s) => s.fish.length && Math.hypot(s.x - x, s.y - y) < 90);
-  player.fishing = { x, y, px: player.x, py: player.y, t: 0, bite: (school ? 0.8 : 2) + Math.random() * (school ? 1.5 : 3), missT: 0 };
+  player.fishing = { x, y, px: player.x, py: player.y, boat: !!sail, t: 0, bite: biteWait(x, y), missT: 0 };
   Sfx.swish();
+}
+
+// Seconds until the next nibble; a school nearby bites much sooner.
+function biteWait(x, y) {
+  const school = seaLife.schools.some((s) => s.fish.length && Math.hypot(s.x - x, s.y - y) < 90);
+  return (school ? 0.8 : 2) + Math.random() * (school ? 1.5 : 3);
 }
 
 function updateFishing(dt) {
   const f = player.fishing;
   if (!f) return;
-  if (Math.hypot(player.x - f.px, player.y - f.py) > 0.5 || primary() !== 'rod' || !canUseTool()) {
+  const moved = f.boat ? !sail || !shipStill() || Math.hypot(player.x - f.px, player.y - f.py) > 12 : Math.hypot(player.x - f.px, player.y - f.py) > 0.5;
+  if (moved || primary() !== 'rod' || !canCast()) {
     player.fishing = null;
     return;
   }
@@ -592,7 +668,7 @@ function updateFishing(dt) {
   f.missT -= dt;
   if (f.biting) {
     if ((f.biteT += dt) < 0.9) return;
-    Object.assign(f, { biting: false, missT: 1.5, bite: f.t + 2 + Math.random() * 3 });
+    Object.assign(f, { biting: false, missT: 1.5, bite: f.t + biteWait(f.x, f.y) });
   } else if (f.t >= f.bite) {
     Object.assign(f, { biting: true, biteT: 0 });
     Sfx.splash(0.2);
@@ -925,16 +1001,16 @@ function drawHeld(e, img, x, top) {
 // Hand and rod tip, relative to the sprite's top centre.
 const ROD = { right: [5, 13, 16, 1], left: [-5, 13, -16, 1], down: [4, 14, 8, 25], up: [4, 12, 7, -3] };
 
-function drawFishingLine(e, x, top) {
+// (rx, ry) is where the bobber floats on screen; by default measured from the angler's feet.
+function drawFishingLine(e, x, top, rx = x + e.fishing.x - e.x, ry = top + 20 + e.fishing.y - e.y) {
   const f = e.fishing;
   const [hx, hy, tx, ty] = ROD[e.dir];
   line(ctx, x + hx, top + hy, x + tx, top + ty, PAL.woodDark, 2);
   line(ctx, x + hx, top + hy, x + tx, top + ty, PAL.woodLight);
   const u = Math.min(1, f.t / 0.3);
-  const feet = top + 20;
-  const bx = Math.round(x + tx + (f.x - e.x - tx) * u);
+  const bx = Math.round(x + tx + (rx - x - tx) * u);
   const dip = f.biting ? 1 + Math.round(Math.sin(time * 30)) : Math.round(Math.sin(time * 4));
-  const by = Math.round(top + ty + (feet + f.y - e.y - top - ty) * u - Math.sin(u * Math.PI) * 10) + (u === 1 ? dip : 0);
+  const by = Math.round(top + ty + (ry - top - ty) * u - Math.sin(u * Math.PI) * 10) + (u === 1 ? dip : 0);
   const mx = (x + tx + bx) / 2;
   const my = (top + ty + by) / 2 + (u === 1 ? 4 : 0);
   ctx.globalAlpha = 0.8;

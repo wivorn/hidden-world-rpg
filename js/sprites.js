@@ -1538,6 +1538,19 @@ function buildPickaxe() {
   });
 }
 
+function buildString() {
+  return sprite(14, 14, (g) => {
+    rect(g, 2, 1, 9, 2, PAL.wood);
+    rect(g, 2, 11, 9, 2, PAL.wood);
+    rect(g, 2, 1, 9, 1, PAL.woodLight);
+    rect(g, 3, 3, 7, 8, '#e8dcc0');
+    for (let y = 4; y <= 10; y += 2) line(g, 3, y, 9, y - 1, '#b8a888');
+    rect(g, 4, 3, 1, 8, '#fff8e8');
+    line(g, 10, 6, 12, 9, '#e8dcc0');
+    line(g, 12, 9, 11, 12, '#e8dcc0');
+  });
+}
+
 function buildIron() {
   return sprite(13, 9, (g) => {
     poly(g, [[3, 1], [10, 1], [12, 7], [1, 7]], '#7a7f8c');
@@ -1568,6 +1581,59 @@ function buildOre(spent) {
     for (const [x, y] of [[5, 9], [10, 5], [13, 7], [16, 9], [18, 8], [13, 11]]) px(g, x, y, '#e8964e');
     for (const [x, y] of [[7, 7], [12, 6], [15, 10]]) rect(g, x, y, 2, 2, '#f4c890');
     for (const [x, y] of [[7, 7], [12, 6], [17, 9]]) px(g, x, y, '#ffffff');
+  });
+}
+
+const DOG = { fur: '#c8955a', dark: '#9a6a3a', light: '#ecd2a4', ear: '#7a4a28', nose: '#22160f' };
+
+// Facing right: two trotting frames, then two sitting frames with the tail swishing.
+function buildDog() {
+  const head = (g, x, y) => {
+    rect(g, x, y, 5, 5, DOG.fur);
+    rect(g, x + 4, y + 2, 3, 3, DOG.light);
+    px(g, x + 6, y + 2, DOG.nose);
+    px(g, x + 2, y + 1, DOG.nose);
+    rect(g, x, y, 2, 4, DOG.ear);
+    rect(g, x, y + 5, 3, 1, PAL.red);
+  };
+  const walk = (f) => sprite(18, 13, (g) => {
+    line(g, f ? 1 : 2, f ? 4 : 2, 4, 5, DOG.fur);
+    rect(g, f ? 7 : 6, 9, 1, 2, DOG.dark);
+    rect(g, f ? 10 : 12, 9, 1, 2, DOG.dark);
+    rect(g, 4, 5, 9, 4, DOG.fur);
+    rect(g, 5, 8, 7, 1, DOG.light);
+    rect(g, f ? 4 : 5, 9, 2, 3, DOG.fur);
+    rect(g, f ? 12 : 11, 9, 2, 3, DOG.fur);
+    head(g, 11, 1);
+  });
+  const sit = (f) => sprite(18, 13, (g) => {
+    line(g, 1, f ? 12 : 9, 4, 11, DOG.fur);
+    ellipse(g, 7, 9.5, 3.5, 2.5, DOG.fur);
+    rect(g, 9, 5, 4, 6, DOG.fur);
+    rect(g, 10, 6, 2, 4, DOG.light);
+    rect(g, 4, 11, 4, 1, DOG.dark);
+    rect(g, 11, 9, 2, 3, DOG.fur);
+    head(g, 10, 0);
+  });
+  const right = [walk(0), walk(1), sit(0), sit(1)];
+  return { right, left: right.map(mirror) };
+}
+
+// Front view, paws dangling, for carrying overhead.
+function buildDogHeld() {
+  return sprite(12, 13, (g) => {
+    rect(g, 1, 1, 2, 5, DOG.ear);
+    rect(g, 9, 1, 2, 5, DOG.ear);
+    rect(g, 3, 0, 6, 6, DOG.fur);
+    rect(g, 4, 3, 4, 3, DOG.light);
+    rect(g, 5, 3, 2, 1, DOG.nose);
+    px(g, 4, 2, DOG.nose);
+    px(g, 7, 2, DOG.nose);
+    rect(g, 3, 6, 6, 1, PAL.red);
+    rect(g, 3, 7, 6, 4, DOG.fur);
+    rect(g, 5, 7, 2, 3, DOG.light);
+    rect(g, 3, 11, 2, 2, DOG.fur);
+    rect(g, 7, 11, 2, 2, DOG.fur);
   });
 }
 
@@ -2458,7 +2524,7 @@ function buildSprites() {
     apple: buildApple(), pear: buildPear(), banana: buildBanana(), pineapple: buildPineapple(),
     berries: buildBerries(), coconut: buildCoconut(), stone: buildPebble(), wool: buildWool(),
     hammer: buildHammer(), bow: buildBow(), sword: buildSword(), shield: buildShield(), spear: buildSpear(),
-    rod: buildRod(), fish: buildFish(), pickaxe: buildPickaxe(), iron: buildIron(),
+    rod: buildRod(), fish: buildFish(), pickaxe: buildPickaxe(), iron: buildIron(), string: buildString(),
   };
   SPR.held = { axe: SPR.axe, sword: buildHeldSword(), hammer: buildHeldHammer(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe() };
   def('ore', { img: buildOre(false), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 } });
@@ -2497,7 +2563,7 @@ function buildSprites() {
   def('torch', { frames: buildTorchFrames(), fps: 9, foot: { w: 4, h: 3 }, light: { dx: 0, dy: -22, r: 28, color: '#ffa040' } });
   def('bonfire', {
     frames: buildBonfireFrames(), fps: 10, foot: { w: 28, h: 9 },
-    light: { dx: 0, dy: -10, r: 72, color: '#ff9a3a' },
+    light: { dx: 0, dy: -10, r: 72, color: '#ff9a3a' }, after: (g, x, y, t, o) => drawBlaze(g, x, y, t, o),
   });
   SPR.flyDragon = {};
   SPR.heldEgg = {};
@@ -2549,6 +2615,8 @@ function buildSprites() {
   def('iceCrystal', { img: buildIceCrystal(), foot: { w: 14, h: 4 }, light: { dx: 0, dy: -12, r: 16, color: '#9fdcff' } });
   def('scarecrow', { img: buildScarecrow(), foot: { w: 4, h: 3 } });
   SPR.sheep = buildSheep();
+  SPR.dog = buildDog();
+  SPR.dogHeld = buildDogHeld();
 
   const side = buildShip();
   const ne = buildShipDiagonal(false);

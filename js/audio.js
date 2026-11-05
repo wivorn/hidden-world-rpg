@@ -215,6 +215,31 @@ const Sfx = (() => {
         tone({ type: 'sawtooth', f0: f * a, f1: f * b * (1 - i * 0.02), dur: 0.08, vol: 0.035 * k, delay: i * 0.065, attack: 0.02 });
       }
     },
+    plip(k = 1, n = 1) {
+      const f = 1500 + n * 220;
+      tone({ f0: f, f1: f * 1.5, dur: 0.05, vol: 0.07 * k });
+      noise({ dur: 0.06, vol: 0.08 * k, f0: 3500, type: 'highpass' });
+    },
+    sealion(k = 1) {
+      for (let i = 0; i < 3; i++) {
+        tone({ type: 'sawtooth', f0: rand(260, 300), f1: rand(170, 200), dur: 0.12, vol: 0.05 * k, delay: i * 0.22, attack: 0.02 });
+        noise({ dur: 0.1, vol: 0.05 * k, f0: 700, type: 'bandpass', delay: i * 0.22 });
+      }
+    },
+    orca(k = 1) {
+      tone({ f0: rand(900, 1100), f1: rand(1700, 2000), dur: 0.25, vol: 0.04 * k, attack: 0.04 });
+      tone({ f0: 1800, f1: 800, dur: 0.3, vol: 0.035 * k, delay: 0.26, attack: 0.03 });
+    },
+    bark(k = 1) {
+      for (let i = 0; i < 2; i++) {
+        tone({ type: 'square', f0: rand(620, 700), f1: rand(330, 380), dur: 0.07, vol: 0.05 * k, delay: i * 0.17 });
+        noise({ dur: 0.05, vol: 0.06 * k, f0: 1400, type: 'bandpass', delay: i * 0.17 });
+      }
+    },
+    stoke(k = 1) {
+      noise({ dur: 0.5, vol: 0.16 * k, f0: 500, f1: 1800, type: 'lowpass', attack: 0.06 });
+      for (let i = 0; i < 4; i++) noise({ dur: 0.03, vol: 0.12 * k, f0: 3000, type: 'highpass', delay: 0.1 + Math.random() * 0.4 });
+    },
     babble(pitch, text, k = 1) {
       const n = Math.min(12, Math.max(2, Math.round(text.length / 3)));
       for (let i = 0; i < n; i++) {

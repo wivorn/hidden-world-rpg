@@ -263,9 +263,9 @@ function villageTerrain() {
     for (let x = 22; x < 139; x++) if (lt(x, y) === T.GRASS && y < mtnEdge(x)) ls(x, y, T.MOUNT);
   }
   inBlob(66, 10, 11, 6.5, 22, 0.5, (x, y) => { if (lt(x, y) !== T.WATER) ls(x, y, T.SNOW); });
-  for (let y = 12; y < 36; y++) {
+  for (let y = 12; y < 42; y++) {
     for (let x = 56; x < 72; x++) {
-      if (Math.abs(x + 0.5 - passX(y)) < 1.7 && lt(x, y) === T.MOUNT) ls(x, y, y < 21 ? T.SNOW : T.ROCK);
+      if (Math.abs(x + 0.5 - passX(y)) < 1.7 + Math.max(0, y - 26) * 0.35 && lt(x, y) === T.MOUNT) ls(x, y, y < 21 ? T.SNOW : T.ROCK);
     }
   }
   inBlob(70, 9.5, 4.5, 2.2, 23, 0.4, (x, y) => { if (lt(x, y) === T.SNOW) ls(x, y, T.ICE); });
@@ -1238,7 +1238,7 @@ const VILLAGE_NPCS = [
   },
   {
     look: 'fisher', x: 80, y: 99.5, roam: 2,
-    lines: ['She\'s yours to sail. Mind the rocks!', 'Hold Shift for full sail!', 'The deep water is where the big fish hide.', 'Sail north-east and you\'ll find an old hermit.', 'Due north a volcano smokes day and night. Far to the north-west lies a frozen isle.', 'South-east, a long way out, there\'s a jungle isle with palms as tall as masts.'],
+    lines: ['She\'s yours to sail. Fair winds!', 'Hold Shift for full sail!', 'The deep water is where the big fish hide.', 'Sail north-east and you\'ll find an old hermit.', 'Due north a volcano smokes day and night. Far to the north-west lies a frozen isle.', 'South-east, a long way out, there\'s a jungle isle with palms as tall as masts.'],
   },
 ];
 
@@ -1260,10 +1260,11 @@ const NPCS = [
 function xy([x, y]) { return { x, y }; }
 
 // Sheep wander inside the pen's fences, but they start out scattered round it.
-const PEN = { x0: (112.2 + OX) * TILE, y0: (53.2 + OY) * TILE, x1: (119.4 + OX) * TILE, y1: (56.6 + OY) * TILE };
+// Everything inside the fence lines; a sheep is in once its feet are past the south rail's collider.
+const PEN = { x0: (111.25 + OX) * TILE, y0: (52 + OY) * TILE, x1: (120.25 + OX) * TILE, y1: (56.75 + OY) * TILE };
 const SHEEP = [[122, 54], [117.5, 59.8], [108.5, 58.2], [122.5, 57.8]].map(([x, y]) => ({ x: x + OX, y: y + OY }));
 // The broken stretch of the pen's south fence the sheep got out through.
-const PEN_GAP = [114, 115, 116];
+const PEN_GAP = [115];
 
 const PLAZA = { x: 78.5 + OX, y: 64 + OY };
 const PLAYER_START = xy(roomSpot(ROOMS.home, 3.5, 4.2));
@@ -1332,9 +1333,11 @@ function placeObjects() {
     addObj('fenceH', x + 0.5, 52).pen = true;
     Object.assign(addObj('fenceH', x + 0.5, 57), { pen: true, gap: PEN_GAP.includes(x) });
   }
-  addObj('post', 120.25, 52);
-  addObj('post', 120.25, 57);
-  for (let y = 52; y <= 55; y++) {
+  for (const x of [111.25, 120.25]) {
+    addObj('post', x, 52);
+    addObj('post', x, 57);
+  }
+  for (let y = 52; y <= 56; y++) {
     addObj('fenceV', 111.25, y + 1).pen = true;
     addObj('fenceV', 120.25, y + 1).pen = true;
   }
@@ -1392,18 +1395,6 @@ function placeObjects() {
 
   placeIslands();
   placePeaks();
-
-  // sea rocks, kept clear of shores and the ship's mooring
-  const seaRng = mulberry32(77);
-  const rocks = [];
-  for (let i = 0; i < 20000 && rocks.length < 110; i++) {
-    const tx = Math.floor(seaRng() * MAP_W);
-    const ty = Math.floor(seaRng() * MAP_H);
-    if (seaDist[ty * MAP_W + tx] < 5 || Math.hypot(tx - (OX + 85.6), ty - (OY + 102.5)) < 14) continue;
-    if (rocks.some(([x, y]) => Math.hypot(x - tx, y - ty) < 9)) continue;
-    addAbs('rock', tx + 0.5, ty + 1);
-    rocks.push([tx, ty]);
-  }
 
   // trees
   homes = NPCS.map((n) => [n.x, n.y]).concat([[PLAZA.x, PLAZA.y]], SHEEP.map((s) => [s.x, s.y]));

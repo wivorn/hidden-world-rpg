@@ -27,7 +27,6 @@ buildColliders();
 initGround();
 const shipObj = objects.find((o) => o.key === 'ship');
 shipObj.facing = shipObj.dir;
-const seaRocks = objects.filter((o) => o.key === 'rock');
 // state: wild, carried, warming or hatched
 const eggs = objects.filter((o) => o.species).map((o) => Object.assign(o, { state: 'wild', crack: 0, hatchT: 0 }));
 const villageFire = objects.find((o) => o.key === 'bonfire');
@@ -270,7 +269,7 @@ function strokeSplash(side) {
 
 function updateSwim(dt) {
   const [ix, iy] = readInput();
-  player.sprinting = !!(ix || iy) && boosting() && !carried;
+  player.sprinting = !!(ix || iy) && boosting() && !carrying();
   if (!ix && !iy) {
     player.frame = 0;
     return;
@@ -485,9 +484,31 @@ function nearNpc() {
 function talk() {
   const best = nearNpc();
   if (!best) return false;
-  if (!welcomeGift(best)) npcSay(best, nextLine(best));
+  if (!welcomeGift(best) && !dogTalk(best) && !spinWool(best)) npcSay(best, tipLine(best) || nextLine(best));
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
+}
+
+// A tip some villagers give on every other word until the player has acted on it.
+const TIPS = {
+  chief: {
+    needed: () => !hasMap(),
+    text: 'There\'s an old sea map on the wall of the great hall, {name}. Take it, you\'ll need it out on the water. Press M to read it.',
+  },
+  archer: {
+    needed: () => !has('bow'),
+    text: 'Want a bow of your own? Take some wool to the weaver and she\'ll spin you string. Then bring the smith 1 wood and 1 string.',
+  },
+  weaver: {
+    needed: () => !has('bow') && !has('string'),
+    text: 'Got any wool, dear? Bring it to me and I\'ll spin it into string. The shepherd has plenty, if you lend him a hand.',
+  },
+};
+
+function tipLine(n) {
+  const tip = TIPS[n.look.id];
+  if (!tip || !tip.needed() || (n.tipTold = (n.tipTold || 0) + 1) % 2 === 0) return null;
+  return tip.text;
 }
 
 // Cycles through an NPC's lines. A story or situation line (`line`) comes first whenever it changes, then every other time.
@@ -591,6 +612,7 @@ function react(n, { topic: heard, text, reply }) {
   if (!reply) return;
   if (topic !== 'insult' && welcomeGift(n)) return;
   if (topic === 'craft' && askCraft(n, text)) return;
+  if ((topic === 'string' || topic === 'cloth' || topic === 'sheep') && spinWool(n)) return;
   npcSay(n, npcReply(n.look.id, topic));
   playerSayT = Math.min(playerSayT, 0.01);
   if (n.fixed || n.stays) return;
@@ -665,7 +687,7 @@ function say(text) {
 // Screen point (world pixels) just above the player's head, wherever they are.
 function playerHead() {
   const [x, y] = headPos();
-  return [x, carried ? y - 10 : y];
+  return [x, carrying() ? y - 10 : y];
 }
 
 function headPos() {
@@ -996,7 +1018,7 @@ const STORY_LINES = {
     hermit: 'A dragon of your very own. Young dragons grow strong on fish from the open sea.',
     chief: 'A new dragon in our village! This is a great day.',
     kid: 'Your baby dragon is SO cute!',
-    fisher: 'That little dragon keeps eyeing my fish! Sail over a school, or near the dolphins, and give a whistle (F). It\'ll dive right in.',
+    fisher: 'That little dragon keeps eyeing my fish! Sail over a school, or near the dolphins, put your rod away and give a whistle (F). It\'ll dive right in.',
   },
   grown: {
     hermit: 'It has grown into a true dragon. More eggs sleep on the far isles, if you have room for more.',
@@ -1018,7 +1040,7 @@ function setStage(stage) {
 const grounded = () => !player.flying && !player.swimming;
 
 function nearEgg() {
-  if (carried || !grounded()) return null;
+  if (carrying() || !grounded()) return null;
   return eggs.find((e) => e.state === 'wild' && boxDist(e.col) < 14) || null;
 }
 
@@ -1031,6 +1053,51 @@ function pickUpEgg(e) {
   burst(e.x, e.y - 10, ['#ffffff', '#fff27a', DRAGON_SPECIES[e.species].egg.shine], 14, 40);
   Sfx.pickup();
   setStage('carried');
+}
+
+// ---------- stoking a fire ----------
+
+const BLAZE_PER_LOG = 0.34;
+const BLAZE_FADE = 1 / 160;
+
+function fireNear(x, y) {
+  return objects.find((o) => o.key === 'bonfire' && Math.hypot(o.x - x, o.y - 6 - y) < 46) || null;
+}
+
+// The log arcs from the player's hands into the flames, landing in `t` seconds.
+function tossLog(fire) {
+  const vz = 90;
+  const z = 10;
+  const t = (vz + Math.sqrt(vz * vz + 2 * 320 * z)) / 320;
+  drops.push({ item: 'wood', x: player.x, y: player.y, z, vz, vx: (fire.x - player.x) / t, vy: (fire.y - 5 - player.y) / t, phase: 0, fuel: fire });
+  faceToward(player, fire.x - player.x, fire.y - player.y);
+  Sfx.swish();
+}
+
+function stoke(o) {
+  o.blaze = Math.min(1, (o.blaze || 0) + BLAZE_PER_LOG);
+  Sfx.stoke(earshot(o.x, o.y));
+  for (let i = 0; i < 18; i++) {
+    particles.push({ type: 'ember', x: o.x + (Math.random() - 0.5) * 16, y: o.y - 8, vx: (Math.random() - 0.5) * 50, vy: -40 - Math.random() * 50, life: 0, max: 0.6 + Math.random() * 0.8 });
+  }
+  particles.push({ type: 'smoke', x: o.x, y: o.y - 24, vx: 4, vy: -16, life: 0, max: 2 });
+}
+
+// Extra tongues of flame over the bonfire sprite, taller the more it's been fed.
+function drawBlaze(g, x, y, t, o) {
+  const k = o.blaze || 0;
+  if (k <= 0.02) return;
+  const n = 3 + Math.round(k * 2);
+  for (const [c, s] of [['#c8401e', 1], ['#ff8a2a', 0.72], ['#ffd85a', 0.42]]) {
+    for (let i = 0; i < n; i++) {
+      const u = n === 1 ? 0 : i / (n - 1) - 0.5;
+      const h = (10 + 22 * k) * s * (0.75 + 0.25 * Math.sin(t * 11 + i * 2.3 + o.phase)) * (1 - Math.abs(u) * 0.8);
+      const w = (3 + 3 * k) * s + 1;
+      const bx = Math.round(x + u * (10 + 6 * k));
+      const sway = Math.round(Math.sin(t * 7 + i * 1.7) * 2 * k);
+      poly(g, [[bx - w, y - 7], [bx + w, y - 7], [bx + sway, y - 7 - h]], c);
+    }
+  }
 }
 
 function nearFire() {
@@ -1496,8 +1563,10 @@ function updateGrown(b, dt) {
 
 // `top` is the top edge of the carrier's sprite, in screen pixels. Drawn before the carrier,
 // so the raised hands overlap the egg.
+const heldImg = () => (carried ? SPR.heldEgg[carried.species] : SPR.dogHeld);
+
 function drawHeldEgg(x, top) {
-  ctx.drawImage(SPR.heldEgg[carried.species], Math.round(x) - 6, Math.round(top) - 11);
+  ctx.drawImage(heldImg(), Math.round(x) - 6, Math.round(top) - 11);
 }
 
 // ---------- sheep ----------
@@ -1525,8 +1594,16 @@ function herd(s, dt) {
   const d = Math.hypot(dx, dy);
   if (inPen(s) || player.flying || d > 34) return false;
   const sp = 46 * dt;
-  move(s, (dx / (d || 1)) * sp, (dy / (d || 1)) * sp);
-  if (Math.abs(dx) > 1) s.dir = dx > 0 ? 'right' : 'left';
+  let ux = dx / (d || 1);
+  let uy = dy / (d || 1);
+  // pushed north just below the gap, a sheep lines up with it instead of butting the rails
+  const gx = (PEN_GAP[0] + 0.5 + OX) * TILE;
+  if (uy < -0.3 && penOpen() && Math.abs(s.x - gx) < 28 && s.y > PEN.y1 && s.y - PEN.y1 < 40) {
+    ux = Math.max(-1, Math.min(1, (gx - s.x) / 6));
+    uy = -1;
+  }
+  move(s, ux * sp, uy * sp);
+  if (Math.abs(ux) > 0.05) s.dir = ux > 0 ? 'right' : 'left';
   s.anim += dt * 9;
   Object.assign(s, { state: 'idle', timer: 0.8 });
   return true;
@@ -1626,6 +1703,134 @@ function drawSheep(s, cx, cy) {
   ctx.drawImage(SPR.sheep[s.dir][f], Math.round(s.x) - 13 - cx, Math.round(s.y) - 16 - cy);
 }
 
+// ---------- the lost dog ----------
+
+// The girl's dog is lost in the forest. Carrying him home is how the player gets their first iron.
+const dogOwner = npcs.find((n) => n.look.id === 'girl');
+const DOG_ASK = 'Have you seen my dog Fred? He chased a squirrel into the forest, past the west gate! Please find him and carry him home.';
+const dog = { dir: 'left', anim: 0, state: 'lost', asked: false, walking: false, stuck: 0, barkT: 3, emote: null, emoteT: 0 };
+Object.assign(dog, dogHideout());
+
+// Tucked in behind a pine just outside the woodcutter's clearing, so mostly the barking gives him away.
+function dogHideout() {
+  const cx = (CLEARING.x + OX) * TILE;
+  const cy = (CLEARING.y + OY) * TILE;
+  const ring = (o) => Math.hypot(o.x - cx, (o.y - cy) * 1.4);
+  const pines = objects.filter((o) => (o.key === 'pine' || o.key === 'pine2') && ring(o) > 7.5 * TILE && ring(o) < 12 * TILE).sort((a, b) => a.y - b.y);
+  for (const p of pines) {
+    for (const dx of [11, -11]) {
+      const x = p.x + dx;
+      const y = p.y - 7;
+      if (!blocked(x - 8, y - 4, x + 8, y, dog)) return { x, y };
+    }
+  }
+  return standSpotNear(dog, cx, cy);
+}
+
+const carrying = () => !!carried || dog.state === 'carried';
+const dogName = () => (dog.asked ? 'Fred' : 'the dog');
+
+function nearDog() {
+  if (carrying() || !grounded() || indoors) return false;
+  return Math.hypot(dog.x - player.x, dog.y - player.y) < 20;
+}
+
+// Space goes to the dog unless someone to talk to is closer.
+function dogFirst() {
+  if (!nearDog()) return false;
+  const n = nearNpc();
+  return !n || Math.hypot(dog.x - player.x, dog.y - player.y) < Math.hypot(n.x - player.x, n.y - player.y);
+}
+
+function pickUpDog() {
+  dog.state = 'carried';
+  faceToward(player, dog.x - player.x, dog.y - player.y);
+  Sfx.bark(1);
+  Sfx.pickup();
+}
+
+function petDog() {
+  Object.assign(dog, { emote: 'heart', emoteT: 1.8, dir: player.x > dog.x ? 'right' : 'left', barkT: 6 });
+  Sfx.bark(0.8);
+}
+
+// The owner asks for her dog until he's back, and takes him when he's carried up to her.
+function dogTalk(n) {
+  if (n !== dogOwner || dog.state === 'home') return false;
+  if (dog.state === 'carried') bringDogHome();
+  else {
+    dog.asked = true;
+    npcSay(n, DOG_ASK);
+    Object.assign(n, { emote: 'question', emoteT: 1.8 });
+  }
+  return true;
+}
+
+function bringDogHome() {
+  const n = dogOwner;
+  const [vx, vy] = DIR_VEC[player.dir];
+  Object.assign(dog, standSpotNear(dog, player.x + vx * 12, player.y + vy * 10 + 2), { state: 'home', asked: true, walking: false, emote: 'heart', emoteT: 1.8, barkT: 8 });
+  dust(dog.x, dog.y);
+  Sfx.bark(1);
+  npcSay(n, 'Fred! You found him! Thank you, {name}! Here, Papa brought this lump of iron back from the volcano isle. The smith could make you a pickaxe with it!');
+  Object.assign(n, { emote: 'heart', emoteT: 1.8 });
+  faceToward(n, player.x - n.x, player.y - n.y);
+  n.lines = ['Fred hasn\'t left my side since you brought him home!', 'Thank you for finding Fred, {name}!', ...n.lines];
+  give('iron');
+  popIcon('iron', player.x, player.y - 30);
+  Sfx.reward();
+}
+
+function updateDog(dt) {
+  if (dog.emoteT > 0) dog.emoteT -= dt;
+  if (dog.state === 'carried') return;
+  dog.barkT -= dt;
+  const near = Math.hypot(dog.x - player.x, dog.y - player.y) < 120;
+  if (dog.state === 'lost') {
+    if (dog.barkT > 0) return;
+    dog.barkT = near ? 2.5 + Math.random() * 2 : 5 + Math.random() * 5;
+    Sfx.bark(0.7 * earshot(dog.x, dog.y));
+    Object.assign(dog, { emote: near ? 'exclaim' : 'question', emoteT: 1.2 });
+    if (near && Math.abs(player.x - dog.x) > 2) dog.dir = player.x > dog.x ? 'right' : 'left';
+    return;
+  }
+  // home: trot after the owner and sit at her heel
+  const n = dogOwner;
+  const tx = n.x + (n.dir === 'left' ? 14 : -14);
+  const ty = n.y + 3;
+  const dx = tx - dog.x;
+  const dy = ty - dog.y;
+  const d = Math.hypot(dx, dy);
+  if (d > 160 || dog.stuck > 1.5) {
+    Object.assign(dog, standSpotNear(dog, tx, ty), { stuck: 0, walking: false });
+    return;
+  }
+  if (d > 12 || (dog.walking && d > 3)) {
+    dog.walking = true;
+    const sp = Math.min(d, (d > 40 ? 75 : 48) * dt);
+    if (move(dog, (dx / d) * sp, (dy / d) * sp)) dog.stuck = 0;
+    else dog.stuck += dt;
+    if (Math.abs(dx) > 1) dog.dir = dx > 0 ? 'right' : 'left';
+    dog.anim += dt * 10;
+  } else {
+    dog.walking = false;
+    if (Math.abs(n.x - dog.x) > 3) dog.dir = n.x > dog.x ? 'right' : 'left';
+  }
+  if (dog.barkT <= 0) {
+    dog.barkT = 12 + Math.random() * 14;
+    Sfx.bark(0.5 * earshot(dog.x, dog.y));
+  }
+}
+
+function drawDog(cx, cy) {
+  const x = Math.round(dog.x) - cx;
+  const y = Math.round(dog.y) - cy;
+  const wag = dog.state === 'home' || dog.emote === 'exclaim' ? 6 : 2;
+  const f = dog.walking ? Math.floor(dog.anim) % 2 : 2 + (Math.floor(time * wag) % 2);
+  drawShadow(x, y, 7, 1.5);
+  ctx.drawImage(SPR.dog[dog.dir][f], x - 9, y - 13);
+}
+
 // ---------- sailing ----------
 
 const isHorizontal = (dir) => dir === 'left' || dir === 'right';
@@ -1653,7 +1858,6 @@ function shipBlocked(facing, x, y) {
         if (!inBounds(tx, ty) || tileAt(tx, ty) !== T.WATER) return true;
       }
     }
-    for (const r of seaRocks) if (x1 > r.x - 10 && x0 < r.x + 10 && y1 > r.y - 8 && y0 < r.y) return true;
   }
   return false;
 }
@@ -1918,6 +2122,7 @@ function action() {
   else if (nearBackpack()) pickUpBackpack();
   else if (nearWallMap()) takeMap();
   else if (nearDrop()) pickUp(nearDrop());
+  else if (dogFirst()) dog.state === 'lost' ? pickUpDog() : petDog();
   else if (doorAhead()) enterBuilding(doorAhead());
   else if (!(nearFire() && placeEgg()) && !talk() && !petSheep()) jump();
 }
@@ -1982,6 +2187,7 @@ function dust(x, y) {
 function emitParticles(dt) {
   for (const o of objects) {
     if (o.key !== 'forge' && o.key !== 'bonfire' && o.key !== 'oven' && o.key !== 'vat') continue;
+    if (o.blaze) o.blaze = Math.max(0, o.blaze - dt * BLAZE_FADE);
     o.emitT = (o.emitT ?? 0) - dt;
     if (o.emitT > 0) continue;
     if (o.key === 'oven') {
@@ -1994,9 +2200,10 @@ function emitParticles(dt) {
       o.emitT = 0.18;
       particles.push({ type: 'smoke', x: o.x - 28 + (Math.random() - 0.5) * 6, y: o.y - 76, vx: 5 + Math.random() * 6, vy: -14 - Math.random() * 6, life: 0, max: 2.4 + Math.random() });
     } else {
-      o.emitT = 0.07;
-      particles.push({ type: 'ember', x: o.x + (Math.random() - 0.5) * 12, y: o.y - 10, vx: (Math.random() - 0.5) * 10, vy: -22 - Math.random() * 18, life: 0, max: 0.8 + Math.random() * 0.7 });
-      if (Math.random() < 0.12) particles.push({ type: 'smoke', x: o.x, y: o.y - 22, vx: 3 + Math.random() * 4, vy: -12, life: 0, max: 1.8 });
+      const k = o.blaze || 0;
+      o.emitT = 0.07 / (1 + k * 2.5);
+      particles.push({ type: 'ember', x: o.x + (Math.random() - 0.5) * (12 + k * 12), y: o.y - 10 - k * 8, vx: (Math.random() - 0.5) * (10 + k * 20), vy: -22 - Math.random() * (18 + k * 30), life: 0, max: 0.8 + Math.random() * (0.7 + k) });
+      if (Math.random() < 0.12 + k * 0.1) particles.push({ type: 'smoke', x: o.x, y: o.y - 22 - k * 16, vx: 3 + Math.random() * 4, vy: -12 - k * 6, life: 0, max: 1.8 + k });
     }
   }
   for (const e of eggs) {
@@ -2063,6 +2270,7 @@ function update(dt) {
   for (const n of npcs) updateNpc(n, dt);
   for (const s of sheep) updateSheep(s, dt);
   updateFlock();
+  updateDog(dt);
   updateEggs(dt);
   for (const o of objects) if (o.shakeT > 0) o.shakeT -= dt;
   updateChopping(dt);
@@ -2175,10 +2383,12 @@ function drawObject(o, cx, cy) {
   const sy = Math.round(o.y - view.oy - cy + dy);
   ctx.drawImage(img, sx, sy);
   if (o.rider) {
-    const carry = o === shipObj && !!carried;
+    const carry = o === shipObj && carrying();
     if (carry) drawHeldEgg(sx + view.seat[0], sy + view.seat[1] - 15);
     const rider = charSprite(o.rider, o.dir, 0, carry);
     ctx.drawImage(rider, 0, 0, 16, 15, sx + view.seat[0] - 8, sy + view.seat[1] - 15, 16, 15);
+    const f = o === shipObj && player.fishing;
+    if (f) drawFishingLine({ dir: o.dir, fishing: f }, sx + view.seat[0], sy + view.seat[1] - 15, Math.round(f.x) - cx, Math.round(f.y) - cy);
   }
   if (s.after) s.after(ctx, o.x - cx, o.y - cy + dy, time, o);
   if (o.fall) drawFallingTree(o, cx, cy);
@@ -2190,7 +2400,7 @@ function drawSwimmer(e, cx, cy) {
   ctx.globalAlpha = 0.45;
   ellipse(ctx, x, y, 7 + Math.sin(time * 4), 2.5, PAL.foam);
   ctx.globalAlpha = 1;
-  const carry = e === player && !!carried;
+  const carry = e === player && carrying();
   // The far arm in side views passes behind the head.
   const arms = e.sprinting ? [[-1, e.stroke % 1], [1, (e.stroke + 0.5) % 1]].filter(([, p]) => p < 0.5) : [];
   const behind = (side) => side > 0 && (e.dir === 'left' || e.dir === 'right');
@@ -2215,7 +2425,7 @@ function drawEntity(e, cx, cy, lift = 0) {
   if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
   const x = Math.round(e.x) - cx;
   const top = Math.round(e.y - lift) - 20 - cy;
-  const carry = e === player && !!carried;
+  const carry = e === player && carrying();
   const run = e.running && !hop;
   if (carry) drawHeldEgg(x, top);
   drawHeldTool(e, x, top, true);
@@ -2240,8 +2450,8 @@ function drawFlight(cx, cy) {
   ctx.translate(Math.round(f.x + ox) - cx, Math.round(f.y - f.alt - flightBob(f) + oy) - 11 - cy);
   if (rot) ctx.rotate(rot);
   ctx.drawImage(fr.under, -36, -29);
-  const carry = !!carried;
-  if (carry) ctx.drawImage(SPR.heldEgg[carried.species], fr.seat[0] - 42, fr.seat[1] - 52);
+  const carry = carrying();
+  if (carry) ctx.drawImage(heldImg(), fr.seat[0] - 42, fr.seat[1] - 52);
   const rider = charSprite(player.look, f.dir, 0, carry);
   ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
   if (fr.over) ctx.drawImage(fr.over, -36, -29);
@@ -2430,7 +2640,8 @@ function render() {
   const dragonItems = shownDragons.filter((d) => !highDragons.includes(d)).map((d) => ({ y: d.y, draw: () => drawBaby(d, cx, cy) }));
   const sheepItems = flock.map((s) => ({ y: s.y, draw: () => drawSheep(s, cx, cy) }));
   const dropItems = drops.filter((d) => onScreen(d.x, d.y, cx, cy, 20)).map((d) => ({ y: d.y - 2, draw: () => drawDrop(d, cx, cy) }));
-  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems).sort((a, b) => a.y - b.y);
+  const dogItems = dog.state !== 'carried' && !indoors && onScreen(dog.x, dog.y, cx, cy, 20) ? [{ y: dog.y, draw: () => drawDog(cx, cy) }] : [];
+  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems).sort((a, b) => a.y - b.y);
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -2443,8 +2654,9 @@ function render() {
   for (const o of visible) {
     const l = SPR[o.key].light;
     if (!l) continue;
+    const r = o.blaze ? Math.round((l.r * (1 + o.blaze * 0.7)) / 4) * 4 : l.r;
     ctx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 9 + o.phase) * Math.sin(time * 5.7 + o.phase);
-    ctx.drawImage(glowSprite(l.r, l.color), Math.round(o.x + l.dx - l.r - cx), Math.round(o.y + l.dy - l.r - cy));
+    ctx.drawImage(glowSprite(r, l.color), Math.round(o.x + l.dx - r - cx), Math.round(o.y + l.dy - (o.blaze || 0) * 10 - r - cy));
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
@@ -2455,6 +2667,7 @@ function render() {
     drawEntity(player, cx, cy, lift);
   }
   for (const d of highDragons) drawBaby(d, cx, cy);
+  drawSeaSky(cx, cy);
   if (flight) drawFlight(cx, cy);
   drawFireballs(cx, cy);
   drawArrows(cx, cy);
@@ -2481,6 +2694,7 @@ function render() {
     drawEmote(d, cx, cy, h + babyLift(d));
   }
   for (const s of flock) if (s.emoteT > 0) drawEmote(s, cx, cy, 24);
+  if (dog.emoteT > 0 && dog.state !== 'carried' && !indoors) drawEmote(dog, cx, cy, 20);
   if (playerSayT > 0) {
     const [hx, hy] = playerHead();
     playerBubble.style.left = `${(Math.round(hx) - cx) * zoom}px`;
@@ -2490,10 +2704,15 @@ function render() {
   if (flight && flight.mode === 'fly') {
     const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
     setPrompt(`${space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost`);
+  } else if (sail && player.fishing) {
+    setPrompt(toolHint());
   } else if (sail) {
     const shore = sail.shore ? 'SPACE  Go ashore' : 'Sail close to land to go ashore';
-    const fish = canFish(follower) && fishNearShip() ? `   ·   F  Send ${follower.name} fishing` : '';
-    setPrompt(`${shore}   ·   SHIFT  Full sail${fish}`);
+    const rod = toolHint();
+    const fish = !(rod && primary() === 'rod') && canFish(follower) && fishNearShip() ? `   ·   F  Send ${follower.name} fishing` : '';
+    setPrompt(`${shore}   ·   SHIFT  Full sail${rod ? `   ·   ${rod}` : ''}${fish}`);
+  } else if (player.fishing) {
+    setPrompt(toolHint());
   } else if (nearShip()) {
     setPrompt('SPACE  Board the ship');
   } else if (nearDragon()) {
@@ -2509,6 +2728,10 @@ function render() {
   } else if (nearDrop()) {
     const { item } = nearDrop();
     setPrompt(bagFull(item) ? 'Your backpack is full. Press X or click an item to drop it' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
+  } else if (dogFirst()) {
+    setPrompt(dog.state === 'lost' ? `SPACE  Pick up ${dogName()}` : 'SPACE  Pet Fred');
+  } else if (dog.state === 'carried' && nearNpc() === dogOwner) {
+    setPrompt('SPACE  Give Fred back');
   } else if (doorAhead()) {
     setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
   } else if (player.fishing) {
@@ -2522,6 +2745,8 @@ function render() {
     setPrompt('Swim to a beach or low shore to climb out');
   } else if (carried) {
     setPrompt('Carry the egg to the fire in the village to hatch it');
+  } else if (dog.state === 'carried') {
+    setPrompt(`Carry ${dogName()} home${dog.asked ? ' to the girl in the village' : ''}`);
   } else if (eggs.some((e) => e.state === 'warming' && Math.hypot(player.x - e.x, player.y - e.y) < 70)) {
     setPrompt('The egg is warming up...');
   } else {
