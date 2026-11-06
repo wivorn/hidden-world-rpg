@@ -1397,15 +1397,16 @@ const EGG_CRACKS = [
 const DRAGON_SPECIES = {
   nightFury: {
     name: 'Night Fury', defaultName: 'Toothless',
-    body: '#1e2230', dark: '#12141d', light: '#3c4560', wing: '#2b3146', eye: '#9be35a', fin: '#c0392b', glint: '#e6ffb0',
-    look: { horns: 'fins', tail: 'fins' },
+    body: '#1b1f2b', dark: '#0d0f16', light: '#3a4460', wing: '#242a3b', eye: '#9be35a', fin: '#2a3044', glint: '#e6ffb0',
+    ridge: '#323a52', tailFins: ['#2a3044', '#c0392b'], shape: { neck: 0.4, snout: 0.72 },
+    look: { horns: 'fury', spines: 'nubs', tail: 'fins' },
     egg: { base: '#4b2a73', light: '#5f3a8f', speck: '#8a5cc7', speckDark: '#3a1f5c', shine: '#d9b8ff', gloss: '#a77be0', glow: '#b98cff' },
     breath: ['#b05cff', '#e7c8ff', '#7a2fd6'],
   },
   lightFury: {
     name: 'Light Fury', defaultName: 'Luna',
-    body: '#e3e8f1', dark: '#b2bccf', light: '#ffffff', wing: '#ccd4e3', eye: '#4aa8ff', fin: '#9fc4f0', glint: '#ffffff',
-    spot: '#a8c8f0', look: { horns: 'none', tail: 'fan', marks: 'spots' },
+    body: '#eae8f2', dark: '#b4b6cc', light: '#ffffff', wing: '#d6d6e6', eye: '#4aa8ff', fin: '#c4c8de', glint: '#ffffff',
+    spot: '#a4a9c6', shape: { neck: 0.45, snout: 0.75 }, look: { horns: 'frill', tail: 'fan', marks: 'bubbles' },
     egg: { base: '#aebcd6', light: '#d6e0f2', speck: '#ffffff', speckDark: '#8796b4', shine: '#ffffff', gloss: '#f2f6ff', glow: '#bfe0ff' },
     breath: ['#5fc8ff', '#e6f8ff', '#2f7fd6'],
   },
@@ -1498,6 +1499,8 @@ const DRAGON_FLAP = { tip: [-13, -4, 8, -4], span: [0.85, 1, 0.8, 1], sway: [0, 
 function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   const { body: B, wing: M, light: L, dark: D, eye: E, fin: FIN, glint: GLINT } = pal;
   const look = pal.look || {};
+  // a kind's own build: the furies' short necks and blunt snouts
+  if (pal.shape) a = { ...a, neck: a.neck * (pal.shape.neck ?? 1), snout: a.snout * (pal.shape.snout ?? 1) };
   const HORN = pal.horn || '#ece0c4';
   const PUPIL = '#05070a';
   if (opts.blink) a = { ...a, eye: 1 };
@@ -1544,8 +1547,19 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     }
   };
   const nostril = (x, y) => px(g, ...H(x, y), PUPIL);
-  // An ear or horn rooted between head points b1 and b2, reaching for `tip`, in the kind's style.
-  const ear = ([b1, tip, b2]) => {
+  // An ear or horn rooted between head points b1 and b2, reaching for `tip`, in the kind's style. The furies'
+  // ear-flaps and frills lie over the head, so they wait for `ears()` once it's drawn.
+  const later = [];
+  const ear = (pts) => (look.horns === 'fury' || look.horns === 'frill' ? later.push(pts) : drawEar(pts));
+  const ears = () => later.splice(0).forEach(drawEar);
+  // A leaf from base point p to a point at t, `hw` wide either side at the base and a bit more at its middle.
+  const leaf = (p, t, hw, c) => {
+    const n = Math.hypot(t[0] - p[0], t[1] - p[1]) || 1;
+    const [wx, wy] = [(-(t[1] - p[1]) / n) * hw, ((t[0] - p[0]) / n) * hw];
+    const q = [p[0] + (t[0] - p[0]) * 0.4, p[1] + (t[1] - p[1]) * 0.4];
+    hpoly([[p[0] - wx, p[1] - wy], [q[0] - wx * 1.3, q[1] - wy * 1.3], t, [q[0] + wx * 1.3, q[1] + wy * 1.3], [p[0] + wx, p[1] + wy]], c);
+  };
+  const drawEar = ([b1, tip, b2]) => {
     const bx = (b1[0] + b2[0]) / 2;
     const by = (b1[1] + b2[1]) / 2;
     const at = (k, bend = 0) => [bx + (tip[0] - bx) * k - (tip[1] - by) * bend, by + (tip[1] - by) * k + (tip[0] - bx) * bend];
@@ -1561,6 +1575,25 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
       }
     } else if (look.horns === 'none') {
       hpoly([b1, at(0.4), b2], B);
+    } else if (look.horns === 'fury') {
+      // a broad ear-flap edged in light, with a smaller one tucked in behind it
+      const e1 = [b1[0] + (b1[0] - bx) * 0.8, b1[1] + (b1[1] - by) * 0.8];
+      const e2 = [b2[0] + (b2[0] - bx) * 0.8, b2[1] + (b2[1] - by) * 0.8];
+      const m = [(e1[0] + e2[0]) / 2, (e1[1] + e2[1]) / 2];
+      const back = at(0.62, -0.45);
+      leaf([(m[0] + e2[0]) / 2, (m[1] + e2[1]) / 2], back, 1.5, D);
+      line(g, ...H(...m), ...H(...back), shade(B, 0.1));
+      const t = at(0.88, 0.05);
+      leaf([(e1[0] + m[0]) / 2, (e1[1] + m[1]) / 2], t, 2.1, B);
+      line(g, ...H(...e1), ...H(...t), L);
+    } else if (look.horns === 'frill') {
+      // swept-back leaf frills, longest at the front, each with a vein down it
+      [[0.1, 1.15], [0.5, 0.95], [0.9, 0.72]].forEach(([k, len], i) => {
+        const p = [b1[0] + (b2[0] - b1[0]) * k, b1[1] + (b2[1] - b1[1]) * k];
+        const t = [p[0] + (tip[0] - bx) * len, p[1] + (tip[1] - by) * len];
+        leaf(p, t, 1.4, i % 2 ? FIN : B);
+        line(g, ...H(...p), ...H(...t), D);
+      });
     } else {
       hpoly([b1, tip, b2], B);
     }
@@ -1568,6 +1601,10 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   // Spikes or plates along the back at body points `pts`, standing out towards `[ux, uy]`.
   const spines = (pts, [ux, uy]) => {
     if (!look.spines) return;
+    if (look.spines === 'nubs') {
+      for (const [x, y] of pts) poly(g, [P(x - uy * 1.2, y + ux * 1.2), P(x + ux * 2 + uy * 0.6, y + uy * 2 - ux * 0.6), P(x + uy * 1.2, y - ux * 1.2)], pal.ridge || D);
+      return;
+    }
     const big = look.spines === 'plates';
     const h = big ? 4.5 : 3.2;
     const w = big ? 2.2 : 1.3;
@@ -1582,6 +1619,19 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     if (look.marks === 'spots') {
       const s = Math.max(1, Math.round(1.8 * S));
       for (const [x, y] of spots) rect(g, ...P(x, y).map(Math.round), s, s, pal.spot || L);
+    }
+    // the light fury's clusters of little rings, a smaller one beside each
+    if (look.marks === 'bubbles') {
+      const C = pal.spot || D;
+      for (const [x, y] of spots) {
+        const [sx, sy] = P(x, y).map(Math.round);
+        if (S < 0.7) {
+          px(g, sx, sy, C);
+          continue;
+        }
+        for (const [dx, dy] of [[1, 0], [0, 1], [2, 1], [1, 2]]) px(g, sx + dx, sy + dy, C);
+        px(g, sx + 3, sy + 3, C);
+      }
     }
   };
   const belly = (x, y, rx, ry) => { if (pal.belly) ell(x, y, rx, ry, pal.belly); };
@@ -1624,8 +1674,9 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     const pts = (shape) => shape.map(([dx, dy]) => [x + dx * k, y + dy * k]);
     const pa = pts(A);
     const pb = pts(Bf);
-    poly(g, pa, FIN);
-    poly(g, pb, FIN);
+    const [fa, fb] = pal.tailFins || [FIN, FIN];
+    poly(g, pa, fa);
+    poly(g, pb, fb);
     if (look.tail === 'spade') poly(g, [pa[1], pa[0], pb[1]], FIN);
     if (look.tail === 'fan') poly(g, pts([A[0], [(A[1][0] + Bf[1][0]) * 0.75, (A[1][1] + Bf[1][1]) * 0.75], [(A[2][0] + Bf[2][0]) / 2, (A[2][1] + Bf[2][1]) / 2]]), shade(FIN, 0.25));
     if (look.tail === 'club') {
@@ -1701,6 +1752,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     hell(0, 0, 6, 4, B);
     hpoly([[2, -2], [2 + 8 * sn, 0], [1 + 8 * sn, 3], [2, 4]], B);
     hell(-1, -2, 3, 1, M);
+    ears();
     eye(2 - (1 - sn) * 2, -1 - (a.eye - 2));
     nostril(2 + 6 * sn, 1);
     sideWing(true);
@@ -1736,6 +1788,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     for (const s of [-1, 1]) ear([[4 * s, -2], [(9 + young) * s, -7 + young], [2 * s, -4]]);
     hell(0, 0, 6, 5, B);
     hell(0, -2, 4, 2, M);
+    ears();
     const ey = -(a.eye - 2) / HS;
     eye(-4 - (a.ew - 2) / HS, ey);
     eye(2, ey);
@@ -1751,6 +1804,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     for (const s of [-1, 1]) ear([[4 * s, 0], [9 * s, 6], [2 * s, 3]]);
     hell(0, 0, 6, 5, B);
     hell(0, -1, 4, 2, M);
+    ears();
     if (!fold) for (const s of [-1, 1]) wing(0, -2, [s, 0], [0, 1], [0, 1]);
     const c = a.chub;
     ell(0, 0, 7 * c, 10, B);
@@ -1783,6 +1837,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     hell(0, 0, 6, 5, B);
     hpoly([[1, -1], [1 + 7 * sn, 2], [6 * sn, 5], [-1, 4]], B);
     hell(-1, -2, 3, 2, M);
+    ears();
     eye(-3, -(a.eye - 2));
     eye(2, -2 - (a.eye - 2), 1);
     nostril(1 + 6 * sn, 2);
@@ -1797,6 +1852,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   ear([[-3, 1], [-9, 6], [-1, 3]]);
   ear([[1, 1], [-1, 7], [3, 2]]);
   hell(-2, -2, 3, 1.5, M);
+  ears();
   eye(4, -1, 1);
   legs(-4, 4);
   const c = a.chub;

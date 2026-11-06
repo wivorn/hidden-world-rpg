@@ -359,10 +359,10 @@ function drawPoolRipples(g, x, y, o) {
 // ---------- new kinds of dragon ----------
 
 const DRAGON_LOOKS = {
-  horns: ['fins', 'horns', 'crest', 'none'],
-  spines: [undefined, 'spikes', 'plates'],
+  horns: ['fins', 'horns', 'crest', 'none', 'fury', 'frill'],
+  spines: [undefined, 'spikes', 'plates', 'nubs'],
   tail: ['fins', 'club', 'spade', 'fan'],
-  marks: [undefined, 'stripes', 'spots'],
+  marks: [undefined, 'stripes', 'spots', 'bubbles'],
   tips: [false, true],
 };
 const BRED_FIRST = ['Storm', 'Ember', 'Frost', 'Moss', 'Dusk', 'Sun', 'Tide', 'Ash', 'Thorn', 'Gale', 'Shadow', 'Cinder', 'Mist', 'Rune', 'Copper', 'Amber', 'Fern', 'Hail', 'Glimmer', 'Bramble'];
