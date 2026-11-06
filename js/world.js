@@ -1390,8 +1390,8 @@ function fieldTile(g, x, y, X, Y) {
 function decorTile(g, x, y, X, Y) {
   if (tileAt(x, y) !== T.GRASS) return;
   for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) if (tileAt(x + dx, y + dy) !== T.GRASS) return;
-  if (hash(x, y, 700) < 0.09) {
-    const colors = ['#f25c78', '#ffffff', '#f7d046', '#b77cf2', '#ff8a3d'];
+  if (hash(x, y, 700) < flowerOdds()) {
+    const colors = flowerColors();
     const col = colors[Math.floor(hash(x, y, 701) * colors.length)];
     const n = 3 + Math.floor(hash(x, y, 702) * 3);
     for (let i = 0; i < n; i++) {

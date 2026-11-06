@@ -217,13 +217,14 @@ function flashJournalButton() {
 }
 
 function weatherName() {
-  if (snowy) return 'Snow';
+  if (snowy && precipitation() > 0.05) return 'Snow';
   return WEATHER[weather.level > 0.4 ? weather.kind : weather.want === weather.kind ? weather.kind : 'clear'].name;
 }
 
 // Quests in progress come first, each with its finished steps ticked and only the next one still to do.
 function renderJournal() {
-  journalWhen.textContent = `DAY ${dayCount}  ·  ${timeOfDay().toUpperCase()}  ·  ${weatherName().toUpperCase()}`;
+  const d = dateOf();
+  journalWhen.textContent = `DAY ${dayCount}  ·  ${d.month.toUpperCase()} ${d.day}, ${d.season.name.toUpperCase()}  ·  ${timeOfDay().toUpperCase()}  ·  ${weatherName().toUpperCase()}`;
   const open = QUESTS.filter((q) => journal.started[q.id] && !questDone(q));
   const done = QUESTS.filter((q) => journal.started[q.id] && questDone(q));
   const items = [];

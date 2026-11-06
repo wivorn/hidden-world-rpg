@@ -207,6 +207,13 @@ body.title #toggles {
   image-rendering: pixelated;
 }
 
+#clock small {
+  display: block;
+  margin-top: 5px;
+  font-size: 7px;
+  color: #e1a03c;
+}
+
 body.title #clock {
   display: none;
 }

@@ -472,6 +472,7 @@ function updatePlayer(dt) {
   player.running = !!(ix || iy) && canSprint();
   updateStamina(dt, player.running, !!(ix || iy));
   const running = player.running;
+  player.runT = running ? Math.min(RUN_SLIDE, (player.runT || 0) + dt) : 0;
   const speed = (running ? 115 : 68) * fedBoost();
   const ice = onIce();
   if (ice) slideOnIce(dt, ix * speed, iy * speed);
@@ -506,16 +507,19 @@ function updatePlayer(dt) {
 }
 
 // On ice the player only slowly picks up speed or turns, and slides on a while after letting go. Walking onto it
-// carries the speed the player came with, if they were walking just now; a wall stops the slide that way.
+// carries the speed the player came with, if they were walking just now; a wall stops the slide that way. The
+// longer the run before letting go (a run-up on land counts), the further the slide, up to RUN_SLIDE seconds' worth.
 const ICE_GRIP = 4;
 const ICE_GLIDE = 2.2;
+const RUN_SLIDE = 3;
 const onIce = () => !indoors && tileAt(Math.floor(player.x / TILE), Math.floor((player.y - 1) / TILE)) === T.ICE;
 
 function slideOnIce(dt, tx, ty) {
   if (!player.glide || time - player.glide.t > 0.1) player.glide = { vx: 0, vy: 0 };
   const g = player.glide;
   g.t = time;
-  const k = 1 - Math.exp(-dt * (tx || ty ? ICE_GRIP : ICE_GLIDE));
+  if (tx || ty) g.run = player.runT;
+  const k = 1 - Math.exp(-dt * (tx || ty ? ICE_GRIP : ICE_GLIDE / (1 + (g.run || 0) * 0.8)));
   g.vx += (tx - g.vx) * k;
   g.vy += (ty - g.vy) * k;
   const x = player.x;
@@ -524,7 +528,10 @@ function slideOnIce(dt, tx, ty) {
   if (player.x === x) g.vx = 0;
   if (player.y === y) g.vy = 0;
   const sp = Math.hypot(g.vx, g.vy);
-  if (sp < 2) g.vx = g.vy = 0;
+  if (sp < 2) {
+    g.vx = g.vy = 0;
+    g.run = 0;
+  }
   if (sp > 40 && Math.random() < dt * 14) {
     particles.push({ type: 'steam', x: player.x + (Math.random() - 0.5) * 6, y: player.y - 1, vx: -g.vx * 0.15, vy: -6 - Math.random() * 6, life: 0, max: 0.35 });
   }
@@ -554,6 +561,7 @@ function updateNpc(n, dt) {
     if (n.job) n.job.prop.active = false;
     return;
   }
+  if (festivalNpc(n, dt)) return;
   if (n.job) return updateJob(n, dt);
   if (n.fixed) {
     n.dir = n.fixed;
@@ -742,7 +750,7 @@ function nextLine(n) {
     n.turn = 0;
   }
   if (n.line && n.turn++ % 2 === 0) return n.line;
-  const lines = isNight() ? n.nightLines : n.lines;
+  const lines = festivalLines(n) || (isNight() ? n.nightLines : n.lines);
   const line = lines[n.lineI++ % lines.length];
   return typeof line === 'function' ? line() : line;
 }
@@ -1028,15 +1036,63 @@ function mount(dragon) {
   startHop(d.x + 2, d.y, 0, 14, () => {
     d.hidden = true;
     d.col.off = true;
-    flight = {
-      x: d.x, y: d.y, alt: 0, vx: 0, vy: 0, dir: 'down', face: 'down', flap: 0, mode: 'takeoff', land: null,
-      loop: -1, fireCd: 0, diveT: 0, splashed: false, dragon,
-    };
-    PLASMA = DRAGON_SPECIES[dragon.species].breath;
-    player.flying = true;
+    takeWing(dragon, d.x, d.y, 0, 'down');
     dust(d.x, d.y);
     Sfx.roar();
   });
+}
+
+// Up and away on the dragon's back, from where it stood or caught up out of the sea.
+let lastRidden = null;
+function takeWing(dragon, x, y, alt, dir) {
+  flight = {
+    x, y, alt, vx: 0, vy: 0, dir, face: dir, flap: 0, mode: 'takeoff', land: null,
+    loop: -1, fireCd: 0, charge: null, diveT: 0, splashed: false, dragon,
+  };
+  PLASMA = DRAGON_SPECIES[dragon.species].breath;
+  BREATH = breathOf(dragon.species);
+  player.flying = true;
+  lastRidden = dragon;
+  dragon.stayBy = false;
+}
+
+// Who comes for the player when they fall through the ice: the saddled dragon they last rode, or the one following.
+function rescuer() {
+  const ok = (b) => b && dragons.includes(b) && b.stage === GROWN && b.saddled && !b.hunt && Math.hypot(b.x - player.x, b.y - player.y) < 900;
+  return [lastRidden, follower].find(ok) || null;
+}
+
+// A low swoop over the water to the player, who's caught up onto its back as it passes.
+const RESCUE_SPEED = 240;
+function updateRescue(b, dt) {
+  if (b.perched) takeOff(b);
+  if (!player.swimming || flight || sail || hop) {
+    b.rescue = false;
+    return;
+  }
+  const dx = player.x - b.x;
+  const dy = player.y - b.y;
+  const d = Math.hypot(dx, dy);
+  const step = Math.min(d, RESCUE_SPEED * dt);
+  if (d > 1) {
+    b.x += (dx / d) * step;
+    b.y += (dy / d) * step;
+    faceToward(b, dx, dy);
+  }
+  b.alt += ((d > 70 ? 40 : 3) - b.alt) * (1 - Math.exp(-dt * 5));
+  const beat = Math.floor(b.flap / 4);
+  b.flap += dt * 13;
+  if (Math.floor(b.flap / 4) !== beat) Sfx.flap(0.5 * earshot(b.x, b.y));
+  if (d > 6 || b.alt > 10) return;
+  b.rescue = false;
+  player.swimming = false;
+  splash(player.x, player.y);
+  seaSplash(player.x, player.y - 2, 1.2);
+  Sfx.splash();
+  Sfx.roar();
+  takeWing(b, player.x, player.y, b.alt, b.dir);
+  Object.assign(b, { emote: 'heart', emoteT: 1.8 });
+  muse(`Caught me! Good ${b.name}!`);
 }
 
 function landingSpot() {
@@ -1177,6 +1233,7 @@ const MOUTH = { right: [30, 0, 18], left: [-30, 0, 18], down: [0, 8, 0], up: [0,
 const FACE_VEC = { ...DIR_VEC, se: [0.71, 0.71], sw: [-0.71, 0.71], ne: [0.71, -0.71], nw: [-0.71, -0.71] };
 // Breath colours of the dragon being ridden.
 let PLASMA = DRAGON_SPECIES.nightFury.breath;
+let BREATH = 'plasma';
 const fireballs = [];
 
 const flightBob = (f) => (f.mode === 'fly' ? Math.sin(time * 3) * 2 : 0);
@@ -1200,47 +1257,6 @@ function dragonBody(f) {
 
 function overWater(f) {
   return tileAt(Math.floor(f.x / TILE), Math.floor((f.y - 1) / TILE)) === T.WATER;
-}
-
-function breatheFire() {
-  const f = flight;
-  if (!f || f.mode !== 'fly' || f.loop >= 0 || f.fireCd > 0) return;
-  f.fireCd = 0.35;
-  const face = f.face || f.dir;
-  const [mx, my, mh] = MOUTH[face];
-  const [dx, dy] = FACE_VEC[face];
-  const x0 = f.x + mx;
-  const y0 = f.y + my;
-  fireballs.push({
-    x0, y0, h0: f.alt + flightBob(f) + mh,
-    x1: x0 + dx * 120 + f.vx * 0.45, y1: y0 + dy * 120 + f.vy * 0.45,
-    x: x0, y: y0, h: 0, t: 0, dur: 0.5,
-  });
-  Sfx.plasma();
-}
-
-function plasmaHit(x, y, pal = PLASMA) {
-  const near = earshot(x, y);
-  particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: pal[0], life: 0, max: 0.3 });
-  if (tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)) === T.WATER) {
-    splash(x, y);
-    seaSplash(x, y - 2, 1.4);
-    for (let i = 0; i < 6; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 10, y: y - 4, vx: (Math.random() - 0.5) * 8, vy: -18 - Math.random() * 10, life: 0, max: 1.2 });
-    Sfx.splash(0.8 * near);
-    Sfx.hiss(near);
-    return;
-  }
-  burst(x, y - 3, pal, 36, 90);
-  blastAt(x, y);
-  particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, pal, life: 0, max: 0.45 });
-  for (let i = 0; i < 5; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 8, y: y - 4, vx: (Math.random() - 0.5) * 10, vy: -14 - Math.random() * 8, life: 0, max: 1.4 });
-  for (const n of npcs) {
-    if (Math.hypot(n.x - x, n.y - y) > 60) continue;
-    n.emote = 'exclaim';
-    n.emoteT = 1.8;
-    faceToward(n, x - n.x, y - n.y);
-  }
-  Sfx.blast(near);
 }
 
 function loopTrick() {
@@ -1269,6 +1285,7 @@ function burst(x, y, colors, n, speed) {
 
 function updateTricks(f, dt) {
   f.fireCd -= dt;
+  if (f.charge != null) updateCharge(f, dt);
   if (f.loop >= 0) {
     f.loop += dt / 0.9;
     if (f.loop >= 1) f.loop = -1;
@@ -1276,45 +1293,6 @@ function updateTricks(f, dt) {
       const [bx, by] = dragonBody(f);
       particles.push({ type: 'sparkle', layer: 'sky', x: bx + (Math.random() - 0.5) * 20, y: by + (Math.random() - 0.5) * 10, vx: 0, vy: 0, life: 0, max: 0.5 });
     }
-  }
-}
-
-function updateFireballs(dt) {
-  for (let i = fireballs.length - 1; i >= 0; i--) {
-    const b = fireballs[i];
-    b.t += dt;
-    const u = Math.min(1, b.t / b.dur);
-    b.x = b.x0 + (b.x1 - b.x0) * u;
-    b.y = b.y0 + (b.y1 - b.y0) * u;
-    b.h = b.h0 * (1 - u * u);
-    for (let k = 0; k < 3; k++) {
-      particles.push({ type: 'plasma', layer: 'sky', x: b.x + (Math.random() - 0.5) * 7, y: b.y - b.h + (Math.random() - 0.5) * 7, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, pal: b.pal, life: 0, max: 0.45 + Math.random() * 0.25 });
-    }
-    if (u < 1) continue;
-    fireballs.splice(i, 1);
-    if (b.hunt) huntBlast(b.x, b.y);
-    plasmaHit(b.x, b.y, b.pal);
-  }
-}
-
-function drawFireballs(cx, cy) {
-  for (const b of fireballs) {
-    ctx.globalAlpha = 0.25;
-    ellipse(ctx, Math.round(b.x - cx), Math.round(b.y - cy) - 1, 4, 1.5, '#000000');
-  }
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'lighter';
-  for (const b of fireballs) ctx.drawImage(glowSprite(22, (b.pal || PLASMA)[0]), Math.round(b.x - 22 - cx), Math.round(b.y - b.h - 22 - cy));
-  ctx.globalCompositeOperation = 'source-over';
-  for (const b of fireballs) {
-    const x = Math.round(b.x - cx);
-    const y = Math.round(b.y - b.h - cy);
-    const pulse = Math.sin(time * 40) > 0 ? 1 : 0;
-    const pal = b.pal || PLASMA;
-    ellipse(ctx, x, y, 5 + pulse, 5 + pulse, pal[2]);
-    ellipse(ctx, x, y, 4, 4, pal[0]);
-    ellipse(ctx, x, y, 2.5, 2.5, pal[1]);
-    rect(ctx, x - 1, y - 1, 2, 2, '#ffffff');
   }
 }
 
@@ -1878,6 +1856,15 @@ function grownLeader(b) {
   return { x: b.spot.x, y: b.spot.y, alt: near ? 0 : 36, land: true };
 }
 
+// Off melting sea ice, a dragon circles over the player while they're still out on the ice, watching for it to
+// give way under them too; back on solid ground it lands beside them.
+const onSeaIce = () => iced.get(tileY(player.y) * MAP_W + tileX(player.x))?.was === T.WATER;
+function escortLeader(b) {
+  if (!onSeaIce() && !player.swimming) return grownLeader(b);
+  const a = time * 0.9;
+  return { x: player.x + Math.cos(a) * 56, y: player.y - 10 + Math.sin(a) * 26, alt: 40 };
+}
+
 function takeOff(b) {
   const d = b.obj;
   d.hidden = true;
@@ -1887,6 +1874,8 @@ function takeOff(b) {
   Sfx.flap(earshot(d.x, d.y));
 }
 
+// Top speed of a grown dragon flying on its own, so a long way home is a flight, not a blink.
+const GROWN_FLY = 320;
 function updateGrown(b, dt) {
   const d = b.obj;
   if (flight && flight.dragon === b) {
@@ -1897,6 +1886,7 @@ function updateGrown(b, dt) {
     b.ridden = false;
     b.perched = !d.hidden;
   }
+  if (b.rescue) return updateRescue(b, dt);
   if (b.hunt) {
     if (b.perched) takeOff(b);
     updateHunt(b, dt);
@@ -1913,10 +1903,10 @@ function updateGrown(b, dt) {
     return;
   }
   if (hop) return;
-  const L = b === follower ? grownLeader(b) : settleLeader(b);
+  const L = b.stayBy ? escortLeader(b) : b === follower ? grownLeader(b) : settleLeader(b);
   const dx = L.x - b.x;
   const dy = L.y - b.y;
-  const k = 1 - Math.exp(-dt * 2.5);
+  const k = Math.min(1 - Math.exp(-dt * 2.5), (GROWN_FLY * dt) / (Math.hypot(dx, dy) || 1));
   b.x += dx * k;
   b.y += dy * k;
   b.alt += (L.alt - b.alt) * (1 - Math.exp(-dt * 3));
@@ -1929,7 +1919,7 @@ function updateGrown(b, dt) {
     Object.assign(d, { x: L.x, y: L.y, hidden: false, faceRight: b.roost != null ? ROOST_SLOTS[b.roost][0] < 0 : player.x > L.x });
     d.col.off = false;
     placeCollider(d);
-    Object.assign(b, { x: L.x, y: L.y, alt: 0, perched: true, spot: null });
+    Object.assign(b, { x: L.x, y: L.y, alt: 0, perched: true, spot: null, stayBy: false });
     dust(d.x, d.y);
     Sfx.land(1.5);
     if (b.settleOnLand) {
@@ -2029,8 +2019,8 @@ function huntFire(b, a) {
   const [mx, my, mh] = MOUTH[b.face || b.dir];
   const x0 = b.x + mx;
   const y0 = b.y + my;
-  fireballs.push({ x0, y0, h0: b.alt + mh, x1: a.x, y1: a.y, x: x0, y: y0, h: 0, t: 0, dur: 0.45, pal: DRAGON_SPECIES[b.species].breath, hunt: true });
-  Sfx.plasma();
+  fireballs.push({ x0, y0, h0: b.alt + mh, x1: a.x, y1: a.y, x: x0, y: y0, h: 0, t: 0, dur: 0.45, pal: DRAGON_SPECIES[b.species].breath, el: breathOf(b.species), hunt: true });
+  Sfx.breath(breathOf(b.species));
 }
 
 // A hunting blast brings down any game it lands among.
@@ -2807,6 +2797,8 @@ function musicArea() {
   else if (t === T.SNOW || t === T.ICE || near('frozen', 4)) musicHere = 'snow';
   else if (sea) musicHere = 'sea';
   else if (tx >= OX - 3 && tx < OX + 139 && ty >= OY - 3 && ty < OY + 115) musicHere = 'village';
+  if (musicHere === 'village' && festivalOn() && Math.hypot(tx - PLAZA.x, ty - PLAZA.y) < 30) musicHere = 'festival';
+  else if (musicHere === 'festival') musicHere = 'village';
   return musicHere;
 }
 
@@ -2965,6 +2957,8 @@ function drawObject(o, cx, cy) {
   let img = view.img;
   if (s.pick) img = s.pick(time, o);
   else if (s.frames) img = s.frames[Math.floor(time * s.fps + o.phase) % s.frames.length];
+  img = seasonalImg(img, o);
+  if (o.snowy > 0) img = snowyImg(img);
   const dy = s.bob ? Math.round(Math.sin(time * 1.4 + o.phase) * s.bob) : 0;
   const shake = o.shakeT > 0 ? Math.sin(o.shakeT * 70) * 1.5 : 0;
   const sx = Math.round(o.x - view.ox - cx + shake);
@@ -3178,6 +3172,16 @@ function drawParticles(cx, cy, layer) {
     } else if (p.type === 'icon') {
       ctx.globalAlpha = Math.min(1, (1 - t) * 2.5);
       ctx.drawImage(p.img, Math.round(p.x - p.img.width / 2 - cx), Math.round(p.y - p.img.height / 2 - cy));
+    } else if (p.type === 'flake') {
+      ctx.globalAlpha = 1 - t;
+      const x = Math.round(p.x - cx);
+      const y = Math.round(p.y - cy);
+      px(ctx, x, y, '#ffffff');
+      if (t < 0.6) for (const [dx, dy] of [[1, 1], [-1, -1], [1, -1], [-1, 1]]) px(ctx, x + dx, y + dy, p.pal[0]);
+    } else if (p.type === 'ring') {
+      const r = p.r + p.grow * t;
+      ctx.globalAlpha = 0.8 * (1 - t);
+      strokeRing(p.x - cx, p.y - cy, r, r * p.flat, p.pal[0], 1);
     } else if (p.type === 'gust') {
       ctx.globalAlpha = 0.7 * (1 - t);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 6, p.y - cy - p.dy * 6, '#ffffff');
@@ -3216,6 +3220,7 @@ function render() {
   drawAnimatedTiles(cx, cy);
   drawRapids(cx, cy);
   drawParticles(cx, cy, 'water');
+  drawMarks(cx, cy);
   drawSeaUnder(cx, cy);
   drawShootingLine(cx, cy);
 
@@ -3257,6 +3262,7 @@ function render() {
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
     else drawObject(it, cx, cy);
   }
+  drawFestival(cx, cy);
 
   drawParticles(cx, cy, 'world');
   drawBurning(cx, cy);
@@ -3312,7 +3318,7 @@ function render() {
   if (flight && flight.mode === 'fly') {
     const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
     const egg = carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '';
-    setPrompt(`${overCrater() ? 'SPACE  Drop the egg into the volcano' : space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost${egg}`);
+    setPrompt(`${overCrater() ? 'SPACE  Drop the egg into the volcano' : space}  ·  ${flight.charge == null ? 'F  Fireball (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to fire' : 'Full charge! Let go of F for a beam'}  ·  R  Loop  ·  SHIFT  Boost${egg}`);
   } else if (player.downT > 0) {
     setPrompt('Bitten! You can\'t move until the venom wears off...');
   } else if (sail && player.fishing) {
@@ -3524,7 +3530,7 @@ window.addEventListener('keydown', (e) => {
   if (!e.repeat) {
     if (e.code === 'Space') action();
     if (e.code === 'KeyF') {
-      if (flight) breatheFire();
+      if (flight) chargeBreath();
       else if (carried) setDownEgg();
       else useTool();
     }
@@ -3559,6 +3565,7 @@ chatForm.addEventListener('submit', (e) => {
 window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
   if (e.code === 'KeyF') {
+    releaseBreath();
     loose();
     releaseCast();
   }

@@ -3045,6 +3045,161 @@ function buildSnake() {
   return sides(['a', 'b', 'coil', 'strike'].map(frame));
 }
 
+// ---------- night animals ----------
+
+// Frames: snuffling along, mid-step, curled up in a ball of spines.
+function buildHedgehog() {
+  const SPINE = '#6a5440';
+  const TIP = '#cbb89a';
+  const FACE = '#c9a47a';
+  const DARK = '#2e2018';
+  const frame = (pose) => sprite(16, 11, (g) => {
+    g.translate(1, 1);
+    if (pose === 'curl') {
+      ellipse(g, 7, 5, 5, 4, SPINE);
+      for (let i = 0; i < 14; i++) px(g, 3 + hash(i, 1, 31) * 9, 1 + hash(i, 2, 31) * 7, TIP);
+      px(g, 11, 6, FACE);
+      return;
+    }
+    const st = pose === 'step' ? 1 : 0;
+    rect(g, 3 + st, 8, 1, 1, DARK);
+    rect(g, 9 - st, 8, 1, 1, DARK);
+    ellipse(g, 6, 5, 5.5, 3.5, SPINE);
+    for (let x = 1; x <= 10; x++) px(g, x, 2 - (x % 2) + (x < 3 || x > 9 ? 1 : 0), SPINE);
+    for (let i = 0; i < 10; i++) px(g, 2 + hash(i, 1, 37) * 8, 2 + hash(i, 2, 37) * 4, TIP);
+    poly(g, [[10, 4], [14, 6.5], [10, 8]], FACE);
+    px(g, 14, 6, DARK);
+    px(g, 11, 5, DARK);
+  });
+  return sides(['stand', 'step', 'curl'].map(frame));
+}
+
+// Frames: standing, mid-step, digging nose-down, running.
+function buildBadger() {
+  const COAT = '#8b8b90';
+  const BACK = '#a6a6ac';
+  const DARK = '#34343a';
+  const WHITE = '#f2f2f2';
+  const frame = (pose) => sprite(23, 13, (g) => {
+    g.translate(1, 1);
+    const feet = { stand: [3, 6, 13, 15], step: [2, 7, 14, 14], dig: [3, 6, 13, 15], run: [0, 4, 16, 19] }[pose];
+    [3, 6, 13, 15].forEach((x, i) => line(g, x, 7, feet[i], 10, DARK, 2));
+    ellipse(g, 9, 6, 8, 3.5, COAT);
+    rect(g, 3, 3, 11, 1, BACK);
+    ellipse(g, 9, 8.5, 6, 1, DARK);
+    px(g, 0, 5, COAT);
+    const dy = pose === 'dig' ? 3 : 0;
+    poly(g, [[15, 3 + dy], [21, 6 + dy], [20, 8 + dy], [15, 9]], WHITE);
+    line(g, 16, 4 + dy, 20, 7 + dy, DARK);
+    px(g, 21, 7 + dy, DARK);
+    px(g, 15, 3 + dy, DARK);
+    if (pose === 'dig') for (const [x, y] of [[20, 11], [22, 10]]) px(g, x, y, '#7a5a3a');
+  });
+  return sides(['stand', 'step', 'dig', 'run'].map(frame));
+}
+
+// Frames: standing, mid-step, sitting, running, and sitting with its muzzle raised in a howl.
+function buildWolf() {
+  const FUR = '#7c8088';
+  const LIGHT = '#c8ccd2';
+  const DARK = '#474b53';
+  const frame = (pose) => sprite(29, 23, (g) => {
+    g.translate(1, 5);
+    const sit = pose === 'sit' || pose === 'howl';
+    const run = pose === 'run';
+    const legs = {
+      stand: [[7, 11, 7, 16], [10, 11, 10, 16], [17, 11, 17, 16], [20, 11, 20, 16]],
+      step: [[7, 11, 5, 16], [10, 11, 11, 16], [17, 11, 15, 16], [20, 11, 22, 16]],
+      sit: [[17, 9, 17, 16], [19, 9, 19, 16]],
+      run: [[7, 10, 2, 13], [10, 11, 6, 14], [17, 10, 22, 13], [20, 11, 25, 14]],
+    }[sit ? 'sit' : pose];
+    for (const [x0, y0, x1, y1] of legs) line(g, x0, y0, x1, y1, DARK, 2);
+    if (sit) {
+      poly(g, [[8, 16], [2, 14], [1, 16], [10, 16]], FUR);
+      ellipse(g, 12, 12, 5, 4, FUR);
+      poly(g, [[13, 8], [17, 2], [21, 4], [20, 13]], FUR);
+      ellipse(g, 18.5, 9, 1.5, 2.5, LIGHT);
+    } else {
+      poly(g, [[7, 8], [1, run ? 7 : 4], [0, run ? 9 : 7], [4, 10]], FUR);
+      px(g, 1, run ? 8 : 5, LIGHT);
+      ellipse(g, 13, 9, 7.5, 3.5, FUR);
+      ellipse(g, 13, 11.5, 5, 1, LIGHT);
+      rect(g, 8, 6, 9, 1, DARK);
+    }
+    if (pose === 'howl') {
+      const [hx, hy] = [19, 1];
+      ellipse(g, hx, hy, 3, 2.5, FUR);
+      poly(g, [[hx, hy - 1], [hx + 3, hy - 6], [hx + 5, hy - 5], [hx + 3, hy + 1]], FUR);
+      px(g, hx + 4, hy - 6, '#10141c');
+      poly(g, [[hx - 3, hy], [hx - 3, hy - 4], [hx - 1, hy - 1]], FUR);
+      px(g, hx, hy - 1, '#10141c');
+      return;
+    }
+    const [hx, hy] = sit ? [19, 2] : [21, run ? 7 : 6];
+    ellipse(g, hx, hy, 3, 2.5, FUR);
+    poly(g, [[hx + 1, hy - 1], [hx + 6, hy + 1], [hx + 5, hy + 2], [hx + 1, hy + 2.5]], FUR);
+    px(g, hx + 6, hy + 1, '#10141c');
+    px(g, hx + 1, hy, '#f0d040');
+    px(g, hx - 1, hy + 1.5, LIGHT);
+    poly(g, [[hx - 2, hy - 1], [hx - 1.5, hy - 5], [hx, hy - 1]], FUR);
+    poly(g, [[hx, hy - 1], [hx + 1, hy - 5], [hx + 1.5, hy - 1]], FUR);
+  });
+  return sides(['stand', 'step', 'sit', 'run', 'howl'].map(frame));
+}
+
+// Frames: perched, blinking, and two wingbeats in flight.
+function buildOwl() {
+  const FEATHER = '#8a6a44';
+  const LIGHT = '#dccaa6';
+  const DARK = '#4a3624';
+  const EYE = '#f4c430';
+  const BEAK = '#c8a040';
+  const perched = (blink) => sprite(12, 15, (g) => {
+    g.translate(1, 1);
+    ellipse(g, 5, 8, 4, 5, FEATHER);
+    ellipse(g, 5, 9, 2.5, 3.5, LIGHT);
+    for (const [x, y] of [[4, 8], [6, 10], [4, 11]]) px(g, x, y, DARK);
+    ellipse(g, 5, 3, 3.5, 3, FEATHER);
+    px(g, 2, 0, DARK);
+    px(g, 8, 0, DARK);
+    rect(g, 3, 2, 5, 2, LIGHT);
+    if (blink) rect(g, 3, 3, 5, 1, DARK);
+    else for (const x of [3.5, 6.5]) { px(g, x, 2, EYE); px(g, x, 3, DARK); }
+    px(g, 5, 4, BEAK);
+    px(g, 4, 13, BEAK);
+    px(g, 6, 13, BEAK);
+  });
+  const flying = (up) => sprite(22, 13, (g) => {
+    g.translate(1, 1);
+    const wing = up ? [[9, 5], [0, 0], [2, 4], [1, 6], [9, 8]] : [[9, 5], [0, 9], [3, 9], [2, 11], [9, 8]];
+    poly(g, wing, DARK);
+    poly(g, wing.map(([x, y]) => [20 - x, y]), DARK);
+    ellipse(g, 10, 6, 3, 4, FEATHER);
+    ellipse(g, 10, 7, 2, 2.5, LIGHT);
+    ellipse(g, 12, 3, 2.5, 2.2, FEATHER);
+    px(g, 13, 3, EYE);
+    px(g, 14, 4, BEAK);
+  });
+  return sides([perched(false), perched(true), flying(true), flying(false)]);
+}
+
+// Frames: wings up, wings down.
+function buildBat() {
+  const WING = '#3a2e40';
+  const BODY = '#5c4858';
+  const frame = (up) => sprite(16, 10, (g) => {
+    g.translate(1, 1);
+    const wing = up ? [[6, 4], [0, 0], [2, 3], [1, 5], [6, 6]] : [[6, 4], [0, 7], [3, 6], [2, 8], [6, 6]];
+    poly(g, wing, WING);
+    poly(g, wing.map(([x, y]) => [13 - x, y]), WING);
+    ellipse(g, 7, 4, 2, 2.5, BODY);
+    px(g, 6, 1, BODY);
+    px(g, 8, 1, BODY);
+    px(g, 8, 3, '#ff8a8a');
+  });
+  return sides([frame(true), frame(false)]);
+}
+
 // A squat, vine-hung jungle tree, too tangled to chop; packed in rows they make the walls of the jungle maze.
 function buildVineTree(seed) {
   return sprite(30, 40, (g) => {
@@ -4084,6 +4239,7 @@ function buildSprites() {
     deer: buildDeer(false), stag: buildDeer(true), boar: buildBoar(), rabbit: buildRabbit(), goat: buildGoat(), frog: buildFrog(), snake: buildSnake(),
     fox: buildFox({ fur: '#d8642a', light: '#f4e6d0', legs: '#3a2414' }),
     arcticFox: buildFox({ fur: '#f4f4f8', light: '#ffffff', legs: '#9aa4b8' }),
+    hedgehog: buildHedgehog(), badger: buildBadger(), wolf: buildWolf(), owl: buildOwl(), bat: buildBat(),
   };
   SPR.heldFront = { axe: buildAxeFront() };
   def('bushCut', { img: buildBushCut() });

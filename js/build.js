@@ -385,8 +385,9 @@ function drawRapids(cx, cy) {
 
 const burns = (o) => o.axe === 'bramble' || o.axe === 'log';
 
-function ignite(o, delay = 0) {
-  if (o.burnT !== undefined || !burns(o) || !kindOf(o)) return;
+// `any` lets dragon fire catch trees and bushes too, though they don't spread it.
+function ignite(o, delay = 0, any = false) {
+  if (o.burnT !== undefined || !(burns(o) || (any && (kindOf(o) === 'tree' || o.axe === 'bush'))) || !kindOf(o)) return;
   o.burnT = -delay;
   burning.push(o);
 }
@@ -420,7 +421,13 @@ function updateBurning(dt) {
     if (o.burnT < BURN_TIME) continue;
     burning.splice(i, 1);
     delete o.burnT;
+    if (o.tree) {
+      Object.assign(o, { key: TREES[o.tree].stump, hp: undefined, regrowT: REGROW_TIME });
+      placeCollider(o);
+      continue;
+    }
     if (o.axe === 'log') Object.assign(o, { hidden: true, regrowT: REGROW_TIME });
+    else if (o.axe === 'bush') Object.assign(o, { key: 'bushCut', broken: true, regrowT: REGROW_TIME });
     else Object.assign(o, { key: 'brambleBurnt', broken: true, regrowT: REGROW_TIME });
     o.col.off = true;
   }
@@ -432,26 +439,16 @@ function drawBurning(cx, cy) {
     const k = Math.sin(Math.PI * Math.min(1, o.burnT / BURN_TIME));
     const x = Math.round(o.x - cx);
     const y = Math.round(o.y - cy);
+    const big = o.tree ? 1.8 : 1;
     for (const [c, s] of [['#c8401e', 1], ['#ff8a2a', 0.7], ['#ffd85a', 0.4]]) {
       for (let i = 0; i < 3; i++) {
         const u = i - 1;
-        const h = (8 + 14 * k) * s * (0.75 + 0.25 * Math.sin(time * 12 + i * 2.1 + o.phase));
+        const h = (8 + 14 * k) * s * big * (0.75 + 0.25 * Math.sin(time * 12 + i * 2.1 + (o.phase || 0)));
         const w = (3 + 2 * k) * s + 1;
-        poly(ctx, [[x + u * 6 - w, y - 3], [x + u * 6 + w, y - 3], [x + u * 6, y - 3 - h]], c);
+        poly(ctx, [[x + u * 6 * big - w, y - 3], [x + u * 6 * big + w, y - 3], [x + u * 6 * big, y - 3 - h]], c);
       }
     }
   }
-}
-
-// A fireball scorches what it lands among: brambles and logs catch, boulders burst.
-function blastAt(x, y) {
-  for (const o of hittables) {
-    const k = kindOf(o);
-    if (!k || Math.hypot(o.x - x, o.y - 4 - y) > 28) continue;
-    if (k === 'bramble' || k === 'log') ignite(o, Math.random() * 0.2);
-    else if (k === 'boulder') breakBoulder(o);
-  }
-  meltAt(x, y + 4, 28);
 }
 
 // ---------- the loose boulder ----------

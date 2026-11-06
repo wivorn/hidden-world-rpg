@@ -4,7 +4,8 @@
 const SAVE_KEY = 'hw-save';
 const SAVE_VERSION = 1;
 const AUTOSAVE_MS = 20000;
-// The last place the player stood on firm ground; a game saved mid-flight or while swimming resumes there.
+// The last place the player stood on firm ground; a game saved while swimming resumes there, and one saved
+// mid-flight carries on in the air (older saves without the flight land there instead).
 let safeSpot = null;
 
 function readSave() {
@@ -62,7 +63,7 @@ function snapshot() {
     v: SAVE_VERSION,
     hero: { name: player.name, look: player.look.id },
     clock, dayCount, weather: weather.want,
-    player: { ...spot, dir: player.dir, sail: !!sail, fedT: Math.max(0, player.fedT || 0) },
+    player: { ...spot, dir: player.dir, sail: !!sail, fedT: Math.max(0, player.fedT || 0), flight: flightSave() },
     ship: { x: shipObj.x, y: shipObj.y, facing: shipObj.facing, dir: shipObj.dir },
     bag: things, pack: packSlots, hand, outfit, stats: { ...stats }, journal,
     npcs: npcs.map((n) => ({ gaveAxe: n.gaveAxe, gaveRod: n.gaveRod, scrapGiven: n.scrapGiven, tipTold: n.tipTold })),
@@ -94,6 +95,25 @@ function snapshot() {
     roost: saveRoost(),
     nursery: saveNursery(),
   };
+}
+
+function flightSave() {
+  if (!flight || flight.warp || !dragons.includes(flight.dragon)) return null;
+  return { x: Math.round(flight.x), y: Math.round(flight.y), dir: flight.dir, face: flight.face, dragon: dragons.indexOf(flight.dragon), species: flight.dragon.species };
+}
+
+// Back on the same dragon's back, flying where the game was saved, with a little dragon following along beside.
+function restoreFlight(f) {
+  const d = f && dragons[f.dragon];
+  if (!d || d.species !== f.species || d.stage !== GROWN || !d.saddled || sail) return;
+  indoors = null;
+  d.obj.hidden = true;
+  d.obj.col.off = true;
+  Object.assign(d, { perched: false, roost: null, x: f.x, y: f.y, alt: FLY_ALT });
+  takeWing(d, f.x, f.y, FLY_ALT, f.dir);
+  Object.assign(flight, { mode: 'fly', face: f.face || f.dir });
+  Object.assign(player, { x: f.x, y: f.y, flying: true, swimming: false });
+  if (follower && follower !== d && follower.stage < GROWN) Object.assign(follower, { x: f.x - 30, y: f.y, flying: true, alt: 30 });
 }
 
 function saveGame(announce = false) {
@@ -150,6 +170,7 @@ function restore(s) {
   syncRuin();
   restoreDunes(s.dunes);
   restoreDragons(s.dragons);
+  restoreFlight(s.player.flight);
 
   drops.length = 0;
   for (const [item, x, y, mark] of s.drops) {

@@ -1,5 +1,5 @@
 // Wild animals: deer, boar and rabbits to hunt for meat, foxes, goats and frogs that just live here, and the snakes
-// that lie in wait in the jungle maze.
+// that lie in wait in the jungle maze. Hedgehogs, badgers, wolves, owls and bats only come out at night.
 
 // `hp`, `meat` and `hide` only for game animals. Speeds in px/s; `shy` is how close the player can get before it bolts,
 // `range` how far from home it wanders, `box` the half-width an arrow or blade has to land within.
@@ -12,6 +12,11 @@ const WILD = {
   frog: { name: 'frog', walk: 34, shy: 26, range: 14, box: 4, tiles: [T.GRASS, T.JUNGLE, T.SAND, T.DIRT], hops: true, call: 'croak', every: [5, 12] },
   sealion: { name: 'sea lion', hp: 2, meat: 3, hide: 1, box: 11 },
   snake: { name: 'snake', hp: 1, meat: 0, walk: 10, lunge: 40, strike: 170, shy: 0, range: 28, box: 7, tiles: [T.JUNGLE] },
+  hedgehog: { name: 'hedgehog', walk: 9, shy: 30, range: 36, box: 5, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [7, 14] },
+  badger: { name: 'badger', hp: 3, meat: 2, hide: 1, walk: 15, run: 72, shy: 56, range: 52, box: 8, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [10, 20] },
+  wolf: { name: 'wolf', hp: 4, meat: 3, hide: 2, walk: 24, run: 115, shy: 70, watch: 150, range: 80, box: 11, tiles: [T.GRASS, T.SNOW, T.ROCK], night: true, call: 'howl', every: [22, 30] },
+  owl: { name: 'owl', shy: 44, range: 0, box: 5, night: true, call: 'hoot', every: [8, 16] },
+  bat: { name: 'bat', fly: 55, range: 90, box: 5, tiles: [T.GRASS, T.DIRT, T.PATH, T.SAND, T.ROCK], night: true, call: 'squeak', every: [5, 12] },
 };
 const huntable = (a) => !!WILD[a.kind].hp;
 
@@ -38,7 +43,23 @@ const HERDS = [
   { kind: 'frog', n: 4, area: local(12, 44, 32, 64) },
   { kind: 'frog', n: 2, isle: 'jungle' },
   { kind: 'snake', n: 11, area: mazeBox() },
+  { kind: 'hedgehog', n: 3, area: local(54, 68, 100, 96) },
+  { kind: 'hedgehog', n: 2, area: local(116, 64, 134, 96) },
+  { kind: 'badger', n: 2, area: local(6, 62, 36, 96) },
+  { kind: 'badger', n: 1, area: local(4, 20, 34, 46) },
+  { kind: 'wolf', n: 3, area: local(38, 4, 60, 26) },
+  { kind: 'wolf', n: 3, isle: 'frozen' },
+  { kind: 'owl', n: 2, area: local(4, 20, 34, 46) },
+  { kind: 'owl', n: 2, area: local(6, 62, 36, 96) },
+  { kind: 'owl', n: 1, isle: 'hermit' },
+  { kind: 'bat', n: 4, area: local(54, 66, 100, 96) },
+  { kind: 'bat', n: 3, isle: 'ruin' },
 ];
+// Night animals come out once it's this dark, and slip away again as it gets light.
+const NIGHT_OUT = 0.55;
+const nightOut = () => nightness() > NIGHT_OUT;
+const LEAVE_TIME = 3;
+const PERCHES = new Set(['oak', 'pine', 'pine2', 'snowPine']);
 const RESPAWN = 240;
 const DOWN_TIME = 0.6;
 const ACTIVE_RANGE = 700;
@@ -59,10 +80,20 @@ function nearWet(tx, ty, r) {
 
 const habitat = (kind, x, y) => WILD[kind].tiles.includes(tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)));
 
-// Runs before main.js defines canStand, so it asks `blocked` directly.
+function herdBox(h) {
+  const i = h.isle && isle(h.isle);
+  return i ? { x0: i.x - i.rx, y0: i.y - i.ry, x1: i.x + i.rx, y1: i.y + i.ry } : h.area;
+}
+
+// Runs before main.js defines canStand, so it asks `blocked` directly. Owls sit up in a tree.
 function spawnSpot(h, rng, probe) {
   const i = h.isle && isle(h.isle);
-  const box = i ? { x0: i.x - i.rx, y0: i.y - i.ry, x1: i.x + i.rx, y1: i.y + i.ry } : h.area;
+  const box = herdBox(h);
+  if (h.kind === 'owl') {
+    const trees = objects.filter((o) => PERCHES.has(o.key) && kindOf(o) === 'tree' && o.x > box.x0 * TILE && o.x < box.x1 * TILE && o.y > box.y0 * TILE && o.y < box.y1 * TILE);
+    const tree = trees[Math.floor(rng() * trees.length)];
+    return tree ? { x: tree.x + 3, y: tree.y + 1, tree } : null;
+  }
   for (let k = 0; k < 200; k++) {
     const tx = box.x0 + rng() * (box.x1 - box.x0);
     const ty = box.y0 + rng() * (box.y1 - box.y0);
@@ -87,9 +118,9 @@ function initWildlife() {
       const look = h.look || (h.kind === 'deer' && n % 3 === 0 ? 'stag' : h.kind);
       const w = WILD[h.kind];
       animals.push({
-        kind: h.kind, look, x: at.x, y: at.y, home: { x: at.x, y: at.y }, pond: at.pond, dir: rng() < 0.5 ? 'left' : 'right',
-        state: 'idle', timer: rng() * 3, anim: 0, lift: 0, hp: w.hp || 0, hurtT: 0, fleeT: 0, target: null, stuck: 0,
-        callT: w.every ? w.every[0] + rng() * w.every[1] : 0, croakT: 0, respawnT: 0, t: 0,
+        kind: h.kind, look, x: at.x, y: at.y, home: { x: at.x, y: at.y }, pond: at.pond, tree: at.tree, herd: h, dir: rng() < 0.5 ? 'left' : 'right',
+        state: w.night ? 'gone' : 'idle', timer: rng() * 3, anim: 0, lift: perchLift(at.tree), hp: w.hp || 0, hurtT: 0, fleeT: 0, target: null, stuck: 0,
+        callT: w.every ? w.every[0] + rng() * w.every[1] : 0, croakT: 0, respawnT: w.night ? rng() * 30 : 0, t: 0, phase: rng() * 6,
       });
     }
   }
@@ -146,12 +177,20 @@ function faceMoving(e, mx, dt, sp) {
 }
 
 function startle(a) {
-  if (a.kind === 'boar') return;
+  if (a.kind === 'boar' || a.kind === 'bat') return;
   for (const b of animals) {
     if (b.kind !== a.kind || b.state === 'down' || b.state === 'gone' || b.state === 'dive') continue;
     if (b !== a && Math.hypot(b.x - a.x, b.y - a.y) > 90) continue;
     if (b.kind === 'frog') {
       Object.assign(b, { state: 'leap', t: 0, from: { x: b.x, y: b.y } });
+      continue;
+    }
+    if (b.kind === 'hedgehog') {
+      if (b.state !== 'curl') Object.assign(b, { state: 'curl', timer: 4 + Math.random() * 3, lift: 0 });
+      continue;
+    }
+    if (b.kind === 'owl') {
+      flyOff(b);
       continue;
     }
     if (b.state !== 'flee') Object.assign(b, { state: 'flee', fleeT: 1.6 + Math.random() });
@@ -179,9 +218,13 @@ function updateAnimal(a, dt) {
     return;
   }
   if (a.state === 'gone') {
-    if ((a.respawnT -= dt) <= 0 && Math.hypot(player.x - a.home.x, player.y - a.home.y) > 320) {
-      Object.assign(a, { x: a.home.x, y: a.home.y, state: 'idle', timer: 2, hp: w.hp || 0, lift: 0 });
-    }
+    if (w.night && !nightOut()) return;
+    if ((a.respawnT -= dt) <= 0 && Math.hypot(player.x - a.home.x, player.y - a.home.y) > 320) comeOut(a);
+    return;
+  }
+  if (w.night && !nightOut() && !(a.leaveT >= 0) && a.state !== 'down') a.leaveT = 0;
+  if (a.leaveT >= 0 && ((a.leaveT += dt) >= LEAVE_TIME || !onScreen(a.x, a.y - a.lift, cam.x, cam.y, 40))) {
+    Object.assign(a, { state: 'gone', respawnT: 0, leaveT: -1 });
     return;
   }
   if (a.state === 'dive') {
@@ -191,12 +234,22 @@ function updateAnimal(a, dt) {
     }
     return;
   }
+  if (a.frozenT > 0) {
+    if ((a.frozenT -= dt) <= 0) thaw(a);
+    return;
+  }
   ambientCall(a, dt);
   const dist = Math.hypot(player.x - a.x, player.y - a.y);
   const near = playerAbout() && !player.swimming;
   const shy = w.shy * (player.running ? 1.4 : 1);
   if (a.kind === 'boar') return updateBoar(a, dt, dist, near);
   if (a.kind === 'snake') return updateSnake(a, dt, dist, near);
+  if (a.kind === 'bat') return updateBat(a, dt);
+  if (a.kind === 'owl') return updateOwl(a, dt, dist, near && dist < shy);
+  if (a.state === 'curl') {
+    if ((a.timer -= dt) <= 0 && !(near && dist < shy)) Object.assign(a, { state: 'idle', timer: 1 });
+    return;
+  }
   if (a.state === 'leap') return updateLeap(a, dt);
   if (a.state === 'pounce') return updatePounce(a, dt);
   if (near && dist < shy && a.state !== 'flee') startle(a);
@@ -238,6 +291,63 @@ function updateAnimal(a, dt) {
   a.target = pickWander(a);
   if (a.target) Object.assign(a, { state: 'walk', stuck: 0 });
   else a.timer = 1;
+}
+
+// ---------- night animals ----------
+
+const perchLift = (tree) => (tree ? Math.round(SPR[tree.key].img.height * 0.55) : 0);
+
+// Back out after dark: owls to a tree still standing in their patch, the rest to their home spot.
+function comeOut(a) {
+  const w = WILD[a.kind];
+  if (a.kind === 'owl' && (!a.tree || kindOf(a.tree) !== 'tree')) {
+    const at = spawnSpot(a.herd, Math.random, {});
+    if (!at) return (a.respawnT = 30);
+    Object.assign(a, { tree: at.tree, home: { x: at.x, y: at.y } });
+  }
+  Object.assign(a, { x: a.home.x, y: a.home.y, state: 'idle', timer: 2, hp: w.hp || 0, lift: perchLift(a.tree), target: null, leaveT: -1, vx: 0, vy: 0 });
+}
+
+// An owl sits tight in its tree, turning to watch you, until you come too close or the tree comes down.
+function updateOwl(a, dt, dist, close) {
+  if (a.state === 'flyoff') {
+    a.t += dt;
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+    a.lift += dt * 26;
+    a.anim += dt * 9;
+    if (a.t > 3) Object.assign(a, { state: 'gone', respawnT: 40 + Math.random() * 40 });
+    return;
+  }
+  if (close || kindOf(a.tree) !== 'tree' || a.tree.burnT !== undefined) return flyOff(a);
+  if (dist < 120) a.dir = player.x > a.x ? 'right' : 'left';
+}
+
+function flyOff(a) {
+  if (a.state === 'flyoff') return;
+  const [ux] = awayFrom(a, player.x, player.y);
+  const side = ux < 0 ? -1 : 1;
+  Object.assign(a, { state: 'flyoff', t: 0, vx: side * 60, vy: -12, dir: side > 0 ? 'right' : 'left' });
+  Sfx.flap(0.4 * earshot(a.x, a.y));
+}
+
+// Bats flit about over their patch in jinking zigzags, never settling.
+function updateBat(a, dt) {
+  const w = WILD.bat;
+  if (!a.target || Math.hypot(a.target.x - a.x, a.target.y - a.y) < 8) {
+    a.target = { x: a.home.x + (Math.random() - 0.5) * 2 * w.range, y: a.home.y + (Math.random() - 0.5) * w.range };
+  }
+  const dx = a.target.x - a.x;
+  const dy = a.target.y - a.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const k = Math.min(1, dt * 3);
+  a.vx = (a.vx || 0) + ((dx / d) * w.fly - (a.vx || 0)) * k + (Math.random() - 0.5) * 500 * dt;
+  a.vy = (a.vy || 0) + ((dy / d) * w.fly - (a.vy || 0)) * k + (Math.random() - 0.5) * 500 * dt;
+  a.x += a.vx * dt;
+  a.y += a.vy * dt;
+  a.lift = 24 + Math.sin(time * 2.3 + a.phase) * 7 + (a.leaveT >= 0 ? a.leaveT * 30 : 0);
+  a.anim += dt * 16;
+  if (Math.abs(a.vx) > 8) a.dir = a.vx > 0 ? 'right' : 'left';
 }
 
 // A frog makes for its pond in two big hops and vanishes with a plop.
@@ -421,6 +531,13 @@ function ambientCall(a, dt) {
   if (k < 0.15 || indoors) return;
   Sfx[w.call](0.5 * k);
   if (a.kind === 'frog') a.croakT = 0.5;
+  // one wolf's howl sets the rest of its pack off
+  if (a.kind !== 'wolf' || a.state === 'flee') return;
+  Object.assign(a, { croakT: 2, state: 'sit', timer: 2.5 });
+  if (a.chorus) return (a.chorus = false);
+  for (const b of animals) {
+    if (b !== a && b.kind === 'wolf' && alive(b) && Math.hypot(b.x - a.x, b.y - a.y) < 160) Object.assign(b, { callT: 0.5 + Math.random() * 1.2, chorus: true });
+  }
 }
 
 function updateWildlife(dt) {
@@ -492,7 +609,7 @@ function hurtAnimal(a, dmg) {
 function bringDown(a) {
   Object.assign(a, { state: 'down', t: 0, lift: 0 });
   stats.hunted++;
-  stats[a.kind]++;
+  stats[a.kind] = (stats[a.kind] || 0) + 1;
   if (a.kind === 'boar') Sfx.grunt(0.8);
   if (a.kind === 'sealion') startleLions(a);
 }
@@ -526,9 +643,13 @@ function animalFrame(a) {
   if (a.kind === 'rabbit') return a.lift > 0.5 ? 1 : a.state === 'graze' && (time + a.home.x) % 2 < 1.2 ? 2 : 0;
   if (a.kind === 'frog') return a.lift > 0.5 ? 1 : a.croakT > 0 ? 2 : 0;
   if (a.kind === 'snake') return a.state === 'strike' ? 3 : a.state === 'coil' || a.state === 'rest' ? 2 : step;
+  if (a.kind === 'bat') return step;
+  if (a.kind === 'owl') return a.state === 'flyoff' ? 2 + step : (time + a.phase) % 4 < 0.2 ? 1 : 0;
+  if (a.kind === 'hedgehog') return a.state === 'curl' ? 2 : a.state === 'walk' ? step : 0;
+  if (a.kind === 'wolf' && a.croakT > 0) return 4;
   if (a.state === 'flee' || a.state === 'charge' || a.state === 'pounce') return a.kind === 'goat' ? step : step ? 3 : 1;
   if (a.state === 'walk' || a.state === 'sulk') return step;
-  if (a.kind === 'fox') return a.state === 'sit' || a.state === 'watch' ? 2 : 0;
+  if (a.kind === 'fox' || a.kind === 'wolf') return a.state === 'sit' || a.state === 'watch' ? 2 : 0;
   if (a.state === 'graze') return 2;
   return 0;
 }
@@ -539,15 +660,17 @@ function drawAnimal(a, cx, cy) {
   const y = Math.round(a.y) - cy;
   const w = WILD[a.kind];
   if (a.state === 'down') ctx.globalAlpha = 1 - a.t / DOWN_TIME;
-  drawShadow(x, y, Math.max(3, w.box * 0.7 - a.lift * 0.2), 1.5);
+  if (a.leaveT >= 0) ctx.globalAlpha = Math.max(0, 1 - a.leaveT / LEAVE_TIME);
+  if (!a.tree || a.state === 'flyoff') drawShadow(x, y, Math.max(3, w.box * 0.7 - a.lift * 0.2), 1.5);
   if (!(a.hurtT > 0 && Math.floor(a.hurtT * 20) % 2)) {
     const shake = a.state === 'stun' ? Math.round(Math.sin(time * 40)) : 0;
     ctx.drawImage(img, x - Math.floor(img.width / 2) + shake, y - img.height + 1 - Math.round(a.lift));
   }
+  if (a.frozenT > 0) drawIceBlock(x, y, img.width, img.height, a.frozenT);
   ctx.globalAlpha = 1;
 }
 
 function wildItems(cx, cy) {
   if (indoors) return [];
-  return animals.filter((a) => a.state !== 'gone' && a.state !== 'dive' && onScreen(a.x, a.y, cx, cy, 30)).map((a) => ({ y: a.y, draw: () => drawAnimal(a, cx, cy) }));
+  return animals.filter((a) => a.state !== 'gone' && a.state !== 'dive' && onScreen(a.x, a.y, cx, cy, 30)).map((a) => ({ y: a.y + (a.kind === 'bat' ? 60 : 0), draw: () => drawAnimal(a, cx, cy) }));
 }

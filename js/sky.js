@@ -3,7 +3,7 @@
 
 // ---------- the clock ----------
 
-const DAY_LENGTH = 600;
+const DAY_LENGTH = 900;
 // 0 is midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset.
 let clock = 0.3;
 let dayCount = 1;
@@ -32,6 +32,7 @@ function updateClock(dt) {
     clock -= 1;
     dayCount++;
   }
+  updateCalendar(dt);
   renderClock();
 }
 
@@ -40,6 +41,7 @@ function updateClock(dt) {
 const clockEl = document.getElementById('clock');
 const clockIcon = clockEl.querySelector('img');
 const clockText = clockEl.querySelector('span');
+const clockDate = clockEl.querySelector('small');
 const CLOCK_ICONS = {
   sun: sprite(11, 11, (g) => {
     for (const [x, y] of [[5, 0], [5, 10], [0, 5], [10, 5], [1, 1], [9, 1], [1, 9], [9, 9]]) px(g, x, y, '#ffd36b');
@@ -65,11 +67,14 @@ function clockLabel(c = clock) {
 function renderClock() {
   const icon = isNight() ? 'moon' : 'sun';
   const text = `DAY ${dayCount}  ${clockLabel()}`;
-  if (text + icon === clockShown) return;
-  clockShown = text + icon;
+  const date = dateLabel();
+  if (text + date + icon === clockShown) return;
+  clockShown = text + date + icon;
   clockText.textContent = text;
+  clockDate.textContent = date;
   clockIcon.src = CLOCK_ICONS[icon];
-  clockEl.setAttribute('aria-label', `Day ${dayCount}, ${clockLabel()}, ${timeOfDay().toLowerCase()}`);
+  const d = dateOf();
+  clockEl.setAttribute('aria-label', `Day ${dayCount}, ${d.month} ${d.day}, ${d.season.name.toLowerCase()}${festivalDay() ? `, ${d.season.feast}` : ''}, ${clockLabel()}, ${timeOfDay().toLowerCase()}`);
 }
 
 // ---------- weather ----------
@@ -101,21 +106,26 @@ function setWeather(kind, now = false) {
 }
 
 // Snow falls instead of rain over the frozen isle and snowy peaks, and a little falls there even on clear days.
+// In winter it snows over the grass too, though only when the weather brings it.
 let snowy = false;
+let snowField = false;
 let snowyT = 0;
 function updateSnowy(dt) {
   if ((snowyT -= dt) > 0) return;
   snowyT = 0.5;
   let n = 0;
+  let grass = 0;
   for (const [dx, dy] of [[0, 0], [-6, -4], [6, -4], [-6, 4], [6, 4]]) {
     const t = tileAt(Math.floor(cam.x / TILE + viewW / TILE / 2) + dx, Math.floor(cam.y / TILE + viewH / TILE / 2) + dy);
     if (t === T.SNOW || t === T.ICE) n++;
+    else if (t === T.GRASS) grass++;
   }
-  snowy = !indoors && n >= 2;
+  snowField = !indoors && n >= 2;
+  snowy = snowField || (!indoors && wintry() && n + grass >= 2);
 }
 
 // How hard it's coming down where the player is: rain, or snow over snowy ground.
-const precipitation = () => (snowy ? Math.max(0.35, weatherNow('rain')) : weatherNow('rain'));
+const precipitation = () => (snowField ? Math.max(0.35, weatherNow('rain')) : weatherNow('rain'));
 
 function updateWeather(dt) {
   if ((weather.left -= dt) <= 0) setWeather(pickWeather());
@@ -306,6 +316,7 @@ function nightLights(cx, cy, visible) {
     }
   }
   for (const f of fireflies) out.push({ x: f.x, y: f.y, r: 7, k: 0.8 * fireflyGlow(f) });
+  out.push(...festivalLights());
   return out;
 }
 

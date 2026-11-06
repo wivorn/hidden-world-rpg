@@ -92,6 +92,7 @@ const Sfx = (() => {
     village: { root: 293.66, scale: [0, 2, 4, 7, 9, 12, 14, 16, 19], beat: 0.42, chords: [0, 3, 4, 2], busy: 0.55, lead: 'triangle', pluck: 0.9, vol: 0.045 },
     sea: { root: 220, scale: [0, 2, 3, 5, 7, 9, 10, 12, 14, 15], beat: 0.7, chords: [0, 3, 5, 4], busy: 0.4, lead: 'sine', pluck: 1.8, swell: true, vol: 0.05 },
     volcano: { root: 146.83, scale: [0, 1, 3, 5, 7, 8, 10, 12, 13], beat: 0.55, chords: [0, 1, 0, 5], busy: 0.3, lead: 'triangle', pluck: 1.2, drum: true, vol: 0.05 },
+    festival: { root: 293.66, scale: [0, 2, 4, 5, 7, 9, 11, 12, 14, 16], beat: 0.27, chords: [0, 3, 4, 0], busy: 0.85, lead: 'square', pluck: 0.35, drum: true, vol: 0.03 },
     snow: { root: 523.25, scale: [0, 2, 4, 6, 7, 9, 11, 12, 14], beat: 0.8, chords: [0, 4, 3, 5], busy: 0.3, lead: 'sine', pluck: 2.6, bell: true, vol: 0.03 },
   };
   const MUSIC = 0.8;
@@ -151,7 +152,7 @@ const Sfx = (() => {
     else s.deg = Math.max(0, Math.min(t.scale.length + 2, s.deg + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
     const f = hz(t, s.deg);
     const dur = t.pluck * (Math.random() < 0.25 ? 1.6 : 1);
-    voice(s.bus, { type: t.lead, f, at, dur, vol: v, attack: t.swell ? 0.18 : 0.012, cut: t.lead === 'triangle' ? 2400 : 0 });
+    voice(s.bus, { type: t.lead, f, at, dur, vol: v, attack: t.swell ? 0.18 : 0.012, cut: { triangle: 2400, square: 1600 }[t.lead] || 0 });
     if (t.bell) voice(s.bus, { f: f * 2.76, at, dur: dur * 0.6, vol: v * 0.3 });
   }
 
@@ -234,13 +235,62 @@ const Sfx = (() => {
       tone({ type: 'sawtooth', f0: 345, f1: 95, dur: 0.9, vol: 0.05, attack: 0.06 });
       noise({ dur: 1.0, vol: 0.12, f0: 900, f1: 300, type: 'bandpass', attack: 0.06 });
     },
-    plasma() {
-      tone({ type: 'square', f0: 1100, f1: 180, dur: 0.28, vol: 0.06 });
-      noise({ dur: 0.35, vol: 0.14, f0: 2400, f1: 500, type: 'bandpass', q: 1.2, attack: 0.01 });
+    charge(step) {
+      const f = 380 * 1.26 ** step;
+      tone({ type: 'triangle', f0: f, f1: f * 1.5, dur: 0.14, vol: 0.05 + step * 0.01 });
+      if (step === 3) tone({ type: 'square', f0: f * 2, dur: 0.18, vol: 0.03, delay: 0.08 });
     },
-    blast(k = 1) {
-      tone({ f0: 140, f1: 40, dur: 0.45, vol: 0.22 * k });
-      noise({ dur: 0.55, vol: 0.28 * k, f0: 900, f1: 90 });
+    breath(el) {
+      if (el === 'fire') {
+        noise({ dur: 0.45, vol: 0.18, f0: 900, f1: 250, type: 'bandpass', q: 0.8, attack: 0.03 });
+        tone({ type: 'sawtooth', f0: 160, f1: 90, dur: 0.3, vol: 0.04 });
+      } else if (el === 'frost') {
+        tone({ type: 'triangle', f0: 1800, f1: 2600, dur: 0.22, vol: 0.05 });
+        noise({ dur: 0.35, vol: 0.08, f0: 6000, f1: 3500, type: 'highpass', attack: 0.01 });
+      } else if (el === 'sonic') {
+        tone({ type: 'square', f0: 120, f1: 55, dur: 0.35, vol: 0.1 });
+        tone({ f0: 240, f1: 90, dur: 0.3, vol: 0.08 });
+      } else {
+        tone({ type: 'square', f0: 1100, f1: 180, dur: 0.28, vol: 0.06 });
+        noise({ dur: 0.35, vol: 0.14, f0: 2400, f1: 500, type: 'bandpass', q: 1.2, attack: 0.01 });
+      }
+    },
+    beam(el) {
+      if (el === 'fire') {
+        noise({ dur: 1.0, vol: 0.2, f0: 700, f1: 300, type: 'bandpass', q: 0.7, attack: 0.05 });
+        tone({ type: 'sawtooth', f0: 110, f1: 80, dur: 1.0, vol: 0.05, attack: 0.05 });
+      } else if (el === 'frost') {
+        tone({ type: 'triangle', f0: 1400, f1: 2400, dur: 1.3, vol: 0.05, attack: 0.03 });
+        tone({ type: 'sine', f0: 2100, f1: 3100, dur: 1.2, vol: 0.03, delay: 0.05 });
+        noise({ dur: 1.3, vol: 0.08, f0: 7000, f1: 4000, type: 'highpass', attack: 0.03 });
+      } else if (el === 'sonic') {
+        tone({ type: 'square', f0: 70, f1: 55, dur: 0.9, vol: 0.12, attack: 0.02 });
+        tone({ type: 'sawtooth', f0: 140, f1: 100, dur: 0.9, vol: 0.05 });
+        noise({ dur: 0.9, vol: 0.14, f0: 400, f1: 200, type: 'bandpass', q: 0.9, attack: 0.02 });
+      } else {
+        tone({ type: 'sawtooth', f0: 150, f1: 230, dur: 1.1, vol: 0.08, attack: 0.02 });
+        tone({ type: 'square', f0: 620, f1: 980, dur: 1.0, vol: 0.03 });
+        noise({ dur: 1.1, vol: 0.16, f0: 900, f1: 2600, type: 'bandpass', q: 1.1, attack: 0.02 });
+      }
+    },
+    impact(el, k = 1) {
+      if (el === 'fire') {
+        noise({ dur: 0.6, vol: 0.2 * k, f0: 1200, f1: 200, attack: 0.02 });
+        for (let i = 0; i < 4; i++) noise({ dur: 0.03, vol: 0.06 * k, f0: 3000, type: 'bandpass', q: 3, delay: 0.1 + i * rand(0.05, 0.12) });
+      } else if (el === 'frost') {
+        for (let i = 0; i < 4; i++) tone({ type: 'triangle', f0: rand(1800, 3200), dur: 0.08, vol: 0.05 * k, delay: i * 0.04 });
+        noise({ dur: 0.4, vol: 0.1 * k, f0: 5000, f1: 2500, type: 'highpass' });
+      } else if (el === 'sonic') {
+        tone({ f0: 90, f1: 35, dur: 0.6, vol: 0.25 * k });
+        noise({ dur: 0.7, vol: 0.22 * k, f0: 600, f1: 80 });
+      } else {
+        tone({ f0: 140, f1: 40, dur: 0.45, vol: 0.22 * k });
+        noise({ dur: 0.55, vol: 0.28 * k, f0: 900, f1: 90 });
+      }
+    },
+    freeze(k = 1) {
+      tone({ type: 'triangle', f0: 2400, f1: 1600, dur: 0.3, vol: 0.05 * k });
+      noise({ dur: 0.3, vol: 0.06 * k, f0: 6000, type: 'highpass' });
     },
     hiss(k = 1) { noise({ dur: 0.9, vol: 0.1 * k, f0: 5000, f1: 2500, type: 'highpass', attack: 0.05 }); },
     whoosh() {
@@ -363,6 +413,23 @@ const Sfx = (() => {
     croak(k = 1) {
       for (let i = 0; i < 2; i++) tone({ type: 'square', f0: rand(130, 150), f1: 100, dur: 0.09, vol: 0.04 * k, delay: i * 0.13 });
       noise({ dur: 0.2, vol: 0.03 * k, f0: 500, type: 'bandpass', q: 3 });
+    },
+    // the creatures of the night: a wolf's rising howl, an owl's hoo-hoo, a bat's squeak, a hedgehog's snuffle
+    howl(k = 1) {
+      const f = rand(300, 340);
+      tone({ type: 'triangle', f0: f, f1: f * 1.7, dur: 0.6, vol: 0.05 * k, attack: 0.25 });
+      tone({ type: 'triangle', f0: f * 1.7, f1: f * 1.15, dur: 1.5, vol: 0.05 * k, delay: 0.55, attack: 0.05 });
+      tone({ f0: f * 3.4, f1: f * 2.3, dur: 1.4, vol: 0.012 * k, delay: 0.6, attack: 0.1 });
+    },
+    hoot(k = 1) {
+      const f = rand(380, 420);
+      for (const [d, len] of [[0, 0.28], [0.5, 0.12], [0.68, 0.36]]) tone({ f0: f, f1: f * 0.9, dur: len, vol: 0.06 * k, delay: d, attack: 0.04 });
+    },
+    squeak(k = 1) {
+      for (let i = 0; i < 2; i++) tone({ f0: rand(3800, 4300), f1: 4800, dur: 0.035, vol: 0.025 * k, delay: i * 0.07 });
+    },
+    snuffle(k = 1) {
+      for (let i = 0; i < 3; i++) noise({ dur: 0.07, vol: 0.05 * k, f0: rand(1200, 1700), type: 'bandpass', q: 4, delay: i * 0.11 });
     },
     // a ship's horn, low and long
     horn(k = 1) {
