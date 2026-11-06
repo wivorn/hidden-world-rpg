@@ -2,6 +2,8 @@
 // of pines between his stakes, bring ROOST_WOOD wood and raise it there. Grown dragons told to stay by it land inside
 // its fence and wander about in there. Once two or more have spent ROOST_DAYS days in there an egg turns up in the
 // nest, and every one hatches a kind of dragon nobody has seen before, mixed at random from the kinds there are.
+// Plates of fish and a drinking pool stand in the pen here and at the nursery; now and then a dragon wanders over
+// for a bite or a drink.
 
 const ROOST_WOOD = 12;
 const ROOST_DAYS = 3;
@@ -18,14 +20,21 @@ let roostObj = null;
 let roostNest = null;
 let siteTrees = [];
 let stakes = [];
+// The fences, plates and pool, shown once the roost is built.
 let roostFences = [];
+let dragonPlates = [];
+let dragonPools = [];
 
 function initRoost() {
   roostObj = objects.find((o) => o.key === 'roost');
   roostNest = objects.find((o) => o.roostNest);
   siteTrees = objects.filter((o) => o.site === 'roost');
   stakes = objects.filter((o) => o.key === 'stake' && !o.nursery);
-  roostFences = objects.filter((o) => o.roostFence);
+  roostFences = objects.filter((o) => o.roostFence || o.dragonPen === 'roost');
+  dragonPlates = objects.filter((o) => o.key === 'fishPlate');
+  dragonPools = objects.filter((o) => o.key === 'dragonPool');
+  for (const o of dragonPlates) o.fish = [0, 1, 2].map(plateFish);
+  for (const o of dragonPools) o.ripples = [];
   showRoost();
 }
 
@@ -153,11 +162,17 @@ function roostLanding(b) {
 function roam(b, dt) {
   const d = b.obj;
   const w = (b.roam ||= { wait: 1 + Math.random() * 3, fx: d.x, fy: d.y, to: null });
-  if (Math.abs(w.fx - d.x) > 1 || Math.abs(w.fy - d.y) > 1) Object.assign(w, { fx: d.x, fy: d.y, to: null });
+  if (Math.abs(w.fx - d.x) > 1 || Math.abs(w.fy - d.y) > 1) Object.assign(w, { fx: d.x, fy: d.y, to: null, snack: null });
   if (!w.to) {
     d.walking = false;
+    if (w.snack && tickSnack(w.snack, d.x, dt)) {
+      d.faceRight = w.snack.at.x > d.x;
+      return;
+    }
+    w.snack = null;
     if ((w.wait -= dt) > 0) return;
-    w.to = penSpot(b, d);
+    if (Math.random() < SNACK_CHANCE) w.snack = snackSpot('roost', GROWN_REACH, (x, y) => penFits(b, x, y), d);
+    w.to = w.snack ? w.snack.to : penSpot(b, d);
     w.wait = 1;
     return;
   }
@@ -168,6 +183,8 @@ function roam(b, dt) {
   const nx = w.fx + (dx / dist) * s;
   const ny = w.fy + (dy / dist) * s;
   if (dist < 0.5 || !penFits(b, Math.round(nx), Math.round(ny))) {
+    if (w.snack && dist < 0.5) startSnack(w.snack, b);
+    else w.snack = null;
     Object.assign(w, { to: null, wait: dist < 0.5 ? 2 + Math.random() * 5 : 0.5 + Math.random() });
     d.walking = false;
     return;
@@ -229,6 +246,114 @@ function placeRoostEgg(id) {
   colliders.push(o.col);
   eggs.push(o);
   return o;
+}
+
+// ---------- plates of fish and drinking pools ----------
+
+// Each plate holds up to PLATE_FISH fish and gets one more every PLATE_REFILL seconds.
+const PLATE_FISH = 3;
+const PLATE_REFILL = 40;
+const SNACK_CHANCE = 0.3;
+const SNACK_TIME = { eat: 2.4, drink: 3.2 };
+const GROWN_REACH = { reach: 38, sip: 42, sipY: 8 };
+const BABY_REACH = { reach: 20, sip: 26, sipY: -6 };
+const PLATE_KINDS = ['fish', 'fish', 'cod', 'cod', 'trout', 'trout', 'eel', 'cavefish'];
+const plateFish = () => (Math.random() < 0.05 ? 'goldenFish' : PLATE_KINDS[Math.floor(Math.random() * PLATE_KINDS.length)]);
+
+// Somewhere for a dragon to stand with its head at a plate with fish on it, or at the pool's edge: `reach` across
+// from a plate's middle, `sip` across and `sipY` down from the pool's. Null when nothing in `pen` is free to get at.
+function snackSpot(pen, { reach, sip, sipY }, fits, from) {
+  const plates = dragonPlates.filter((o) => o.dragonPen === pen && o.fish.length);
+  const pools = dragonPools.filter((o) => o.dragonPen === pen);
+  const options = [...plates.map((at) => ({ at, kind: 'eat' })), ...pools.map((at) => ({ at, kind: 'drink' }))];
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+  for (const s of options) {
+    const off = s.kind === 'eat' ? reach : sip;
+    const y = s.kind === 'eat' ? s.at.y + 1 : s.at.y + sipY;
+    const sides = from.x < s.at.x ? [-1, 1] : [1, -1];
+    for (const side of sides) {
+      const x = Math.round(s.at.x + side * off);
+      if (fits(x, y)) return { ...s, to: { x, y } };
+    }
+  }
+  return null;
+}
+
+// Arrived: a fish comes off the plate (unless another dragon got the last one), or the head goes down to the water.
+function startSnack(s, who) {
+  if (s.kind === 'eat') {
+    const id = s.at.fish.pop();
+    if (!id) {
+      Object.assign(who, { emote: 'question', emoteT: 1.4 });
+      s.t = 0;
+      return;
+    }
+    if (s.at.fish.length === PLATE_FISH - 1) s.at.refillT = PLATE_REFILL;
+    burst(s.at.x, s.at.y - 6, ['#e8f0f4', '#cfdceb', PAL.wood], 6, 24);
+    Sfx.gulp(0.6 * earshot(s.at.x, s.at.y));
+    Object.assign(who, { emote: 'heart', emoteT: 1.6 });
+  }
+  s.t = SNACK_TIME[s.kind];
+  s.sipT = 0;
+}
+
+// Still eating or drinking, standing at `x`; at the pool, a sip every so often rings out across the water.
+function tickSnack(s, x, dt) {
+  if (s.t === undefined) return false;
+  s.t -= dt;
+  if (s.kind === 'drink' && s.t > 0 && (s.sipT -= dt) <= 0) {
+    s.sipT = 0.7;
+    const side = x < s.at.x ? -1 : 1;
+    s.at.ripples.push({ dx: side * 9, t: 0 });
+    Sfx.plip(0.25 * earshot(s.at.x, s.at.y), 1);
+  }
+  return s.t > 0;
+}
+
+function updatePens(dt) {
+  for (const o of dragonPlates) {
+    if (o.fish.length >= PLATE_FISH || (o.refillT -= dt) > 0) continue;
+    o.fish.push(plateFish());
+    o.refillT = PLATE_REFILL;
+  }
+  for (const o of dragonPools) {
+    for (const r of o.ripples) r.t += dt;
+    o.ripples = o.ripples.filter((r) => r.t < 1.2);
+  }
+}
+
+const PLATE_SPOTS = [[-6, -6], [5, -5], [-1, -8]];
+function drawPlateFish(g, x, y, o) {
+  o.fish.forEach((id, i) => {
+    const img = SPR.icon[id];
+    const [dx, dy] = PLATE_SPOTS[i];
+    const px0 = Math.round(x + dx - img.width / 2);
+    const py0 = Math.round(y + dy - img.height / 2);
+    if (i !== 1) {
+      g.drawImage(img, px0, py0);
+      return;
+    }
+    g.save();
+    g.translate(px0 + img.width, py0);
+    g.scale(-1, 1);
+    g.drawImage(img, 0, 0);
+    g.restore();
+  });
+}
+
+function drawPoolRipples(g, x, y, o) {
+  g.strokeStyle = '#e6f6ff';
+  g.lineWidth = 1;
+  for (const r of o.ripples) {
+    g.globalAlpha = 0.8 * (1 - r.t / 1.2);
+    g.beginPath();
+    g.ellipse(Math.round(x + r.dx) + 0.5, Math.round(y - 8) + 0.5, 1 + r.t * 7, 0.5 + r.t * 2.5, 0, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
 }
 
 // ---------- new kinds of dragon ----------

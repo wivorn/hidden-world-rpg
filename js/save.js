@@ -155,7 +155,7 @@ function restore(s) {
   for (const [item, x, y, mark] of s.drops) {
     if (!ITEMS[item]) continue;
     spawnDrop(item, x, y, 0, 0, 0);
-    if (mark) drops[drops.length - 1].mark = mark;
+    Object.assign(drops[drops.length - 1], { left: true }, mark && { mark });
   }
   restoreSkerryPapers();
   restoreTrade(s);

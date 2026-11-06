@@ -2040,6 +2040,10 @@ function placeIslands() {
     if (Math.abs(x) > 1.6) fence('fenceH', x, 5.6);
   }
   for (let i = 0; i < 8; i++) for (const x of [-6.2, 6.2]) fence('fenceV', x, -2.6 + ((i + 1) * 8.2) / 8);
+  const prop = (key, x, y, pen) => Object.assign(addAbs(key, x, y), { dragonPen: pen, sortY: key === 'dragonPool' ? Math.round(y * TILE) - 18 : undefined });
+  prop('fishPlate', site.x - 5.25, site.y + 3.5, 'roost');
+  prop('fishPlate', site.x + 5.25, site.y + 3.5, 'roost');
+  prop('dragonPool', site.x - 5, site.y + 1, 'roost');
   [[-4.5, -1.2], [-1.6, -1.6], [1.4, -1], [4.3, -1.5], [-3.2, 1.6], [0, 2], [3.1, 1.4], [-4.6, 4.4], [-1.5, 4.8], [1.8, 4.2], [4.6, 4.8]]
     .forEach(([x, y], i) => { addAbs(i % 3 ? 'pine' : 'pine2', site.x + x, site.y + y).site = 'roost'; });
 
@@ -2055,6 +2059,9 @@ function placeIslands() {
     if (Math.abs(x) > 1.2) pen('fenceH', x, np.bottom);
   }
   for (let i = 0; i < 6; i++) for (const x of [-np.x, np.x]) pen('fenceV', x, np.top + ((i + 1) * (np.bottom - np.top)) / 6);
+  prop('fishPlate', ns.x - 3.6, ns.y + 1.4, 'nursery');
+  prop('fishPlate', ns.x + 3.5, ns.y + 2.5, 'nursery');
+  prop('dragonPool', ns.x - 2.9, ns.y + 3.4, 'nursery');
   [[-3.2, -0.6], [-0.8, -1.2], [2.4, -0.7], [3.4, 1.9], [-2.8, 2.5], [0.4, 1.6], [2, 3.5], [-1.2, 3.6]]
     .forEach(([x, y], i) => { addAbs(i % 2 ? 'oak' : 'pine', ns.x + x, ns.y + y).site = 'nursery'; });
   woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 2, 1400, 0.55, mixed, clear);

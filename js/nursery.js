@@ -16,7 +16,7 @@ function initNursery() {
   nurseryObj = objects.find((o) => o.key === 'nursery');
   nurseryTrees = objects.filter((o) => o.site === 'nursery');
   nurseryStakes = objects.filter((o) => o.key === 'stake' && o.nursery);
-  nurseryFences = objects.filter((o) => o.nurseryFence);
+  nurseryFences = objects.filter((o) => o.nurseryFence || o.dragonPen === 'nursery');
   showNursery();
 }
 

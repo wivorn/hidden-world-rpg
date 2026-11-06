@@ -536,6 +536,31 @@ function buildNursery() {
   });
 }
 
+// A wooden platter for the fish set out at the roost and the nursery; `drawPlateFish` piles them on.
+function buildFishPlate() {
+  return sprite(30, 12, (g) => {
+    ellipse(g, 15, 7, 14, 4.5, PAL.woodDeep);
+    ellipse(g, 15, 6, 13, 3.5, PAL.woodDark);
+    ellipse(g, 15, 6, 11, 2.5, PAL.wood);
+    line(g, 7, 4, 21, 4, PAL.woodLight);
+  });
+}
+
+// A drinking pool ringed with stones, its water glinting in a different place each frame. 40x20.
+function buildDragonPool(f) {
+  return sprite(40, 20, (g) => {
+    ellipse(g, 20, 11, 19, 8.5, PAL.rockDeep);
+    ellipse(g, 20, 10, 18, 7.5, PAL.rockDark);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ellipse(g, 20 + Math.cos(a) * 16.5, 10 + Math.sin(a) * 6.5, 2.5, 1.6, i % 3 ? PAL.rock : PAL.rockLight);
+    }
+    ellipse(g, 20, 11, 14, 4.8, '#2f6aa8');
+    ellipse(g, 19, 10.5, 12, 3.6, '#4a92d8');
+    for (const [x, y, w] of [[10, 9, 4], [22, 12, 5], [16, 11, 3], [26, 9, 3]].slice(f, f + 2)) line(g, x, y, x + w, y, '#cfeaff');
+  });
+}
+
 // A marker stake with a red rag tied round the top.
 function buildStake() {
   return sprite(8, 18, (g) => {
@@ -873,6 +898,20 @@ function buildUiIcons() {
       '.....###....',
       '............',
     ], { '#': '#ffd36b' }),
+    autoPick: pixmap([
+      '.....AA.....',
+      '.....AA.....',
+      '.....AA.....',
+      '...AAAAAA...',
+      '....AAAA....',
+      '.....AA.....',
+      '............',
+      '.#........#.',
+      '.##......##.',
+      '.##########.',
+      '..########..',
+      '............',
+    ], { ...ink, A: '#ffd36b' }),
     soundOn: pixmap(withSide(['....#.', '..#..#', '...#.#', '.#.#.#', '.#.#.#', '.#.#.#', '...#.#', '..#..#', '....#.']), ink),
     soundOff: pixmap(withSide(['......', '......', '.#...#', '..#.#.', '...#..', '..#.#.', '.#...#', '......', '......']), ink),
     journal: pixmap([
@@ -4071,6 +4110,8 @@ function buildSprites() {
   def('roost', { img: roost, oy: 63, foot: { w: 112, h: 10 } });
   def('stake', { img: buildStake(), foot: { w: 4, h: 3 } });
   def('nursery', { img: buildNursery(), oy: 42, foot: { w: 68, h: 8 } });
+  def('fishPlate', { img: buildFishPlate(), oy: 9, foot: { w: 26, h: 5 }, after: (g, x, y, t, o) => drawPlateFish(g, x, y, o) });
+  def('dragonPool', { frames: [0, 1, 2].map(buildDragonPool), fps: 1.5, oy: 18, foot: { w: 34, h: 12 }, after: (g, x, y, t, o) => drawPoolRipples(g, x, y, o) });
   def('logPile', { img: buildLogPile(), foot: { w: 30, h: 6 }, shadow: { rx: 16, ry: 3 } });
   // out in the snow a crystal is just ice; down in the ice cave the same crystals give the only light
   const crystal = buildIceCrystal();

@@ -170,7 +170,10 @@ const bagFull = (item) => inPack(item) && !has(item) && held().length >= packSiz
 // With no room in the pack the item lands at the player's feet instead.
 function give(item, n = 1) {
   if (bagFull(item)) {
-    for (let i = 0; i < n; i++) spawnDrop(item, player.x + (i - (n - 1) / 2) * 7, player.y + 3, 0, 8, 40);
+    for (let i = 0; i < n; i++) {
+      spawnDrop(item, player.x + (i - (n - 1) / 2) * 7, player.y + 3, 0, 8, 40);
+      drops[drops.length - 1].left = true;
+    }
     return;
   }
   bag[item] = (bag[item] || 0) + n;
@@ -200,6 +203,7 @@ function dropItem(id) {
   const y = player.y + vy * 10 + 2;
   const ok = !blocked(x - 3, y - 3, x + 3, y, player);
   spawnDrop(id, ok ? x : player.x, ok ? y : player.y + 3);
+  drops[drops.length - 1].left = true;
   Sfx.drop();
 }
 
@@ -227,11 +231,11 @@ function dropAt(wx, wy) {
   return null;
 }
 
-function pickUp(d) {
+function pickUp(d, auto = false) {
   if (bagFull(d.item)) return;
   drops.splice(drops.indexOf(d), 1);
   give(d.item);
-  faceToward(player, d.x - player.x, d.y - player.y);
+  if (!auto) faceToward(player, d.x - player.x, d.y - player.y);
   Sfx.pickup();
   if (d.item === 'mapPiece') markEgg(d.mark);
   if (d.item === 'runeNote') {
@@ -240,7 +244,26 @@ function pickUp(d) {
   }
 }
 
+// With auto pick up on, anything the player walks over goes in the bag if there's room. Things they put down
+// themselves (`left`) stay put until they've walked away from them, and so does a fish a dragon is making for.
+const AUTO_REACH = 16;
+let autoPick = localStorage.getItem('hw-autopick') === '1';
+
+function autoPickUp() {
+  if (!autoPick || !started || fade || flight || sail || hop || player.swimming) return;
+  for (const d of [...drops]) {
+    const dist = Math.hypot(d.x - player.x, d.y - 2 - player.y);
+    if (d.left) {
+      if (dist > AUTO_REACH * 2 || !sameSpace(d)) d.left = false;
+      continue;
+    }
+    if (d.z > 0 || dist >= AUTO_REACH || !sameSpace(d) || bagFull(d.item) || dragons.some((b) => b.meal === d)) continue;
+    pickUp(d, true);
+  }
+}
+
 function updateDrops(dt) {
+  autoPickUp();
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i];
     if (d.z <= 0 && d.vz <= 0) continue;

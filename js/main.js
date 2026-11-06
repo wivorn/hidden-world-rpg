@@ -1507,9 +1507,19 @@ function standSpotNear(e, x, y) {
 // Where a dragon that isn't following goes: pottering around its home spot, or anywhere inside the nursery's fence.
 function homeLeader(b, dt) {
   b.wanderT -= dt;
+  if (b.nursery && b.snack?.t !== undefined && tickSnack(b.snack, b.x, dt)) {
+    faceToward(b, b.snack.at.x - b.x, 0);
+    return { x: b.x, y: b.y, alt: 0, air: false };
+  }
+  if (b.nursery && b.snack && b.snack.t === undefined && !b.flying && Math.hypot(b.x - b.snack.to.x, b.y - b.snack.to.y) < 3) {
+    startSnack(b.snack, b);
+    return { x: b.x, y: b.y, alt: 0, air: false };
+  }
+  if (b.snack?.t !== undefined) b.snack = null;
   if (b.wanderT <= 0 && b.nursery) {
     b.wanderT = 4 + Math.random() * 5;
-    b.target = nurserySpot(b) || b.target;
+    b.snack = Math.random() < SNACK_CHANCE ? snackSpot('nursery', BABY_REACH, (x, y) => canStand(b, x, y), b) : null;
+    b.target = b.snack ? b.snack.to : nurserySpot(b) || b.target;
   } else if (b.wanderT <= 0) {
     b.wanderT = 4 + Math.random() * 5;
     const a = Math.random() * Math.PI * 2;
@@ -2809,6 +2819,7 @@ function update(dt) {
   updateIce(dt);
   updateRoost(dt);
   updateNursery();
+  updatePens(dt);
   updateWildlife(dt);
   updateMap();
   for (const d of dragons) {
@@ -3435,7 +3446,25 @@ function toggleHints() {
   promptEl.classList.toggle('show', !!promptText && hintsOn);
 }
 
+const autoPickBtn = document.getElementById('autopick');
+
+function toggleAutoPick() {
+  autoPick = !autoPick;
+  autoPickBtn.setAttribute('aria-pressed', String(autoPick));
+  try {
+    localStorage.setItem('hw-autopick', autoPick ? '1' : '0');
+  } catch (e) { /* storage unavailable */ }
+  toast('AUTO PICK UP', autoPick ? 'On: walk over things to pick them up' : 'Off: press SPACE to pick things up');
+}
+
+autoPickBtn.setAttribute('aria-pressed', String(autoPick));
+autoPickBtn.addEventListener('click', () => {
+  toggleAutoPick();
+  autoPickBtn.blur();
+});
+
 toggleIcon(hintsBtn, 'hints');
+toggleIcon(autoPickBtn, 'autoPick');
 toggleIcon(soundBtn, 'soundOn');
 toggleIcon(journalBtn, 'journal');
 toggleIcon(mapBtn, 'map');
@@ -3476,6 +3505,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyR') loopTrick();
     if (e.code === 'KeyP') toggleSound();
     if (e.code === 'KeyH') toggleHints();
+    if (e.code === 'Slash') toggleAutoPick();
     if (e.code === 'KeyM') toggleMap(true);
     if (e.code === 'KeyJ') toggleJournal(true);
     if (e.code === 'KeyB') shopNear() ? openShop(shopNear()) : toggleBag(true);
