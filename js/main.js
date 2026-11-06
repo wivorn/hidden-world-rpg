@@ -1144,6 +1144,29 @@ function updateFlight(dt) {
       dx: f.vx / speed, dy: f.vy / speed, vx: 0, vy: 0, life: 0, max: 0.35,
     });
   }
+  if (boost && f.mode === 'fly' && f.loop < 0 && speed > 150) wingWind(f, speed, dt);
+}
+
+// At full speed the air streams off both wingtips, peeling outwards as it falls behind, with longer wisps
+// trailing off the tail. Side on the wings are seen above and below the body; head or tail on, either side.
+function wingWind(f, speed, dt) {
+  const [bx, by] = dragonBody(f);
+  const ux = f.vx / speed;
+  const uy = f.vy / speed;
+  const span = 14 + 16 * Math.abs(uy);
+  for (const s of [-1, 1]) {
+    particles.push({
+      type: 'gust', layer: 'sky', x: bx - uy * s * span - ux * 10, y: by + ux * s * span - uy * 10 - 4,
+      dx: ux, dy: uy, vx: -uy * s * 14, vy: ux * s * 14, life: 0, max: 0.32 + Math.random() * 0.08,
+    });
+  }
+  if (Math.random() < dt * 12) {
+    const off = (Math.random() - 0.5) * 20;
+    particles.push({
+      type: 'wind', layer: 'sky', x: bx - ux * 34 - uy * off, y: by - uy * 30 + ux * off,
+      dx: ux * 1.6, dy: uy * 1.6, vx: 0, vy: 0, life: 0, max: 0.4,
+    });
+  }
 }
 
 // ---------- dragon tricks ----------
@@ -3155,6 +3178,9 @@ function drawParticles(cx, cy, layer) {
     } else if (p.type === 'icon') {
       ctx.globalAlpha = Math.min(1, (1 - t) * 2.5);
       ctx.drawImage(p.img, Math.round(p.x - p.img.width / 2 - cx), Math.round(p.y - p.img.height / 2 - cy));
+    } else if (p.type === 'gust') {
+      ctx.globalAlpha = 0.7 * (1 - t);
+      line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 6, p.y - cy - p.dy * 6, '#ffffff');
     } else if (p.type === 'wind') {
       ctx.globalAlpha = 0.55 * Math.sin(t * Math.PI);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 12, p.y - cy - p.dy * 12, '#ffffff');
