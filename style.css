@@ -311,6 +311,9 @@ body.title #clock {
   .trade-cols { grid-template-columns: 1fr; }
 }
 
+.trade-cols.solo {
+  grid-template-columns: 1fr;
+}
 .trade-cols h3 {
   margin: 0 0 8px;
   font: 10px/1.4 'Press Start 2P', monospace;

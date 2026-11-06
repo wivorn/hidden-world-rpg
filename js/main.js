@@ -116,6 +116,7 @@ initBuild();
 initIce();
 initPeak();
 initRoost();
+initNursery();
 initWildlife();
 
 const cloudRng = mulberry32(42);
@@ -670,7 +671,7 @@ function nearNpc() {
 function talk() {
   const best = nearNpc();
   if (!best) return false;
-  const special = welcomeGift(best) || dogTalk(best) || spinWool(best) || tradeTalk(best) || archerTalk(best) || fisherTalk(best) || roostTalk(best);
+  const special = welcomeGift(best) || dogTalk(best) || spinWool(best) || tradeTalk(best) || archerTalk(best) || fisherTalk(best) || nurseryTalk(best) || roostTalk(best);
   if (!special) npcSay(best, tipLine(best) || skyLine(best) || nextLine(best));
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
@@ -1469,7 +1470,7 @@ function hatch(e) {
 function setFollower(d) {
   const prev = follower;
   follower = d;
-  if (d) d.roost = null;
+  if (d) Object.assign(d, { roost: null, nursery: false });
   if (prev && prev !== d) settle(prev);
 }
 
@@ -1485,6 +1486,7 @@ function settle(d) {
     if (d.roost !== null && d.perched) takeOff(d);
     return;
   }
+  if (nursery.built && nurseryKeeps(d)) return;
   const [x, y] = canStand(d, d.x, d.y) ? [d.x, d.y] : [villageFire.x, villageFire.y + 34];
   d.home = standSpotNear(d, x, y);
   d.target = d.home;
@@ -1502,10 +1504,13 @@ function standSpotNear(e, x, y) {
   return { x, y };
 }
 
-// Where a dragon that isn't following goes: pottering around its home spot.
+// Where a dragon that isn't following goes: pottering around its home spot, or anywhere inside the nursery's fence.
 function homeLeader(b, dt) {
   b.wanderT -= dt;
-  if (b.wanderT <= 0) {
+  if (b.wanderT <= 0 && b.nursery) {
+    b.wanderT = 4 + Math.random() * 5;
+    b.target = nurserySpot(b) || b.target;
+  } else if (b.wanderT <= 0) {
     b.wanderT = 4 + Math.random() * 5;
     const a = Math.random() * Math.PI * 2;
     const r = Math.random();
@@ -2585,10 +2590,12 @@ function action() {
   if (sail) disembark();
   else if (nearMount() === 'ship') board();
   else if (roostLeave()) leaveAtRoost(roostLeave());
+  else if (nurseryLeave()) leaveAtNursery(nurseryLeave());
   else if (carried && nearPool()) throwEgg();
   else if (nearEgg()) pickUpEgg(nearEgg());
   else if (nearMount()) rideDragon(nearMount());
   else if (roostBuildable()) raiseRoost();
+  else if (nurseryBuildable()) raiseNursery();
   else if (nearRuneStone()) touchStone(nearRuneStone());
   else if (nearCarving()) readCarving(nearCarving());
   else if (nearSphinx()) speakToSphinx();
@@ -2801,6 +2808,7 @@ function update(dt) {
   updateBuild(dt);
   updateIce(dt);
   updateRoost(dt);
+  updateNursery();
   updateWildlife(dt);
   updateMap();
   for (const d of dragons) {
@@ -3283,6 +3291,8 @@ function render() {
     setPrompt('SPACE  Board the ship');
   } else if (roostLeave()) {
     setPrompt(`SPACE  Leave ${roostLeave().name} at the roost`);
+  } else if (nurseryLeave()) {
+    setPrompt(`SPACE  Leave ${nurseryLeave().name} at the nursery`);
   } else if (carried && nearPool()) {
     setPrompt('SPACE or F  Throw the egg into the lava');
   } else if (nearEgg()) {
@@ -3291,6 +3301,8 @@ function render() {
     setPrompt(mountPrompt(nearMount()));
   } else if (roostSite()) {
     setPrompt(roostPrompt());
+  } else if (nurserySite()) {
+    setPrompt(nurseryPrompt());
   } else if (nearRuneStone()) {
     setPrompt('SPACE  Touch the rune stone');
   } else if (nearCarving()) {
@@ -3328,6 +3340,8 @@ function render() {
     setPrompt(dog.state === 'lost' ? `SPACE  Pick up ${dogName()}` : 'SPACE  Pet Fred');
   } else if (dog.state === 'carried' && nearNpc() === dogOwner) {
     setPrompt('SPACE  Give Fred back');
+  } else if (shopNear()) {
+    setPrompt(`B  Shop with ${SHOPS[shopNear().look.id].who}`);
   } else if (bagHint()) {
     setPrompt(`B  Open your bag to ${bagHint()}`);
   } else if (doorAhead()) {
@@ -3464,7 +3478,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyH') toggleHints();
     if (e.code === 'KeyM') toggleMap(true);
     if (e.code === 'KeyJ') toggleJournal(true);
-    if (e.code === 'KeyB') toggleBag(true);
+    if (e.code === 'KeyB') shopNear() ? openShop(shopNear()) : toggleBag(true);
     if (e.code === 'KeyL') toggleFishLog(true);
     if (e.code === 'KeyC') toggleTinker(true);
     if (e.code === 'KeyG') takeBack();

@@ -74,7 +74,7 @@ function snapshot() {
       const at = flight && flight.dragon === d ? spot : d;
       return {
         species: d.species, name: d.name, stage: d.stage, x: Math.round(at.x), y: Math.round(at.y), follower: d === follower,
-        saddled: !!d.saddled, roost: d.roost ?? null,
+        saddled: !!d.saddled, roost: d.roost ?? null, nursery: !!d.nursery, grow: +(d.grow || 0).toFixed(3),
       };
     }),
     map: {
@@ -92,6 +92,7 @@ function snapshot() {
     torch: { out: flame.out, left: Math.round(flame.left) },
     stamina: player.stamina,
     roost: saveRoost(),
+    nursery: saveNursery(),
   };
 }
 
@@ -141,6 +142,7 @@ function restore(s) {
   restoreIce(s.ice);
   restorePlayer(s);
   restoreRoost(s.roost);
+  restoreNursery(s.nursery);
   restoreEggs(s);
   // saves from before the rune stones that already took the egg count the stones as woken
   ruin.solved = !!s.ruin?.solved || eggs.some((e) => e.species === 'nightFury' && e.state !== 'wild');
@@ -269,6 +271,7 @@ function restoreDragons(list) {
       emote: null, emoteT: 0, chirpT: 4, stage: s.stage, swoop: null, catchT: 0, home: { x: s.x, y: s.y }, wanderT: 3, name: s.name,
       // dragons grown before saddles were a thing were already being ridden, so they keep a saddle on
       saddled: s.saddled ?? s.stage === GROWN, roost: roost.built && !s.follower ? s.roost ?? null : null,
+      nursery: nursery.built && !s.follower && !!s.nursery && s.stage < GROWN, grow: s.grow || 0,
     };
     dragons.push(d);
     if (d.stage === GROWN) {

@@ -143,6 +143,10 @@ const isle = (id) => ISLANDS.find((i) => i.id === id);
 // The dragon roost's ground point on the hermit's isle, and the box of tiles cleared around it.
 const ROOST_AT = { x: isle('hermit').x + 14, y: isle('hermit').y - 1 };
 const inRoostSite = (x, y) => Math.abs(x - ROOST_AT.x) < 7 && y > ROOST_AT.y - 3.5 && y < ROOST_AT.y + 6.5;
+// The dragon nursery's, west of the hut, with its fence's lines in tiles from that point.
+const NURSERY_AT = { x: isle('hermit').x - 14, y: isle('hermit').y + 0.5 };
+const NURSERY_PEN = { x: 4.6, top: -2.4, bottom: 4.2 };
+const inNurserySite = (x, y) => Math.abs(x - NURSERY_AT.x) < 5.4 && y > NURSERY_AT.y - 3.2 && y < NURSERY_AT.y + 5;
 
 // The rune stones that wake the ruin's egg, in order; each broken wall carves one of them.
 // All nine stones wake in this order. The ruin's broken walls only remember the first four; a sailor's note in a
@@ -2024,7 +2028,7 @@ function placeIslands() {
 
   // east of the hut, the hermit's stakes mark where the dragon roost goes: first its stand of pines must be felled
   const site = ROOST_AT;
-  const clear = (x, y) => !inRoostSite(x + OX, y + OY);
+  const clear = (x, y) => !inRoostSite(x + OX, y + OY) && !inNurserySite(x + OX, y + OY);
   addAbs('roost', site.x, site.y).hidden = true;
   addAbs('nest', site.x, site.y + 30 / TILE - 0.05).roostNest = true;
   for (const [x, y] of [[-6.2, -2.6], [6.2, -2.6], [-6.2, 5.6], [6.2, 5.6]]) addAbs('stake', site.x + x, site.y + y);
@@ -2037,7 +2041,22 @@ function placeIslands() {
   }
   for (let i = 0; i < 8; i++) for (const x of [-6.2, 6.2]) fence('fenceV', x, -2.6 + ((i + 1) * 8.2) / 8);
   [[-4.5, -1.2], [-1.6, -1.6], [1.4, -1], [4.3, -1.5], [-3.2, 1.6], [0, 2], [3.1, 1.4], [-4.6, 4.4], [-1.5, 4.8], [1.8, 4.2], [4.6, 4.8]]
-    .forEach(([x, y], i) => { addAbs(i % 3 ? 'pine' : 'pine2', site.x + x, site.y + y).site = true; });
+    .forEach(([x, y], i) => { addAbs(i % 3 ? 'pine' : 'pine2', site.x + x, site.y + y).site = 'roost'; });
+
+  // west of the hut, more stakes and a stand of trees for the nursery where hatchlings are left to grow
+  const ns = NURSERY_AT;
+  const np = NURSERY_PEN;
+  addAbs('nursery', ns.x, ns.y).hidden = true;
+  for (const [x, y] of [[-np.x, np.top], [np.x, np.top], [-np.x, np.bottom], [np.x, np.bottom]]) addAbs('stake', ns.x + x, ns.y + y).nursery = true;
+  const pen = (key, x, y) => { addAbs(key, ns.x + x, ns.y + y).nurseryFence = true; };
+  for (let i = 0; i < 9; i++) {
+    const x = -np.x + ((i + 0.5) * 2 * np.x) / 9;
+    pen('fenceH', x, np.top);
+    if (Math.abs(x) > 1.2) pen('fenceH', x, np.bottom);
+  }
+  for (let i = 0; i < 6; i++) for (const x of [-np.x, np.x]) pen('fenceV', x, np.top + ((i + 1) * (np.bottom - np.top)) / 6);
+  [[-3.2, -0.6], [-0.8, -1.2], [2.4, -0.7], [3.4, 1.9], [-2.8, 2.5], [0.4, 1.6], [2, 3.5], [-1.2, 3.6]]
+    .forEach(([x, y], i) => { addAbs(i % 2 ? 'oak' : 'pine', ns.x + x, ns.y + y).site = 'nursery'; });
   woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 2, 1400, 0.55, mixed, clear);
   woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 4, 1401, 0.45, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'), clear);
 

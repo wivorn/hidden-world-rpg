@@ -21,6 +21,66 @@ const WARES = [
   { id: 'sail', price: 300, text: 'A silk sail. The longship runs a third faster.', owned: () => upgrades.sail },
 ];
 const WARE_NAMES = { lure: 'Golden lure', sail: 'Silk sail' };
+
+// What the village's craftsfolk sell for coin, once the player has had any: B beside one opens their shop.
+const shopWare = (id, price, text) => ({ id, price, text, owned: () => has(id) });
+const SHOPS = {
+  smith: {
+    title: 'THE SMITHY', who: 'the smith',
+    wares: [
+      shopWare('axe', 60, 'Fells trees and hacks through brambles.'),
+      shopWare('pickaxe', 150, 'Breaks ore and boulders.'),
+      shopWare('spear', 150, 'Long and sharp, for the hunt.'),
+      shopWare('shield', 180, 'Iron-rimmed. Raise it to block.'),
+      shopWare('sword', 250, 'The finest blade this side of the sea.'),
+      { id: 'torch', price: 40, text: 'Burns six hours once lit.' },
+    ],
+    hello: 'Coin, is it? Everything off my anvil is for sale.',
+    sold: 'Fresh off the anvil. Use it well, {lad}.',
+    bye: 'Mind the sparks on your way out.',
+  },
+  tanner: {
+    title: 'THE TANNERY', who: 'the tanner',
+    wares: [
+      { id: 'saddle', price: 300, text: 'Double stitched. Strap it on a grown dragon and ride.' },
+      shopWare('toolBelt', 200, 'Worn at the waist. Room for two more things.'),
+      shopWare('pouch', 200, 'Worn on the belt. Room for two more things.'),
+    ],
+    hello: 'Buying, are we? Best leather on the island.',
+    sold: 'Good leather, that. It\'ll outlast us both.',
+    bye: 'Come back when you\'ve more coin. Or hides!',
+  },
+  seamstress: {
+    title: 'THE SEAMSTRESS', who: 'the seamstress',
+    wares: [
+      shopWare('furCoat', 300, 'Fur with a wool lining. Keeps the frozen isle\'s cold out.'),
+      shopWare('fireJacket', 400, 'Fire eel skin. Walk the fire mountain without a scald.'),
+    ],
+    hello: 'Something warm, or something fireproof? Have a look.',
+    sold: 'There you are! Open your bag and try it on.',
+    bye: 'Wear it well!',
+  },
+};
+// The craftsperson whose shop is open, or null while it's Ottar's.
+let shopNpc = null;
+const shopOf = () => shopNpc && SHOPS[shopNpc.look.id];
+
+function shopNear() {
+  if ((!coins && !stats.sold) || flight || sail || hop) return null;
+  const n = nearNpc();
+  return n && SHOPS[n.look.id] ? n : null;
+}
+
+function openShop(n) {
+  shopNpc = n;
+  toggleTrade(true);
+  if (!tradeOpen) {
+    shopNpc = null;
+    return;
+  }
+  faceToward(n, player.x - n.x, player.y - n.y);
+  npcSay(n, shopOf().hello);
+}
 const wareName = (w) => (w.n ? `${w.n} ${ITEMS[w.id].plural}` : WARE_NAMES[w.id] || ITEMS[w.id].name);
 
 // ---------- the ship's comings and goings ----------
@@ -142,6 +202,8 @@ const sailBoost = () => (upgrades.sail ? 1.3 : 1);
 // ---------- the trade screen ----------
 
 const tradeEl = document.getElementById('trade');
+const tradeTitle = document.getElementById('trade-title');
+const tradeCols = tradeEl.querySelector('.trade-cols');
 const tradeSell = document.getElementById('trade-sell');
 const tradeBuy = document.getElementById('trade-buy');
 const tradePurse = document.getElementById('trade-purse');
@@ -175,6 +237,10 @@ function tradeButton(label, aria, key, on, fn) {
 
 function renderTrade() {
   const focused = document.activeElement?.dataset?.key;
+  const shop = shopOf();
+  tradeTitle.textContent = shop ? shop.title : 'OTTAR\'S SHIP';
+  tradeSell.closest('section').hidden = !!shop;
+  tradeCols.classList.toggle('solo', !!shop);
   tradePurse.replaceChildren(document.createTextNode('YOUR PURSE '), coinsEl(coins));
   const priceEl = (c, each) => {
     const el = Object.assign(document.createElement('span'), { className: 'price' });
@@ -193,14 +259,14 @@ function renderTrade() {
   });
   if (!sell.length) sell.push(Object.assign(document.createElement('li'), { className: 'none', textContent: 'Nothing he wants. He buys fish, meat, hides, wool, iron, gold, glowcaps and treasure.' }));
   tradeSell.replaceChildren(...sell);
-  tradeBuy.replaceChildren(...WARES.map((w) => {
+  tradeBuy.replaceChildren(...(shop ? shop.wares : WARES).map((w) => {
     const li = document.createElement('li');
     const owned = w.owned?.();
     const name = wareName(w);
     const what = Object.assign(document.createElement('span'), { className: 'what' });
     what.append(Object.assign(document.createElement('b'), { textContent: name }), Object.assign(document.createElement('small'), { textContent: w.text }));
-    li.append(icon(w.id), what, owned ? Object.assign(document.createElement('span'), { className: 'price', textContent: 'OWNED' }) : priceEl(w.price));
-    const room = w.n ? has(w.id) || !bagFull(w.id) : true;
+    li.append(iconImg(w.id), what, owned ? Object.assign(document.createElement('span'), { className: 'price', textContent: 'OWNED' }) : priceEl(w.price));
+    const room = !bagFull(w.id);
     if (!owned) li.append(tradeButton('BUY', `Buy ${name.toLowerCase()} for ${coinWords(w.price)}`, `buy-${w.id}`, coins >= w.price && room, () => buyWare(w)));
     return li;
   }));
@@ -234,7 +300,8 @@ function buyWare(w) {
   renderPurse();
   Sfx.coin();
   Sfx.reward();
-  npcSay(merchant.npc, {
+  if (shopOf()) npcSay(shopNpc, shopOf().sold);
+  else npcSay(merchant.npc, {
     torch: 'One torch. Keep it out of the rain, friend.',
     arrow: 'Ten arrows, fresh from the fletchers of the south.',
     satchel: 'A good satchel, that. Southern leather, double stitched.',
@@ -253,13 +320,14 @@ function toggleTrade(open = !tradeOpen) {
     Sfx.door();
     renderTrade();
   } else {
-    npcSay(merchant.npc, 'Fair winds! Come back when your nets are full.');
+    npcSay(shopNpc || merchant.npc, shopOf() ? shopOf().bye : 'Fair winds! Come back when your nets are full.');
+    shopNpc = null;
   }
 }
 
 tradeClose.addEventListener('click', () => toggleTrade(false));
 tradeEl.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
+  if (e.key !== 'Escape' && !(e.code === 'KeyB' && shopNpc)) return;
   e.preventDefault();
   e.stopPropagation();
   toggleTrade(false);

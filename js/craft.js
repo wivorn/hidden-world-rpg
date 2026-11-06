@@ -1196,7 +1196,7 @@ function landTree(o) {
 
 // Grows back (or gets mended) only out of sight, and never on top of someone. `mendNow` skips the out of sight part.
 function regrow(o) {
-  if (o.site && roost.asked) return;
+  if ((o.site === 'roost' && roost.asked) || (o.site === 'nursery' && nursery.asked)) return;
   const key = o.tree || o.base;
   const f = SPR[key].foot;
   const over = (e) => Math.abs(e.x - o.x) < f.w / 2 + 6 && e.y > o.y - f.h - 1 && e.y < o.y + 5;

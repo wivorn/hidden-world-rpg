@@ -23,8 +23,8 @@ let roostFences = [];
 function initRoost() {
   roostObj = objects.find((o) => o.key === 'roost');
   roostNest = objects.find((o) => o.roostNest);
-  siteTrees = objects.filter((o) => o.site);
-  stakes = objects.filter((o) => o.key === 'stake');
+  siteTrees = objects.filter((o) => o.site === 'roost');
+  stakes = objects.filter((o) => o.key === 'stake' && !o.nursery);
   roostFences = objects.filter((o) => o.roostFence);
   showRoost();
 }

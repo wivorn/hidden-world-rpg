@@ -75,6 +75,15 @@ const QUESTS = [
     ],
   },
   {
+    id: 'nursery', title: 'A Nursery for Hatchlings', start: () => nursery.asked,
+    steps: [
+      { id: 'nurseryClear', text: () => `Fell the trees between the stakes west of the hermit's hut (${nurseryTrees.length - nurseryTreesLeft()}/${nurseryTrees.length})`, done: () => nursery.built || !nurseryTreesLeft() },
+      { id: 'nurseryBuild', text: `Bring ${NURSERY_WOOD} wood and build the nursery between the stakes`, done: () => nursery.built },
+      { id: 'nurseryLeave', text: 'Bring a baby dragon and tell it to stay at the nursery', done: () => nursery.raised > 0 || dragons.some((d) => d.nursery) },
+      { id: 'nurseryRaised', text: `Let it grow up there, a size every ${NURSERY_DAYS} days`, done: () => nursery.raised > 0 },
+    ],
+  },
+  {
     id: 'cook', title: 'A Hot Meal', start: () => npcBy('baker').tipTold > 0 || stats.cooked > 0,
     steps: [
       { id: 'cooked', text: 'Grill a fish or bake an apple over a fire', done: () => stats.cooked > 0 },

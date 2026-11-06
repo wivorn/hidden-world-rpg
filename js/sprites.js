@@ -495,6 +495,47 @@ function buildRoost() {
   });
 }
 
+// The dragon nursery on the hermit's isle: a low thatched shelter over two straw nests, with a painted egg on the
+// sign. 76x50, ground point at the foot of the wall.
+function buildNursery() {
+  return sprite(76, 50, (g) => {
+    ellipse(g, 38, 44, 36, 5, PAL.hayDark);
+    ellipse(g, 38, 43, 33, 4, PAL.hay);
+    for (let i = 0; i < 24; i++) {
+      const x = 6 + hash(i, 1, 72) * 64;
+      const y = 40 + hash(i, 2, 72) * 7;
+      line(g, x, y, x + 3 - hash(i, 3, 72) * 6, y - 1, i % 3 ? PAL.hayLight : PAL.hayDark);
+    }
+    for (let x = 8; x < 68; x += 4) {
+      rect(g, x, 16, 4, 25, (x / 4) % 2 ? PAL.wood : PAL.woodDark);
+      px(g, x + 1, 20 + ((x * 7) % 16), PAL.woodDeep);
+    }
+    rect(g, 8, 38, 60, 3, PAL.woodDeep);
+    for (const x of [4, 67]) {
+      rect(g, x, 14, 5, 29, PAL.woodDark);
+      rect(g, x + 1, 14, 2, 29, PAL.wood);
+    }
+    rect(g, 2, 13, 72, 4, PAL.woodDark);
+    rect(g, 2, 14, 72, 1, PAL.woodLight);
+    poly(g, [[0, 15], [76, 15], [66, 1], [10, 1]], PAL.hayDark);
+    poly(g, [[2, 13], [74, 13], [64, 3], [12, 3]], PAL.hay);
+    for (let x = 6; x < 72; x += 5) line(g, x, 13, x + (38 - x) * 0.12, 4, PAL.hayDark);
+    line(g, 12, 2, 64, 2, PAL.hayLight);
+    // the sign with an egg painted on it
+    rect(g, 31, 19, 14, 10, PAL.woodDeep);
+    rect(g, 32, 20, 12, 8, PAL.woodLight);
+    ellipse(g, 38, 24, 3, 3, '#6fb0a0');
+    px(g, 37, 23, '#d8f0e8');
+    px(g, 39, 25, '#3d7d70');
+    for (const x of [22, 54]) {
+      ellipse(g, x, 42, 9, 3, PAL.woodDark);
+      ellipse(g, x, 41, 7, 2, PAL.hayLight);
+      line(g, x - 8, 42, x - 4, 40, PAL.woodDeep);
+      line(g, x + 4, 40, x + 8, 42, PAL.woodDeep);
+    }
+  });
+}
+
 // A marker stake with a red rag tied round the top.
 function buildStake() {
   return sprite(8, 18, (g) => {
@@ -4029,6 +4070,7 @@ function buildSprites() {
   const roost = buildRoost();
   def('roost', { img: roost, oy: 63, foot: { w: 112, h: 10 } });
   def('stake', { img: buildStake(), foot: { w: 4, h: 3 } });
+  def('nursery', { img: buildNursery(), oy: 42, foot: { w: 68, h: 8 } });
   def('logPile', { img: buildLogPile(), foot: { w: 30, h: 6 }, shadow: { rx: 16, ry: 3 } });
   // out in the snow a crystal is just ice; down in the ice cave the same crystals give the only light
   const crystal = buildIceCrystal();
