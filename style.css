@@ -844,9 +844,8 @@ body.title #toast {
 /* Along the top, under the clock: a slot for each tool carried, up to nine; F uses the lit one. */
 #hotbar {
   position: fixed;
-  top: 68px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 14px;
+  left: 14px;
   --slot: 52px;
 }
 
