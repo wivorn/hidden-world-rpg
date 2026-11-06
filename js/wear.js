@@ -22,6 +22,30 @@ function wear(id) {
   dust(player.x, player.y);
 }
 
+// ---------- the seamstress ----------
+
+// She listens for where the player is going, not just what they want sewn: fire or the volcano gets her talking
+// about the fireproof jacket, cold or the frozen isle the fur coat. Asked to make one, she does (see `askCraft`).
+const HEAT_WORDS = /\b(fire\w*|flames?|volcan\w*|lava|magma|craters?|heat|hot|burn\w*|scald\w*|scorch\w*|blaz\w*)\b/i;
+const COLD_WORDS = /\b(cold|freez\w*|frozen|ice|icy|snow\w*|frost\w*|chill\w*|winter|blizzards?)\b/i;
+const MAKE_WORDS = /\b(make|sew|stitch|craft|need|want|get|give|buy|have|can i|could i|please)\b/i;
+
+function seamstressHears(n, text) {
+  if (n.look.id !== 'seamstress') return false;
+  const id = HEAT_WORDS.test(text) ? 'fireJacket' : COLD_WORDS.test(text) ? 'furCoat' : null;
+  if (!id) return false;
+  if (!has(id) && MAKE_WORDS.test(text) && askCraft(n, id === 'fireJacket' ? 'fireproof jacket' : 'fur coat')) return true;
+  if (id === 'fireJacket') stats.jacketAsked = 1;
+  npcSay(n, id === 'fireJacket'
+    ? outfit === id ? 'That fireproof jacket will see you right, dear. Fire eel skin: nothing burns it.'
+      : has(id) ? 'Off to the fire mountain? Put on the fireproof jacket I made you first, dear. Open your bag (B) and wear it.'
+        : `Fire? The volcano?! Not in that tunic, dear. You'll want a fireproof jacket: fire eel skin outside, wool underneath. Bring me 2 fire eels and 2 wool and ask me to make one.${(bag.eel || 0) < 2 ? ' The fisher knows where the eels bite.' : ''}`
+    : outfit === id ? 'Snug in that fur coat? The cold won\'t touch you.'
+      : has(id) ? 'Somewhere cold? Put on the fur coat I made you, dear. Open your bag (B) and wear it.'
+        : `Cold? The frozen isle?! You'd freeze solid in that tunic, dear. Bring me 4 hides and 2 wool and ask me for a thick fur coat.${(bag.hide || 0) < 4 ? ' Deer and boar in the south woods give hides.' : ''}`);
+  return true;
+}
+
 // ---------- too cold, too hot ----------
 
 // Seconds ashore before the player has to turn back.

@@ -66,7 +66,7 @@ const TOOLS = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'shi
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !ITEMS[id].tool;
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -321,6 +321,12 @@ function popIcon(item, x, y, delay = 0) {
 
 let anvil = null;
 
+// Who to see for what the smith doesn't make (the archer and carpenter are sent for above).
+const MADE_AT = {
+  seamstress: 'That\'s the seamstress\'s work. Her house is on the north side of the square.',
+  tanner: 'That\'s the tanner\'s work. He\'s on the west road, by the forge.',
+};
+
 // Returns true when `n` makes what was asked for and has answered.
 function askCraft(n, text) {
   let r = recipeFor(text);
@@ -331,6 +337,10 @@ function askCraft(n, text) {
   }
   if (r && r.maker === 'carpenter' && n.look.id !== 'carpenter') {
     npcSay(n, 'A better bow? That\'s the carpenter\'s work. His shop\'s south-east of the square.');
+    return true;
+  }
+  if (r && MADE_AT[r.maker] && r.maker !== n.look.id) {
+    npcSay(n, `A ${ITEMS[r.item].name.toLowerCase()}? ${MADE_AT[r.maker]}`);
     return true;
   }
   if (!r || r.maker !== n.look.id) return false;

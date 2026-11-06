@@ -680,7 +680,7 @@ function talk() {
   const best = nearNpc();
   if (!best) return false;
   const special = welcomeGift(best) || dogTalk(best) || spinWool(best) || tradeTalk(best) || archerTalk(best) || fisherTalk(best) || nurseryTalk(best) || roostTalk(best);
-  if (!special) npcSay(best, tipLine(best) || skyLine(best) || nextLine(best));
+  if (!special) npcSay(best, eggLine(best) || tipLine(best) || skyLine(best) || nextLine(best));
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
 }
@@ -704,8 +704,10 @@ const TIPS = {
     text: 'Got any wool, dear? Bring it to me and I\'ll spin it into string. The shepherd has plenty, if you lend him a hand.',
   },
   fisher: {
-    needed: () => has('fishLog') && kindsCaught() < FISH_IDS.length,
-    text: fisherTip,
+    needed: () => eelsWanted() || (has('fishLog') && kindsCaught() < FISH_IDS.length),
+    text: () => (eelsWanted()
+      ? 'Need fire eels, {name}? They only bite in hot water. Sail up to the fire mountain, due north, and cast where the sea steams. Or try the hot spring up the east stairs from the square. Tap F fast when one bites!'
+      : fisherTip()),
   },
   tanner: {
     needed: () => needsSaddle() || (has('backpack') && (!has('toolBelt') || (has('hide') && !has('pouch')))),
@@ -733,6 +735,8 @@ const TIPS = {
   },
 };
 
+// Once the hermit or the seamstress has said a fireproof jacket is needed, until there are eels enough for one.
+const eelsWanted = () => !has('fireJacket') && (bag.eel || 0) < 2 && (stats.hermitEgg || stats.jacketAsked);
 const needsSaddle = () => !has('saddle') && dragons.some((d) => d.stage === GROWN && !d.saddled);
 
 // `text` may be a function, for tips that change as the player gets on.
@@ -807,7 +811,7 @@ function hear(text) {
   }
   if (!near.length || teachHears(text, near)) return;
   const tools = topic === 'forge' || (topic === 'wares' && /\btools?\b/i.test(text));
-  const makerId = topic === 'craft' ? recipeFor(text).maker : tools && 'smith';
+  const makerId = topic === 'craft' ? recipeFor(text).maker : tools ? 'smith' : topic === 'clothes' && 'seamstress';
   const maker = makerId && near.find((n) => n.look.id === makerId);
   const speaker = near.find((n) => addresses(n.look.id, text)) || maker || near[0];
   for (const n of near) {
@@ -856,7 +860,10 @@ function react(n, { topic: heard, text, reply }) {
   if (topic === 'dance' && !n.fixed) n.danceT = 2.4;
   if (!reply) return;
   if (topic !== 'insult' && welcomeGift(n)) return;
+  const egg = (topic === 'eggFound' || topic === 'hatch') && eggLine(n, true);
+  if (egg) return npcSay(n, egg);
   if (topic === 'craft' && askCraft(n, text)) return;
+  if (seamstressHears(n, text)) return;
   if ((topic === 'string' || topic === 'cloth' || topic === 'sheep') && spinWool(n)) return;
   if ((topic === 'shop' || topic === 'wares') && tradeTalk(n)) return;
   if (topic === 'roost' && roostChat(n)) return;
@@ -1300,11 +1307,7 @@ function updateTricks(f, dt) {
 
 const HATCH_TIME = 6;
 const STORY_LINES = {
-  carried: {
-    hermit: 'You found it! No hearth is hot enough to wake it. A cave at the foot of the fire mountain climbs to a pool of lava at its heart: throw the egg in. And wear something fireproof, or the heat will drive you back.',
-    chief: 'A dragon egg! The old way is the lava pool at the heart of the fire mountain, {name}.',
-    kid: 'Is that a DRAGON EGG?! Throw it in the VOLCANO!',
-  },
+  carried: {},
   warming: { kid: 'It\'s hatching! It\'s hatching!' },
   hatched: {
     hermit: 'A dragon of your very own. Young dragons grow strong on fish from the open sea.',
@@ -1321,6 +1324,47 @@ const STORY_LINES = {
 };
 
 const STAGES = ['ruin', 'carried', 'warming', 'hatched', 'grown'];
+
+// With the first egg in hand the villagers send the player to the chief, the chief sends them on to the old
+// adventurer living as a hermit on the north-east isle, and he tells them about the lava. Talking to the next
+// one in line moves it on; until then everyone points the way, every other word.
+const EGG_TRAIL = {
+  chief: {
+    default: 'A dragon egg?! You must show the chief, {name}. If anyone knows what to do with it, he does.',
+    kid: 'Is that a DRAGON EGG?! Show the chief! Show the chief!',
+    mom: 'Is that... a DRAGON egg? Go and show the chief this minute, {name}! He\'ll know what to do.',
+    fisher: 'Forty winters at sea and I\'ve never seen an egg like that. Take it to the chief, {name}.',
+    smith: 'That\'s no hen\'s egg, {lad}. Take it to the chief.',
+    merchant: 'I\'d pay a fortune for that egg! ...But your chief would never forgive me. Show it to him first.',
+  },
+  hermit: {
+    default: 'The chief sent you to the old hermit? Sail north-east, {name}. His isle is the one with the lone hut.',
+    chief: 'The hermit on the north-east isle, {name}. He knows the ways of dragons better than anyone alive.',
+    kid: 'The hermit used to be a real adventurer! He fought a sea serpent! ...Probably.',
+    fisher: 'The old hermit? Sail north-east from the harbour till you see his hut on the shore. Quite the adventurer in his day, they say.',
+    mom: 'All the way out to the hermit\'s isle? Then wrap up warm, and be home before dark!',
+  },
+};
+const CHIEF_EGG = 'A dragon egg... I never thought I would see one again. When I was young, a great adventurer sailed every sea, and they say he flew with dragons. He is old now, and lives as a hermit on the isle to the north-east. Take the egg to him, {name}. He will know how to wake it.';
+const HERMIT_EGG = 'A dragon egg! So the old stories were true. No hearth is hot enough to wake it. A cave at the foot of the fire mountain climbs to a pool of lava at its heart: throw the egg in. And wear something fireproof, or the heat will drive you back.';
+const eggTrail = () => (eggStage !== 'carried' || stats.hermitEgg ? null : stats.chiefEgg ? 'hermit' : 'chief');
+
+// `asked`: the player brought the egg up, so the answer comes every time.
+function eggLine(n, asked) {
+  const step = eggTrail();
+  if (!step) return null;
+  const id = n.look.id;
+  if (id === 'hermit') {
+    stats.hermitEgg = 1;
+    return HERMIT_EGG;
+  }
+  if (id === 'chief' && step === 'chief') {
+    stats.chiefEgg = 1;
+    return CHIEF_EGG;
+  }
+  if (!asked && (n.eggTold = (n.eggTold || 0) + 1) % 2 === 0) return null;
+  return EGG_TRAIL[step][id] || EGG_TRAIL[step].default;
+}
 
 function setStage(stage) {
   if (STAGES.indexOf(stage) <= STAGES.indexOf(eggStage)) return;
@@ -2361,6 +2405,15 @@ function nearMount() {
   return d && boxDist(d.obj.col) < shipDist() ? d : 'ship';
 }
 
+// A treasure chest in reach as well: SPACE goes to whichever is closer, the chest on a tie.
+function treasureFirst() {
+  const t = nearTreasure();
+  const m = t && nearMount();
+  if (!m) return !!t;
+  const td = t.col ? boxDist(t.col) : Math.hypot(t.x - player.x, t.y - player.y);
+  return td <= (m === 'ship' ? shipDist() : boxDist(m.obj.col));
+}
+
 function board() {
   const deck = deckPos();
   player.swimming = false;
@@ -2611,11 +2664,12 @@ function action() {
     return;
   }
   if (sail) disembark();
-  else if (nearMount() === 'ship') board();
+  else if (nearMount() === 'ship' && !treasureFirst()) board();
   else if (roostLeave()) leaveAtRoost(roostLeave());
   else if (nurseryLeave()) leaveAtNursery(nurseryLeave());
   else if (carried && nearPool()) throwEgg();
-  else if (nearEgg()) pickUpEgg(nearEgg());
+  else if (nearEgg() && !nearBed()) pickUpEgg(nearEgg());
+  else if (treasureFirst()) takeTreasure(nearTreasure());
   else if (nearMount()) rideDragon(nearMount());
   else if (roostBuildable()) raiseRoost();
   else if (nurseryBuildable()) raiseNursery();
@@ -3330,7 +3384,7 @@ function render() {
     setPrompt(`${shore}   ·   SHIFT  Full sail${rod ? `   ·   ${rod}` : ''}${fish}`);
   } else if (player.fishing) {
     setPrompt(toolHint());
-  } else if (nearMount() === 'ship') {
+  } else if (nearMount() === 'ship' && !treasureFirst()) {
     setPrompt('SPACE  Board the ship');
   } else if (roostLeave()) {
     setPrompt(`SPACE  Leave ${roostLeave().name} at the roost`);
@@ -3338,8 +3392,10 @@ function render() {
     setPrompt(`SPACE  Leave ${nurseryLeave().name} at the nursery`);
   } else if (carried && nearPool()) {
     setPrompt('SPACE or F  Throw the egg into the lava');
-  } else if (nearEgg()) {
+  } else if (nearEgg() && !nearBed()) {
     setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
+  } else if (treasureFirst()) {
+    setPrompt(treasurePrompt());
   } else if (nearMount()) {
     setPrompt(mountPrompt(nearMount()));
   } else if (roostSite()) {

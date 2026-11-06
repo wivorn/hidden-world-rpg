@@ -51,6 +51,8 @@ const QUESTS = [
       { id: 'reach', text: 'Find a way through the reefs to the ancient ruin', done: () => eggPast('carried') || stats.ruinLanded > 0 },
       { id: 'stones', text: () => `At night, touch all nine rune stones in order. The walls show the start; the sailor's note in a skerry chest has the rest${ruinEgg && ruin.step && !ruin.solved ? ` (${ruin.step}/${RUIN_ORDER.length})` : ''}`, done: () => eggPast('carried') || ruin.solved },
       { id: 'egg', text: 'Take the dragon egg', done: () => eggPast('carried') },
+      { id: 'eggChief', text: 'Show the egg to the chief', done: () => stats.chiefEgg || stats.hermitEgg || eggPast('warming') },
+      { id: 'eggHermit', text: 'Take the egg to the old hermit on the north-east isle', done: () => stats.hermitEgg || eggPast('warming') },
       { id: 'eggJacket', text: 'Get a fireproof jacket from the seamstress (2 fire eels, 2 wool) and put it on', done: () => outfit === 'fireJacket' || eggPast('warming') },
       { id: 'hatch', text: 'Climb up through the cave at the foot of the fire mountain and throw the egg into the lava pool at the top, or drop it into the crater from dragonback', done: () => eggPast('hatched') },
       { id: 'grow', text: 'Feed your dragon fish till it\'s grown: fish from the longship, or put a fish down and tell it to eat', done: () => eggPast('grown') },

@@ -1212,24 +1212,17 @@ function buildVolcano() {
         px(g, Math.round(x), y, y < rimY + len * 0.6 ? PAL.lavaLight : PAL.lava);
       }
     }
-  });
-}
-
-// The fire cave's mouth: a hump of black rock at the volcano's foot, red light breathing out of the arch.
-function buildFireCaveMouth() {
-  return sprite(60, 44, (g) => {
-    ellipse(g, 30, 30, 29, 14, PAL.basalt);
-    ellipse(g, 28, 27, 26, 13, PAL.ashDark);
-    ellipse(g, 24, 22, 17, 9, PAL.ash);
-    ellipse(g, 43, 28, 10, 7, PAL.ash);
-    ellipse(g, 20, 17, 8, 4, '#6a6163');
-    for (const [x0, y0, x1, y1] of [[9, 29, 14, 36], [47, 22, 51, 30], [14, 19, 12, 25]]) line(g, x0, y0, x1, y1, PAL.lavaDark);
-    poly(g, [[20, 43], [20, 31], [24, 25], [30, 23], [36, 25], [40, 31], [40, 43]], '#140402');
-    poly(g, [[23, 43], [23, 32], [26, 28], [30, 27], [34, 28], [37, 32], [37, 43]], '#3a0e04');
-    rect(g, 24, 37, 12, 6, '#6a1a06');
-    rect(g, 26, 39, 8, 4, PAL.lavaDark);
-    rect(g, 28, 41, 4, 2, PAL.lava);
-    rect(g, 12, 42, 36, 2, PAL.basalt);
+    // the fire cave's mouth at the foot of the west face, red light breathing out of the arch
+    const ax = cx - 44;
+    const arch = (hw, top) => [[ax - hw, base + 1], [ax - hw, base - top + 7], [ax - hw + 3, base - top + 2], [ax, base - top], [ax + hw - 3, base - top + 2], [ax + hw, base - top + 7], [ax + hw, base + 1]];
+    poly(g, arch(11, 20), PAL.basalt);
+    for (const [x, y] of [[ax - 8, base - 17], [ax - 4, base - 19], [ax, base - 20], [ax + 4, base - 19], [ax - 11, base - 12]]) rect(g, x, y, 3, 1, '#8a7f80');
+    poly(g, arch(8, 16), '#140402');
+    poly(g, arch(6, 13), '#3a0e04');
+    rect(g, ax - 5, base - 5, 10, 6, '#6a1a06');
+    rect(g, ax - 3, base - 3, 6, 4, PAL.lavaDark);
+    rect(g, ax - 1, base - 1, 2, 2, PAL.lava);
+    for (const [x0, y0, x1, y1] of [[ax - 15, base - 3, ax - 12, base - 9], [ax + 12, base - 14, ax + 16, base - 7], [ax - 9, base - 21, ax - 12, base - 26]]) line(g, x0, y0, x1, y1, PAL.lavaDark);
   });
 }
 
@@ -4302,7 +4295,8 @@ function buildSprites() {
     for (let v = 0; v < 3; v++) def(`${k}-${v}`, { img: buildPeak(w, h, 1 + i * 3 + v, snow * (0.85 + v * 0.15)) });
   });
   def('volcano', { img: buildVolcano(), light: { dx: 0, dy: -96, r: 40, color: '#ff6a1a' }, after: (g, x, y) => drawCraterEgg(g, x, y) });
-  def('fireCaveMouth', { img: buildFireCaveMouth(), foot: { w: 44, h: 10 }, door: { dx: 0, w: 14 }, light: { dx: 0, dy: -4, r: 18, color: '#ff6a1a' } });
+  // drawn as part of the volcano; this is just its doorway
+  def('fireCaveMouth', { img: sprite(1, 1, () => {}), foot: { w: 30, h: 6 }, door: { dx: 0, w: 14 }, light: { dx: 0, dy: -4, r: 18, color: '#ff6a1a' } });
   def('lavaPool', { img: sprite(1, 1, () => {}), light: { dx: 0, dy: 0, r: 56, color: '#ff6a1a' }, after: (g, x, y) => drawPoolEgg(g, x, y) });
   def('snowPine', { img: buildPine(true, true), foot: { w: 8, h: 5 }, shadow: { rx: 10, ry: 3 } });
   def('jungleTree', { img: buildJungleTree(), foot: { w: 10, h: 5 }, shadow: { rx: 14, ry: 4 } });

@@ -2162,7 +2162,7 @@ function placeIslands() {
 
   // the fire mountain, with the fire cave's mouth at the foot of its west face, and inside at the top the lava pool
   addAbs('volcano', VOLCANO.x, VOLCANO.y + 0.4);
-  addAbs('fireCaveMouth', VOLCANO.x - 2.75, VOLCANO.y + 0.85).room = 'fireCave';
+  addAbs('fireCaveMouth', VOLCANO.x - 2.75, VOLCANO.y + 0.4).room = 'fireCave';
   addAbs('lavaPool', ...fireSpot(FIRE_POOL.x, FIRE_POOL.y));
   for (const [x, y] of [[9, 9.5], [26.5, 7.5], [24, 14.2]]) addAbs('boulderDark', ...fireSpot(x, y));
   const v = isle('volcano');
