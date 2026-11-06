@@ -22,6 +22,7 @@ const ITEMS = {
   berries: { name: 'Berries', stack: true },
   coconut: { name: 'Coconut', stack: true },
   stone: { name: 'Stone', stack: true, plural: 'stones' },
+  iceCube: { name: 'Ice Cube', stack: true, plural: 'ice cubes' },
   wool: { name: 'Wool', stack: true },
   bow: { name: 'Bow', tool: true },
   sword: { name: 'Sword', tool: true },
@@ -66,7 +67,7 @@ const onBelt = (id) => BELT.includes(id) && has('toolBelt');
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !onBelt(id);
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -455,13 +456,14 @@ const AXE = {
   ore: { prompt: 'Mine the iron ore', hits: 4, chips: ['#b0603a', '#56565e'], done: mineOre },
   gold: { prompt: 'Mine the gold', hits: 4, chips: ['#f2c94a', '#3a4252'], done: mineGold },
   boulder: { prompt: 'Break the boulder', hits: 3, chips: [PAL.rock, PAL.rockDark], done: breakBoulder },
+  crystal: { prompt: 'Break the ice crystal', hits: 4, chips: [PAL.ice, PAL.iceLight], done: breakCrystal },
   bramble: { prompt: 'Hack through the brambles', hits: 2, chips: [PAL.leafDark, '#5a3a22'], done: cutBramble },
   log: { prompt: 'Chop up the fallen log', hits: 4, chips: [PAL.woodLight, '#d9b07a'], done: chopLog },
 };
 const AXE_KINDS = {
   barrel: 'barrel', bushPink: 'bush', bushYellow: 'bush', fern: 'bush', fenceH: 'fence', fenceV: 'fence', target: 'target',
   ore: 'ore', goldOre: 'gold', boulder: 'boulder', boulderSnow: 'boulder', boulderDark: 'boulder',
-  bramble: 'bramble', fallenLog: 'log', looseRock: 'boulder',
+  bramble: 'bramble', fallenLog: 'log', looseRock: 'boulder', iceCrystal: 'crystal',
 };
 const CHOP_TIME = 0.36;
 const CHOP_HIT = 0.55;
@@ -536,11 +538,11 @@ function kindOf(o) {
 const TOOL_FOR = {
   tree: ['axe'], stump: ['axe'], fence: ['axe'], barrel: ['axe', 'sword'],
   bush: ['sword', 'spear', 'axe'], target: ['sword', 'spear', 'axe'],
-  ore: ['pickaxe'], gold: ['pickaxe'], boulder: ['pickaxe'],
+  ore: ['pickaxe'], gold: ['pickaxe'], boulder: ['pickaxe'], crystal: ['pickaxe'],
   bramble: ['sword', 'axe', 'spear'], log: ['axe'],
 };
 // Chores win over game, so a rabbit underfoot doesn't get in the way of the woodcutting.
-const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder', 'bramble', 'log']);
+const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder', 'crystal', 'bramble', 'log']);
 const SWUNG = new Set(Object.values(TOOL_FOR).flat());
 const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', mushroom: '#5affd8', roast: '#9a4a1e' };
 
@@ -628,9 +630,11 @@ function toolHint() {
   if (player.cook) return `${COOK_VERB[player.cook.id].replace(/e?$/, 'ing')} the ${itemName(player.cook.id)}...`;
   const id = primary();
   const f = player.fishing;
+  if (f && f.fight) return id === 'rod' ? 'A big one!   ·   Tap F fast to reel it in!' : `${slotKey('rod')}  Ready the rod, quick!`;
   if (f && id === 'rod') return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}   ·   F  Reel in`;
   if (f) return f.biting ? `${slotKey('rod')}  Ready the rod to reel it in!` : 'Waiting for a bite...';
-  const readyRod = id === 'rod' ? 'F  Cast your line' : `${slotKey('rod')}  Ready the rod to fish`;
+  if (player.windup) return castPower() < 1 ? 'Winding up...   ·   Let go of F to cast' : 'Full cast!   ·   Let go of F to cast';
+  const readyRod = id === 'rod' ? 'F  Cast your line   ·   Hold F to cast farther' : `${slotKey('rod')}  Ready the rod to fish`;
   const need = EXPOSE[exposedTo()]?.outfit;
   if (need && outfit !== need && has(need)) return id === need ? `F  Put on the ${itemName(need)}` : `${slotKey(need)}  Put on your ${itemName(need)}`;
   if (id && ITEMS[id].outfit) return outfit === id ? `F  Take off the ${itemName(id)}` : `F  Put on the ${itemName(id)}`;
@@ -661,8 +665,8 @@ function toolHint() {
   const tool = ['axe', 'pickaxe'].find((t) => t !== id && nearTarget(t));
   if (tool) return `${slotKey(tool)}  Ready the ${itemName(tool)}`;
   if (has('rod') && castSpot()) return readyRod;
-  const vein = !has('pickaxe') && hittables.find((o) => (kindOf(o) === 'ore' || kindOf(o) === 'gold') && boxDist(o.col) < 9);
-  if (vein) return `${vein.axe === 'gold' ? 'Gold' : 'Iron ore'}. You need a pickaxe to mine it`;
+  const vein = !has('pickaxe') && hittables.find((o) => ['ore', 'gold', 'crystal'].includes(kindOf(o)) && boxDist(o.col) < 9);
+  if (vein) return vein.axe === 'crystal' ? 'An ice crystal. A pickaxe would break it' : `${vein.axe === 'gold' ? 'Gold' : 'Iron ore'}. You need a pickaxe to mine it`;
   return obstacleHint();
 }
 
@@ -671,47 +675,114 @@ function toolHint() {
 // From the deck the bobber goes over the near gunwale, a little ahead of the rider; offsets are from the ship's waterline point.
 const BOAT_CAST = { right: [-2, 14], left: [2, 14], down: [32, -8], up: [32, -30], ne: [16, 4], nw: [-16, 4], se: [44, 8], sw: [-44, 8] };
 
-// Where the bobber lands: the first water in front of the player.
-function castSpot() {
+// Where the bobber lands: just into the first water in front of the player, and with a held cast (`power` 0-1)
+// up to CAST_REACH farther, though never past where the water runs out.
+const CAST_TIME = 1;
+const CAST_REACH = 96;
+function castSpot(power = 0) {
   if ((indoors && !inCave()) || !canCast()) return null;
   const water = (x, y) => isWet(tileAt(Math.floor(x / TILE), Math.floor(y / TILE)));
+  let x0;
+  let y0;
+  let vx;
+  let vy;
+  let near = 0;
   if (sail) {
     const [dx, dy] = BOAT_CAST[shipObj.facing];
-    const x = shipObj.x + dx;
-    const y = shipObj.y + dy;
-    return water(x, y) ? [x, y] : null;
+    const n = Math.hypot(dx, dy);
+    [x0, y0, vx, vy] = [shipObj.x, shipObj.y, dx / n, dy / n];
+    near = n;
+    if (!water(x0 + dx, y0 + dy)) return null;
+  } else {
+    [vx, vy] = DIR_VEC[player.dir];
+    [x0, y0] = [player.x, player.y - 3];
+    for (let d = 12; d <= 44 && !near; d += 4) if (water(x0 + vx * d, y0 + vy * d)) near = d;
+    if (!near) return null;
+    if (water(x0 + vx * (near + 8), y0 + vy * (near + 8))) near += 8;
   }
-  const [vx, vy] = DIR_VEC[player.dir];
-  for (let d = 12; d <= 44; d += 4) {
-    const x = player.x + vx * d;
-    const y = player.y - 3 + vy * d;
-    if (!water(x, y)) continue;
-    return water(x + vx * 8, y + vy * 8) ? [x + vx * 8, y + vy * 8] : [x, y];
+  let reach = near;
+  for (let d = near + 4; d <= near + CAST_REACH * power; d += 4) {
+    if (!water(x0 + vx * d, y0 + vy * d)) break;
+    reach = d;
   }
-  return null;
+  return [x0 + vx * reach, y0 + vy * reach];
 }
 
+// Off the shore the catch flips out of the water in an arc and lands on the ground beside the player: behind them,
+// else to one side, wherever is dry and clear.
+const FISH_FLIGHT = 0.7;
+function landFish(id, f) {
+  const [vx, vy] = DIR_VEC[player.dir];
+  const spots = [[-vx * 12, -vy * 10 + 3], [vy * 14, vx * 10 + 3], [-vy * 14, -vx * 10 + 3], [0, 4]];
+  const dry = (x, y) => !blocked(x - 3, y - 3, x + 3, y, player) && !isWet(tileAt(Math.floor(x / TILE), Math.floor(y / TILE)));
+  const [dx, dy] = spots.find(([dx, dy]) => dry(player.x + dx, player.y + dy)) || [0, 0];
+  const x = player.x + dx;
+  const y = player.y + dy;
+  // launched at 110 px/s from 2 px up, it comes down after FISH_FLIGHT seconds
+  spawnDrop(id, f.x, f.y, (x - f.x) / FISH_FLIGHT, 2, 110, (y - f.y) / FISH_FLIGHT);
+}
+
+// Pressing F with the rod winds up a cast and letting go throws it; with a line out it reels in. A big fish has
+// to be tapped in before its time runs out.
 function useRod() {
   const f = player.fishing;
+  if (f && f.fight) return tugFight(f);
   if (f) {
+    if (f.biting) return reelIn(f);
     player.fishing = null;
-    if (!f.biting) return Sfx.swish(0.6);
-    const [hx, hy] = headPos();
-    const b = f.boat && hungryDragon();
-    const id = catchFish(f, !b);
-    if (b) {
-      feedFromLine(b, id, f.x, f.y);
-      popIcon(id, f.x, f.y - 8);
-    } else popIcon(id, hx, hy - 6);
-    Sfx.splash(0.4);
-    Sfx.reward();
-    return;
+    return Sfx.swish(0.6);
   }
-  const spot = castSpot();
+  if (!player.windup && castSpot()) player.windup = { t: 0 };
+}
+
+const castPower = () => (player.windup ? Math.min(1, player.windup.t / CAST_TIME) : 0);
+
+// Letting go of F.
+function releaseCast() {
+  if (!player.windup) return;
+  const power = castPower();
+  player.windup = null;
+  const spot = primary() === 'rod' && !player.fishing && castSpot(power);
   if (!spot) return;
   const [x, y] = spot;
   player.fishing = { x, y, px: player.x, py: player.y, boat: !!sail, t: 0, bite: biteWait(x, y), missT: 0 };
-  Sfx.swish();
+  Sfx.swish(0.6 + 0.4 * power);
+}
+
+function reelIn(f) {
+  player.fishing = null;
+  const [hx, hy] = headPos();
+  const b = f.boat && hungryDragon();
+  const id = catchFish(f, f.boat && !b);
+  if (b) {
+    feedFromLine(b, id, f.x, f.y);
+    popIcon(id, f.x, f.y - 8);
+  } else if (f.boat) popIcon(id, hx, hy - 6);
+  else landFish(id, f);
+  Sfx.splash(0.4);
+  Sfx.reward();
+}
+
+// The big ones fight: `taps` presses of F fill the bar, which slips back once you pause for FIGHT_REST seconds, and
+// `time` is how long it stays on the hook.
+const FIGHT = { cod: { taps: 8, time: 3.5 }, eel: { taps: 10, time: 3.5 }, goldenFish: { taps: 12, time: 4 } };
+const FIGHT_SLIP = 0.25;
+const FIGHT_REST = 0.35;
+
+function tugFight(f) {
+  f.fight.fill += 1 / FIGHT[f.fish].taps + 0.001;
+  f.fight.tugT = 0.12;
+  f.fight.restT = 0;
+  seaSplash(f.x, f.y, 0.25);
+  Sfx.plip(0.5, 1 + Math.floor(f.fight.fill * 4));
+  if (f.fight.fill >= 1) reelIn(f);
+}
+
+function escapeFight(f) {
+  Object.assign(f, { fight: null, fish: null, biting: false, missT: 1.5, bite: f.t + biteWait(f.x, f.y) });
+  seaSplash(f.x, f.y, 0.8);
+  Sfx.splash(0.5);
+  if (!stats.escaped++) muse('It got away! The big ones fight. I need to reel faster.');
 }
 
 // Seconds until the next nibble; a school nearby bites much sooner.
@@ -730,12 +801,23 @@ function updateFishing(dt) {
   }
   f.t += dt;
   f.missT -= dt;
+  if (f.fight) {
+    const g = f.fight;
+    if ((g.restT += dt) > FIGHT_REST) g.fill = Math.max(0, g.fill - FIGHT_SLIP * dt);
+    g.tugT -= dt;
+    if ((g.left -= dt) <= 0) escapeFight(f);
+    else if (Math.random() < dt * 6) seaSplash(f.x + (Math.random() - 0.5) * 8, f.y, 0.2);
+    return;
+  }
   if (f.biting) {
     if ((f.biteT += dt) < 0.9) return;
-    Object.assign(f, { biting: false, missT: 1.5, bite: f.t + biteWait(f.x, f.y) });
+    Object.assign(f, { biting: false, fish: null, missT: 1.5, bite: f.t + biteWait(f.x, f.y) });
   } else if (f.t >= f.bite) {
-    Object.assign(f, { biting: true, biteT: 0 });
-    Sfx.splash(0.2);
+    const fish = pickFish(f);
+    const big = FIGHT[fish];
+    Object.assign(f, { biting: true, biteT: 0, fish, fight: big ? { fill: 0, left: big.time, tugT: 0, restT: 0 } : null });
+    Sfx.splash(big ? 0.6 : 0.2);
+    if (big) seaSplash(f.x, f.y, 0.7);
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
       particles.push({ type: 'wake', x: f.x, y: f.y, vx: Math.cos(a) * 14, vy: Math.sin(a) * 6, life: 0, max: 0.5 });
@@ -781,16 +863,33 @@ function loose() {
 }
 
 function updateDraw(dt) {
+  if (player.windup) {
+    if (primary() !== 'rod' || !canCast() || player.fishing) player.windup = null;
+    else player.windup.t += dt;
+  }
   if (!player.nock) return;
   if (primary() !== 'bow' || !canUseTool()) player.nock = null;
   else player.nock.t += dt;
 }
 
-// A little bar over the archer's head that fills as the string comes back.
+// A little bar over the player's head that fills as the bowstring comes back or the cast winds up. Fighting a big
+// fish it's a wider green bar to tap full, with the time it stays on the hook running out in red beneath.
 function drawDrawMeter(cx, cy) {
-  if (!player.nock) return;
-  const p = drawPower();
+  const g = player.fishing && player.fishing.fight;
+  if (!player.nock && !player.windup && !g) return;
   const [hx, hy] = headPos();
+  if (g) {
+    const x = Math.round(hx) - cx - 14;
+    const y = Math.round(hy) - cy - 14;
+    ctx.fillStyle = '#3a2414';
+    ctx.fillRect(x - 1, y - 1, 30, 7);
+    ctx.fillStyle = g.tugT > 0 ? '#d8ffb0' : '#7cf05a';
+    ctx.fillRect(x, y, Math.round(28 * g.fill), 3);
+    ctx.fillStyle = '#e2423a';
+    ctx.fillRect(x, y + 4, Math.round((28 * g.left) / FIGHT[player.fishing.fish].time), 1);
+    return;
+  }
+  const p = player.nock ? drawPower() : castPower();
   const x = Math.round(hx) - cx - 8;
   const y = Math.round(hy) - cy - 12;
   ctx.fillStyle = '#3a2414';
@@ -1004,7 +1103,7 @@ function axeHit(o, tool = 'axe') {
   if (kind === 'tree') return hitTree(o);
   const k = AXE[kind];
   o.shakeT = 0.25;
-  if (kind === 'ore' || kind === 'gold' || kind === 'boulder') Sfx.clang(0.5 * earshot(o.x, o.y));
+  if (kind === 'ore' || kind === 'gold' || kind === 'boulder' || kind === 'crystal') Sfx.clang(0.5 * earshot(o.x, o.y));
   else Sfx.chop(0.8);
   if (k.chips) chips(o, k.chips, 4, 6);
   if (k.leaves) shedLeaves(o, k.leaves);
@@ -1057,10 +1156,18 @@ function landTree(o) {
   o.fall.landed = true;
   Sfx.crash(earshot(o.x, o.y));
   for (let i = 1; i <= 5; i++) dust(o.x + dir * len * (i / 5), o.y + 2);
+  // the logs bounce off the fallen trunk and lie along it to be picked up; any that would land in water or a wall
+  // drop just in front of the stump instead
   const n = TREES[o.tree].wood;
-  give('wood', n);
-  for (let i = 0; i < n; i++) popIcon('wood', o.x + dir * (12 + i * 10), o.y - 6, i * 0.12);
-  setTimeout(() => Sfx.pickup(), 250);
+  for (let i = 0; i < n; i++) {
+    let x = o.x + dir * (12 + i * 10);
+    let y = o.y + 3 + (i % 2) * 3;
+    if (blocked(x - 3, y - 3, x + 3, y, {}) || isWet(tileAt(Math.floor(x / TILE), Math.floor(y / TILE)))) {
+      x = o.x + (i - (n - 1) / 2) * 7;
+      y = o.y + 9;
+    }
+    spawnDrop('wood', x, y, dir * 8, 4, 45 + i * 10);
+  }
 }
 
 // Grows back (or gets mended) only out of sight, and never on top of someone. `mendNow` skips the out of sight part.
@@ -1106,6 +1213,15 @@ function breakBoulder(o) {
   Sfx.smash(earshot(o.x, o.y));
   chips(o, [PAL.rock, PAL.rockLight, PAL.rockDark], 12, 8);
   for (let i = 0; i < 2; i++) spawnDrop('stone', o.x + (i - 0.5) * 10, o.y + 4, (i - 0.5) * 30, 6, 60);
+}
+
+// The crystal shatters into glittering shards, and a few ice cubes skitter out.
+function breakCrystal(o) {
+  Object.assign(o, { hidden: true, regrowT: REGROW_TIME });
+  o.col.off = true;
+  Sfx.smash(earshot(o.x, o.y));
+  chips(o, [PAL.ice, PAL.iceLight, PAL.iceDark, '#ffffff'], 14, 10);
+  for (let i = 0; i < 3; i++) spawnDrop('iceCube', o.x + (i - 1) * 8, o.y + 4, (i - 1) * 26, 6, 60);
 }
 
 // The barrel bursts into staves and hoops, and out rolls something to eat.
@@ -1227,6 +1343,7 @@ function drawHeldTool(e, x, top, behind) {
   if (behind !== (e.dir === 'up')) return;
   if (e.chop) drawSwing(e, x, top);
   if (e.fishing) drawFishingLine(e, x, top);
+  else if (e.windup) drawWindup(e, x, top);
   const bowUp = (e.bowT > 0 || e.nock) && has('bow');
   if (bowUp && !e.chop && !(e.blockT > 0)) drawHeld(e, SPR.icon.bow, x, top);
   if (e.blockT > 0) drawHeld(e, SPR.icon.shield, x, top);
@@ -1256,7 +1373,7 @@ function drawFishingLine(e, x, top, rx = x + e.fishing.x - e.x, ry = top + 20 + 
   line(ctx, x + hx, top + hy, x + tx, top + ty, PAL.woodLight);
   const u = Math.min(1, f.t / 0.3);
   const bx = Math.round(x + tx + (rx - x - tx) * u);
-  const dip = f.biting ? 1 + Math.round(Math.sin(time * 30)) : Math.round(Math.sin(time * 4));
+  const dip = f.fight ? 2 + Math.round(Math.sin(time * 45) * 2) : f.biting ? 1 + Math.round(Math.sin(time * 30)) : Math.round(Math.sin(time * 4));
   const by = Math.round(top + ty + (ry - top - ty) * u - Math.sin(u * Math.PI) * 10) + (u === 1 ? dip : 0);
   const mx = (x + tx + bx) / 2;
   const my = (top + ty + by) / 2 + (u === 1 ? 4 : 0);
@@ -1266,6 +1383,16 @@ function drawFishingLine(e, x, top, rx = x + e.fishing.x - e.x, ry = top + 20 + 
   ctx.globalAlpha = 1;
   rect(ctx, bx - 1, by - 2, 2, 1, '#c8322a');
   rect(ctx, bx - 1, by - 1, 2, 1, '#f6e7c1');
+}
+
+// Winding up, the rod tips back over the shoulder, farther the longer F is held.
+function drawWindup(e, x, top) {
+  const [hx, hy, tx, ty] = ROD[e.dir];
+  const p = castPower();
+  const bx = Math.round(tx + (hx - (tx - hx) * 0.4 - tx) * p);
+  const by = Math.round(ty + (hy - 16 - ty) * p);
+  line(ctx, x + hx, top + hy, x + bx, top + by, PAL.woodDark, 2);
+  line(ctx, x + hx, top + hy, x + bx, top + by, PAL.woodLight);
 }
 
 function drawSwing(e, x, top) {

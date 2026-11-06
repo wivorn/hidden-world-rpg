@@ -53,7 +53,7 @@ const QUESTS = [
       { id: 'egg', text: 'Take the dragon egg', done: () => eggPast('carried') },
       { id: 'eggJacket', text: 'Get a fireproof jacket from the seamstress (2 fire eels, 2 wool) and put it on', done: () => outfit === 'fireJacket' || eggPast('warming') },
       { id: 'hatch', text: 'Climb the volcano and drop the egg into its crater to hatch it', done: () => eggPast('hatched') },
-      { id: 'grow', text: 'Fish from the longship: your dragon eats every catch until it\'s grown', done: () => eggPast('grown') },
+      { id: 'grow', text: 'Feed your dragon fish till it\'s grown: fish from the longship, or put a fish down and tell it to eat', done: () => eggPast('grown') },
     ],
   },
   {

@@ -1873,6 +1873,17 @@ function buildLog() {
   });
 }
 
+// A cube of clear ice: the lit top, two shaded sides and a glint.
+function buildIceCube() {
+  return sprite(8, 8, (g) => {
+    poly(g, [[0, 2], [4, 0], [8, 2], [4, 4]], PAL.iceLight);
+    poly(g, [[0, 2], [4, 4], [4, 8], [0, 6]], PAL.ice);
+    poly(g, [[4, 4], [8, 2], [8, 6], [4, 8]], PAL.iceDark);
+    px(g, 1, 3, '#ffffff');
+    px(g, 4, 1, '#ffffff');
+  });
+}
+
 function buildPebble() {
   return sprite(9, 7, (g) => {
     ellipse(g, 4, 3.5, 3.5, 2.5, PAL.rock);
@@ -3810,7 +3821,7 @@ function buildSprites() {
   SPR.icon = {
     backpack: buildBackpack(), axe: SPR.axe, wood: buildLog(),
     apple: buildApple(), pear: buildPear(), banana: buildBanana(), pineapple: buildPineapple(),
-    berries: buildBerries(), coconut: buildCoconut(), stone: buildPebble(), wool: buildWool(),
+    berries: buildBerries(), coconut: buildCoconut(), stone: buildPebble(), iceCube: buildIceCube(), wool: buildWool(),
     bow: buildBow(), sword: buildSword(), shield: buildShield(), spear: buildSpear(),
     rod: buildRod(), fish: buildFish(), pickaxe: buildPickaxe(), iron: buildIron(), string: buildString(),
     cod: buildFishKind({ body: '#9a8a56', belly: '#e4dcc0', fin: '#6e6238', len: 6, tall: 3, spots: [[6, 2], [9, 3], [11, 2], [8, 5]] }),
@@ -3946,7 +3957,10 @@ function buildSprites() {
   def('roost', { img: roost, oy: 63, foot: { w: 112, h: 10 } });
   def('stake', { img: buildStake(), foot: { w: 4, h: 3 } });
   def('logPile', { img: buildLogPile(), foot: { w: 30, h: 6 }, shadow: { rx: 16, ry: 3 } });
-  def('iceCrystal', { img: buildIceCrystal(), foot: { w: 14, h: 4 }, light: { dx: 0, dy: -12, r: 16, color: '#9fdcff' } });
+  // out in the snow a crystal is just ice; down in the ice cave the same crystals give the only light
+  const crystal = buildIceCrystal();
+  def('iceCrystal', { img: crystal, foot: { w: 14, h: 4 } });
+  def('caveCrystal', { img: crystal, foot: { w: 14, h: 4 }, light: { dx: 0, dy: -12, r: 16, color: '#9fdcff' } });
   def('iceWall', { img: buildIceWall(), foot: { w: 16, h: 9 } });
   def('iceWallMelting', { img: buildIceWall(true) });
   def('scarecrow', { img: buildScarecrow(), foot: { w: 4, h: 3 } });

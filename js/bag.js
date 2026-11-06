@@ -209,7 +209,7 @@ let bagPick = null;
 const OUTFIT_IDS = Object.keys(ITEMS).filter((id) => ITEMS[id].outfit);
 const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow'];
 const TREASURE = new Set(['gold', 'ruby', 'emerald', 'goblet', 'crown']);
-const MATERIALS = new Set(['wood', 'stone', 'wool', 'string', 'feather', 'hide', 'iron', 'plank', 'rope']);
+const MATERIALS = new Set(['wood', 'stone', 'iceCube', 'wool', 'string', 'feather', 'hide', 'iron', 'plank', 'rope']);
 const GROUPS = ['Food', 'Materials', 'Treasure', 'Kits & other'];
 const groupOf = (id) => (EDIBLE[id] || COOKS[id] ? 'Food' : MATERIALS.has(id) ? 'Materials' : TREASURE.has(id) ? 'Treasure' : 'Kits & other');
 const tunicId = () => `tunic_${player.look.id}`;

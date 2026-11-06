@@ -156,6 +156,11 @@ const mapTip = document.getElementById('worldmap-tip');
 let mapOpen = false;
 // Zoom over the fitted map, and the tile at the middle of the view.
 const mapView = { z: 1, x: MAP_W / 2, y: MAP_H / 2 };
+// Arrow keys held down while the map is open, and when it last moved for them; they slide the view 40% of its
+// width a second.
+const PAN = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+const mapPan = new Set();
+let mapPanT = 0;
 
 function flashMapButton() {
   mapBtn.classList.remove('bump');
@@ -294,6 +299,13 @@ function drawMap() {
   // the part of the world in view, in tiles
   const vw = MAP_W / mapView.z;
   const vh = MAP_H / mapView.z;
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - mapPanT) / 1000);
+  mapPanT = now;
+  for (const code of mapPan) {
+    mapView.x += PAN[code][0] * vw * 0.4 * dt;
+    mapView.y += PAN[code][1] * vh * 0.4 * dt;
+  }
   mapView.x = Math.max(vw / 2, Math.min(MAP_W - vw / 2, mapView.x));
   mapView.y = Math.max(vh / 2, Math.min(MAP_H - vh / 2, mapView.y));
   const ox = mapView.x - vw / 2;
@@ -315,6 +327,13 @@ function drawMap() {
   g.textBaseline = 'top';
   const placed = [];
   const labels = [];
+  const label = (text, x, y) => {
+    const w = g.measureText(text).width + 4;
+    const box = [x - w / 2, y + iconPx / 2 + 2, x + w / 2, y + iconPx / 2 + fontPx + 6];
+    if (placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) return;
+    placed.push(box);
+    labels.push([text, x, box[1] + 2]);
+  };
   mapHits.length = 0;
   for (const p of POIS) {
     if (!onMap(p)) continue;
@@ -326,13 +345,20 @@ function drawMap() {
     g.globalAlpha = 1;
     if (p.marked) drawX(g, x + iconPx / 2, y - iconPx / 2, Math.round(iconPx * 0.35));
     mapHits.push({ p, x, y, r: iconPx * 0.75 });
-    if (!p.learned) continue;
-    const text = p.seen ? p.name : `${p.name}?`;
-    const w = g.measureText(text).width + 4;
-    const box = [x - w / 2, y + iconPx / 2 + 2, x + w / 2, y + iconPx / 2 + fontPx + 6];
-    if (placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
-    placed.push(box);
-    labels.push([text, x, box[1] + 2]);
+    if (p.learned) label(p.seen ? p.name : `${p.name}?`, x, y);
+  }
+  // where the ship lies at anchor, and the dragons left resting somewhere
+  const marks = sail ? [] : [{ icon: mapIcons.ship, name: 'Ship', x: shipObj.x, y: shipObj.y }];
+  for (const d of dragons) {
+    if (d === follower || (flight && flight.dragon === d)) continue;
+    marks.push({ icon: mapDragonIcon(d.species), name: d.name, x: d.x, y: d.y });
+  }
+  for (const m of marks) {
+    const x = Math.round((m.x / TILE - ox) * S);
+    const y = Math.round((m.y / TILE - oy) * S);
+    if (x < -iconPx || y < -iconPx || x > W + iconPx || y > H + iconPx) continue;
+    g.drawImage(m.icon, x - iconPx / 2, y - iconPx / 2, iconPx, iconPx);
+    label(m.name, x, y);
   }
   for (const [text, x, y] of labels) {
     g.lineWidth = 4;
@@ -355,11 +381,26 @@ function drawMap() {
   g.beginPath();
   g.arc(mx, my, r - 1, 0, Math.PI * 2);
   g.fill();
-  const tip = [canFlyTo() ? 'CLICK A PLACE TO FLY THERE' : '', 'SCROLL OR +/- TO ZOOM', 'ESC TO CLOSE'].filter(Boolean).join('\n');
+  const tip = [canFlyTo() ? 'CLICK A PLACE TO FLY THERE' : '', 'SCROLL OR +/- TO ZOOM', mapView.z > 1 ? 'ARROWS TO MOVE' : '', 'ESC TO CLOSE'].filter(Boolean).join('\n');
   if (mapTip.textContent !== tip) mapTip.textContent = tip;
   mapCanvas.classList.toggle('fly', canFlyTo() && !!flyHit);
 
   mapCanvas.setAttribute('aria-label', `World map. Known places: ${POIS.filter((p) => p.learned && onMap(p)).map((p) => p.name).join(', ')}.`);
+}
+
+// A dragon seen from above in its own colours, wings spread.
+const mapDragonIcons = {};
+function mapDragonIcon(species) {
+  const sp = DRAGON_SPECIES[species];
+  return (mapDragonIcons[species] ||= sprite(12, 12, (g) => {
+    poly(g, [[1, 3], [5, 5], [5, 7], [1, 8]], sp.wing);
+    poly(g, [[11, 3], [7, 5], [7, 7], [11, 8]], sp.wing);
+    ellipse(g, 6, 6, 2, 3, sp.body);
+    rect(g, 5, 1, 3, 2, sp.body);
+    rect(g, 6, 9, 1, 2, sp.body);
+    px(g, 5, 1, sp.eye);
+    px(g, 7, 1, sp.eye);
+  }));
 }
 
 // A red X, `r` from its middle to each arm's end, outlined in ink.
@@ -488,6 +529,7 @@ function toggleMap(open = !mapOpen) {
   mapEl.hidden = !open;
   mapBtn.setAttribute('aria-expanded', String(open));
   keys.clear();
+  mapPan.clear();
   if (open) {
     Sfx.door();
     Object.assign(mapView, { z: 1, x: MAP_W / 2, y: MAP_H / 2 });
@@ -511,8 +553,13 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     const [hx, hy] = mapHere();
     zoomMap(e.key === '-' || e.key === '_' ? 0.5 : 2, hx / TILE, hy / TILE);
+  } else if (PAN[e.code]) {
+    e.preventDefault();
+    mapPan.add(e.code);
   }
 });
+window.addEventListener('keyup', (e) => mapPan.delete(e.code));
+window.addEventListener('blur', () => mapPan.clear());
 
 // Zooms by `f` keeping the tile at tx, ty where it is on screen.
 function zoomMap(f, tx, ty) {

@@ -1953,7 +1953,7 @@ function placeIslands() {
   for (const [x, y] of cave.glowcaps) addAbs('glowcaps', ...caveSpot(x, y));
   for (const [x, y] of cave.gold) addAbs('goldOre', ...caveSpot(x, y));
   cave.stalagmites.forEach(([x, y], i) => addAbs(`stalagmite-${i % 3}`, ...caveSpot(x, y)));
-  for (const [x, y] of [...cave.eggCrystals, ...cave.crystals]) addAbs('iceCrystal', ...caveSpot(x, y));
+  for (const [x, y] of [...cave.eggCrystals, ...cave.crystals]) addAbs('caveCrystal', ...caveSpot(x, y));
   for (const [x, y] of [[f.x - 2.4, f.y - 3.2], [f.x + 9.6, f.y - 2], [f.x + 4, f.y + 3.4], [f.x - 1, f.y + 3.6], [f.x + 1, f.y - 5.4], [f.x - 10, f.y + 8.4]]) addAbs('iceCrystal', x, y);
   for (const [x, y] of [[f.x - 12, f.y - 2], [f.x + 13, f.y + 4], [f.x + 6, f.y + 8], [f.x - 5, f.y + 9.5], [f.x + 15, f.y - 6]]) addAbs('boulderSnow', x, y);
   addAbs('cairn', f.x - 8.6, f.y - 6.2);

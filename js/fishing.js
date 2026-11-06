@@ -27,11 +27,17 @@ function fishZone(x, y) {
   return seaDist[ty * MAP_W + tx] >= 7 ? 'deep' : 'shallows';
 }
 
-// Lands a fish from the bobber's water and logs it (into the pack unless `keep` is false); returns which kind.
-function catchFish(f, keep = true) {
-  const golden = Math.random() < (upgrades.lure ? LURE_GOLDEN_CHANCE : GOLDEN_CHANCE);
+// What takes the bait at the bobber's water.
+function pickFish(f) {
+  if (Math.random() < (upgrades.lure ? LURE_GOLDEN_CHANCE : GOLDEN_CHANCE)) return 'goldenFish';
   const zone = fishZone(f.x, f.y);
-  const id = golden ? 'goldenFish' : FISH_IDS.find((k) => FISH[k].zone === zone);
+  return FISH_IDS.find((k) => FISH[k].zone === zone);
+}
+
+// Lands the fish on the line and logs it (into the pack unless `keep` is false); returns which kind.
+function catchFish(f, keep = true) {
+  const id = f.fish || pickFish(f);
+  const golden = id === 'goldenFish';
   const [a, b] = FISH[id].size;
   const size = Math.round(a + (b - a) * Math.random() ** 1.6);
   if (keep) give(id);

@@ -471,14 +471,17 @@ function updatePlayer(dt) {
   const [ix, iy] = readInput();
   player.running = !!(ix || iy) && canSprint();
   updateStamina(dt, player.running, !!(ix || iy));
+  const running = player.running;
+  const speed = (running ? 115 : 68) * fedBoost();
+  const ice = onIce();
+  if (ice) slideOnIce(dt, ix * speed, iy * speed);
+  else player.glide = { vx: ix * speed, vy: iy * speed, t: time };
   if (!ix && !iy) {
     player.anim = 0;
     player.frame = 0;
     return;
   }
-  const running = player.running;
-  const speed = (running ? 115 : 68) * fedBoost() * dt;
-  if (!move(player, ix * speed, iy * speed) && player.jumpT < 0 && wadeIn(ix, iy)) return;
+  if (!ice && !move(player, ix * speed * dt, iy * speed * dt) && player.jumpT < 0 && wadeIn(ix, iy)) return;
   updateDoors(iy);
 
   if (Math.abs(ix) > Math.abs(iy) + 0.01) player.dir = ix > 0 ? 'right' : 'left';
@@ -499,6 +502,31 @@ function updatePlayer(dt) {
         particles.push({ type: 'dust', x: player.x - ix * 4, y: player.y - 1, vx: -ix * 20 + (Math.random() - 0.5) * 14, vy: -iy * 10 - Math.random() * 6, life: 0, max: 0.3 + Math.random() * 0.15 });
       }
     }
+  }
+}
+
+// On ice the player only slowly picks up speed or turns, and slides on a while after letting go. Walking onto it
+// carries the speed the player came with, if they were walking just now; a wall stops the slide that way.
+const ICE_GRIP = 4;
+const ICE_GLIDE = 2.2;
+const onIce = () => !indoors && tileAt(Math.floor(player.x / TILE), Math.floor((player.y - 1) / TILE)) === T.ICE;
+
+function slideOnIce(dt, tx, ty) {
+  if (!player.glide || time - player.glide.t > 0.1) player.glide = { vx: 0, vy: 0 };
+  const g = player.glide;
+  g.t = time;
+  const k = 1 - Math.exp(-dt * (tx || ty ? ICE_GRIP : ICE_GLIDE));
+  g.vx += (tx - g.vx) * k;
+  g.vy += (ty - g.vy) * k;
+  const x = player.x;
+  const y = player.y;
+  move(player, g.vx * dt, g.vy * dt);
+  if (player.x === x) g.vx = 0;
+  if (player.y === y) g.vy = 0;
+  const sp = Math.hypot(g.vx, g.vy);
+  if (sp < 2) g.vx = g.vy = 0;
+  if (sp > 40 && Math.random() < dt * 14) {
+    particles.push({ type: 'steam', x: player.x + (Math.random() - 0.5) * 6, y: player.y - 1, vx: -g.vx * 0.15, vy: -6 - Math.random() * 6, life: 0, max: 0.35 });
   }
 }
 
@@ -735,16 +763,26 @@ function hear(text) {
   const nearD = byDist(npcs.filter(sameSpace), 80);
   const near = nearD.map(([n]) => n);
   const topic = chatTopic(text);
-  if (topic === 'follow' || topic === 'stop') {
-    let pool = topic === 'follow' ? dragons.filter((d) => d !== follower && !(flight && flight.dragon === d)) : [follower].filter(Boolean);
+  // The dragon in `pool` within `r` the words are meant for: one called by name, or the nearest, unless a person
+  // is addressed or stands clearly closer.
+  const dragonFor = (pool, r) => {
     const named = pool.filter((d) => SPECIES_NAMES[d.species].test(text) || calledBy(d, text));
     if (named.length) pool = named;
-    const [hit] = byDist(pool, topic === 'follow' ? 90 : 140);
+    const [hit] = byDist(pool, r);
     const npcFirst = near.some((n) => addresses(n.look.id, text)) || (nearD.length && nearD[0][1] + 30 < hit?.[1]);
-    if (hit && (named.length || /\bdragons?\b/i.test(text) || !npcFirst)) {
-      commandDragon(hit[0], topic);
-      return;
-    }
+    return hit && (named.length || /\b(dragons?|baby)\b/i.test(text) || !npcFirst) ? hit[0] : null;
+  };
+  if (topic === 'follow' || topic === 'stop') {
+    const d = dragonFor(topic === 'follow' ? dragons.filter((d) => d !== follower && !(flight && flight.dragon === d)) : [follower].filter(Boolean), topic === 'follow' ? 90 : 140);
+    if (d) return commandDragon(d, topic);
+  }
+  if (HUNT_WORDS.test(text) && !flight && follower) {
+    const d = dragonFor([follower], 200);
+    if (d) return askToHunt(d);
+  }
+  if (EAT_WORDS.test(text) && !flight && !sail) {
+    const d = dragonFor(dragons.filter((d) => d.stage < GROWN), 120);
+    if (d) return askToEat(d);
   }
   if (!near.length || teachHears(text, near)) return;
   const tools = topic === 'forge' || (topic === 'wares' && /\btools?\b/i.test(text));
@@ -1150,9 +1188,9 @@ function breatheFire() {
   Sfx.plasma();
 }
 
-function plasmaHit(x, y) {
+function plasmaHit(x, y, pal = PLASMA) {
   const near = earshot(x, y);
-  particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: PLASMA[0], life: 0, max: 0.3 });
+  particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: pal[0], life: 0, max: 0.3 });
   if (tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE)) === T.WATER) {
     splash(x, y);
     seaSplash(x, y - 2, 1.4);
@@ -1161,9 +1199,9 @@ function plasmaHit(x, y) {
     Sfx.hiss(near);
     return;
   }
-  burst(x, y - 3, PLASMA, 36, 90);
+  burst(x, y - 3, pal, 36, 90);
   blastAt(x, y);
-  particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, life: 0, max: 0.45 });
+  particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, pal, life: 0, max: 0.45 });
   for (let i = 0; i < 5; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 8, y: y - 4, vx: (Math.random() - 0.5) * 10, vy: -14 - Math.random() * 8, life: 0, max: 1.4 });
   for (const n of npcs) {
     if (Math.hypot(n.x - x, n.y - y) > 60) continue;
@@ -1219,11 +1257,12 @@ function updateFireballs(dt) {
     b.y = b.y0 + (b.y1 - b.y0) * u;
     b.h = b.h0 * (1 - u * u);
     for (let k = 0; k < 3; k++) {
-      particles.push({ type: 'plasma', layer: 'sky', x: b.x + (Math.random() - 0.5) * 7, y: b.y - b.h + (Math.random() - 0.5) * 7, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, life: 0, max: 0.45 + Math.random() * 0.25 });
+      particles.push({ type: 'plasma', layer: 'sky', x: b.x + (Math.random() - 0.5) * 7, y: b.y - b.h + (Math.random() - 0.5) * 7, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, pal: b.pal, life: 0, max: 0.45 + Math.random() * 0.25 });
     }
     if (u < 1) continue;
     fireballs.splice(i, 1);
-    plasmaHit(b.x, b.y);
+    if (b.hunt) huntBlast(b.x, b.y);
+    plasmaHit(b.x, b.y, b.pal);
   }
 }
 
@@ -1234,15 +1273,16 @@ function drawFireballs(cx, cy) {
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'lighter';
-  for (const b of fireballs) ctx.drawImage(glowSprite(22, PLASMA[0]), Math.round(b.x - 22 - cx), Math.round(b.y - b.h - 22 - cy));
+  for (const b of fireballs) ctx.drawImage(glowSprite(22, (b.pal || PLASMA)[0]), Math.round(b.x - 22 - cx), Math.round(b.y - b.h - 22 - cy));
   ctx.globalCompositeOperation = 'source-over';
   for (const b of fireballs) {
     const x = Math.round(b.x - cx);
     const y = Math.round(b.y - b.h - cy);
     const pulse = Math.sin(time * 40) > 0 ? 1 : 0;
-    ellipse(ctx, x, y, 5 + pulse, 5 + pulse, PLASMA[2]);
-    ellipse(ctx, x, y, 4, 4, PLASMA[0]);
-    ellipse(ctx, x, y, 2.5, 2.5, PLASMA[1]);
+    const pal = b.pal || PLASMA;
+    ellipse(ctx, x, y, 5 + pulse, 5 + pulse, pal[2]);
+    ellipse(ctx, x, y, 4, 4, pal[0]);
+    ellipse(ctx, x, y, 2.5, 2.5, pal[1]);
     rect(ctx, x - 1, y - 1, 2, 2, '#ffffff');
   }
 }
@@ -1303,7 +1343,7 @@ function pickUpEgg(e) {
 function returnToCaveMouth() {
   const r = indoors;
   fadeTo(() => {
-    Object.assign(player, { x: (r.door + 0.5) * TILE, y: r.doorY * TILE - 2, dir: 'down', fishing: null, chop: null, nock: null });
+    Object.assign(player, { x: (r.door + 0.5) * TILE, y: r.doorY * TILE - 2, dir: 'down', fishing: null, chop: null, nock: null, windup: null });
     bringAlong();
     setTimeout(() => muse('Back at the mouth of the cave. Now to get this egg somewhere hot... the volcano!'), 700);
   });
@@ -1482,6 +1522,10 @@ function updateBaby(b, dt) {
     updateSwoop(b, dt);
     return;
   }
+  if (b.meal) {
+    updateMeal(b, dt);
+    return;
+  }
   const lead = b === follower;
   updateJump(b, dt);
   const L = lead ? babyLeader() : homeLeader(b, dt);
@@ -1629,6 +1673,56 @@ function feedFromLine(b, id, x, y) {
   Sfx.flap(0.5 * earshot(b.x, b.y));
 }
 
+// Told to eat, a baby makes for the nearest raw fish lying on the ground, gobbles it up and grows.
+const EAT_WORDS = /\b(eat|eats|eating|feed|food|dinner|hungry)\b/i;
+function askToEat(b) {
+  b.emoteT = 1.8;
+  Sfx.chirp(earshot(b.x, b.y));
+  if (b.swoop || b.meal || b.catchT > 0) {
+    b.emote = 'heart';
+    return;
+  }
+  let fish = null;
+  let fd = 120;
+  for (const d of drops) {
+    const dist = Math.hypot(d.x - b.x, d.y - b.y);
+    if (FISH[d.item] && d.z <= 0 && sameSpace(d) && dist < fd) { fd = dist; fish = d; }
+  }
+  if (!fish) {
+    b.emote = 'question';
+    muse(`${b.name} looks about hungrily. I'd better put a fish down first.`);
+    return;
+  }
+  b.meal = fish;
+  b.emote = 'exclaim';
+}
+
+// Flutters over to the fish, lands on it and swallows it whole; gone without a meal if someone picks it up first.
+function updateMeal(b, dt) {
+  const fish = b.meal;
+  if (!drops.includes(fish)) {
+    b.meal = null;
+    return;
+  }
+  const dx = fish.x - b.x;
+  const dy = fish.y - b.y;
+  const d = Math.hypot(dx, dy);
+  b.flying = true;
+  if (d > 0.5) {
+    const s = Math.min(d, 90 * dt);
+    b.x += (dx / d) * s;
+    b.y += (dy / d) * s;
+    faceToward(b, dx, dy);
+  }
+  b.alt += ((d > 12 ? 10 : 0) - b.alt) * (1 - Math.exp(-dt * 6));
+  b.anim += dt * 12;
+  b.frame = Math.floor(b.anim) % 2;
+  if (d > 2 || b.alt > 1.5) return;
+  drops.splice(drops.indexOf(fish), 1);
+  Object.assign(b, { meal: null, flying: false, alt: 0, anim: 0, frame: 0, stuck: 0, catchT: BIG_FISH.has(fish.item) ? 1.4 : 0.9 });
+  Sfx.splash(0.2 * earshot(b.x, b.y));
+}
+
 // Dives at the fish, snatches it off the surface and climbs back to the ship.
 function updateSwoop(b, dt) {
   const w = b.swoop;
@@ -1740,6 +1834,11 @@ function updateGrown(b, dt) {
     b.ridden = false;
     b.perched = !d.hidden;
   }
+  if (b.hunt) {
+    if (b.perched) takeOff(b);
+    updateHunt(b, dt);
+    return;
+  }
   if (b.perched) {
     b.x = d.x;
     b.y = d.y;
@@ -1773,6 +1872,105 @@ function updateGrown(b, dt) {
       if (follower === b) follower = null;
     }
   }
+}
+
+// ---------- a grown dragon on the hunt ----------
+
+// Told to hunt, the grown dragon following the player goes for the nearest game within HUNT_RANGE of them: it
+// either hangs back in the air and breathes fire at it, or swoops down and strikes. Then it comes back to the
+// player's side; it gives up after HUNT_TIME. Snakes aren't worth the trouble.
+const HUNT_WORDS = /\b(hunt|attack)\b/i;
+const HUNT_RANGE = 200;
+const HUNT_TIME = 7;
+const HUNT_SHOTS = 3;
+
+function nearestGame(x, y, r) {
+  let best = null;
+  let bd = r;
+  for (const a of prey()) {
+    if (!huntable(a) || !alive(a) || !WILD[a.kind].meat) continue;
+    const d = Math.hypot(a.x - x, a.y - y);
+    if (d < bd) { bd = d; best = a; }
+  }
+  return best;
+}
+
+function askToHunt(b) {
+  b.emoteT = 1.8;
+  if (b.stage < GROWN) {
+    b.emote = 'heart';
+    Sfx.chirp(earshot(b.x, b.y));
+    muse(`${b.name} is too little to hunt yet. Better feed it some fish.`);
+    return;
+  }
+  if (b.hunt) return;
+  const a = nearestGame(player.x, player.y, HUNT_RANGE);
+  if (!a) {
+    b.emote = 'question';
+    muse(`Nothing for ${b.name} to hunt around here.`);
+    return;
+  }
+  b.hunt = { a, t: 0, how: Math.random() < 0.5 ? 'fire' : 'swoop', shots: 0, fireCd: 0.8 };
+  b.emote = 'exclaim';
+  Sfx.roar();
+}
+
+function updateHunt(b, dt) {
+  const h = b.hunt;
+  const a = h.a;
+  h.t += dt;
+  if (!alive(a) || h.t > HUNT_TIME || (h.how === 'fire' && h.shots >= HUNT_SHOTS && h.fireCd <= 0)) {
+    const caught = a.state === 'down';
+    b.hunt = null;
+    b.emote = caught ? 'heart' : 'dots';
+    b.emoteT = 1.8;
+    if (caught) muse(`Good hunting, ${b.name}!`);
+    return;
+  }
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const d = Math.hypot(dx, dy) || 1;
+  // fire: hold off HOLD px away in the air; swoop: dive straight at it, dropping low for the last stretch
+  const HOLD = 70;
+  const [tx, ty, alt, speed] = h.how === 'fire'
+    ? [a.x - (dx / d) * HOLD, a.y - (dy / d) * HOLD, 40, 170]
+    : [a.x, a.y, d < 50 ? 2 : 28, 210];
+  const mx = tx - b.x;
+  const my = ty - b.y;
+  const md = Math.hypot(mx, my);
+  if (md > 0.5) {
+    const s = Math.min(md, speed * dt);
+    b.x += (mx / md) * s;
+    b.y += (my / md) * s;
+  }
+  b.alt += (alt - b.alt) * (1 - Math.exp(-dt * 4));
+  faceToward(b, dx, dy);
+  const beat = Math.floor(b.flap / 4);
+  b.flap += dt * 12;
+  if (Math.floor(b.flap / 4) !== beat) Sfx.flap(0.5 * earshot(b.x, b.y));
+  h.fireCd -= dt;
+  if (h.how === 'fire' && h.shots < HUNT_SHOTS && h.fireCd <= 0 && d < HOLD + 40) {
+    h.shots++;
+    h.fireCd = 0.9;
+    huntFire(b, a);
+  } else if (h.how === 'swoop' && d < 10 && b.alt < 8) {
+    dust(a.x, a.y);
+    Sfx.thunk(earshot(a.x, a.y));
+    hurtAnimal(a, 99);
+  }
+}
+
+function huntFire(b, a) {
+  const [mx, my, mh] = MOUTH[b.face || b.dir];
+  const x0 = b.x + mx;
+  const y0 = b.y + my;
+  fireballs.push({ x0, y0, h0: b.alt + mh, x1: a.x, y1: a.y, x: x0, y: y0, h: 0, t: 0, dur: 0.45, pal: DRAGON_SPECIES[b.species].breath, hunt: true });
+  Sfx.plasma();
+}
+
+// A hunting blast brings down any game it lands among.
+function huntBlast(x, y) {
+  for (const a of [...prey()]) if (huntable(a) && alive(a) && Math.hypot(a.x - x, a.y - y) < 18) hurtAnimal(a, 99);
 }
 
 // `top` is the top edge of the carrier's sprite, in screen pixels. Drawn before the carrier,
@@ -2853,11 +3051,11 @@ function drawParticles(cx, cy, layer) {
     } else if (p.type === 'plasma') {
       ctx.globalAlpha = 1 - t;
       const s = t < 0.4 ? 2 : 1;
-      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, t < 0.4 ? PLASMA[1] : PLASMA[0]);
+      rect(ctx, Math.round(p.x - cx), Math.round(p.y - cy), s, s, (p.pal || PLASMA)[t < 0.4 ? 1 : 0]);
     } else if (p.type === 'shock') {
       const r = 4 + t * 24;
       ctx.globalAlpha = 0.35 * (1 - t);
-      ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.45, PLASMA[0]);
+      ellipse(ctx, p.x - cx, p.y - cy, r, r * 0.45, (p.pal || PLASMA)[0]);
     } else if (p.type === 'sparkle') {
       ctx.globalAlpha = 1 - t;
       const x = Math.round(p.x - cx);
@@ -3235,11 +3433,14 @@ chatForm.addEventListener('submit', (e) => {
 });
 window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
-  if (e.code === 'KeyF') loose();
+  if (e.code === 'KeyF') {
+    loose();
+    releaseCast();
+  }
 });
 window.addEventListener('blur', () => {
   keys.clear();
-  player.nock = null;
+  player.nock = player.windup = null;
 });
 window.addEventListener('resize', resize);
 
