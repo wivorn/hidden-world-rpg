@@ -326,7 +326,7 @@ function drawNight(cx, cy, visible) {
     const g = nightLayer.getContext('2d');
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, viewW, viewH);
-    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : 'rgba(2,4,10,0.96)') : `rgba(6,10,36,${0.7 * n})`;
+    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : indoors.fire ? 'rgba(18,4,0,0.7)' : 'rgba(2,4,10,0.96)') : `rgba(6,10,36,${0.7 * n})`;
     g.fillRect(0, 0, viewW, viewH);
     g.globalCompositeOperation = 'destination-out';
     const lights = nightLights(cx, cy, visible);
@@ -400,24 +400,32 @@ function updateFireflies(dt) {
 
 // ---------- sleeping ----------
 
-const homeBed = () => objects.find((o) => o.key === 'bed' && inRoom(ROOMS.home, o));
+// Beds the player may sleep in: their own at home, or the spare one at the hermit's hut.
+const SLEEP_ROOMS = ['home', 'hut'];
+const bedHere = () => SLEEP_ROOMS.some((k) => ROOMS[k] === indoors) && objects.find((o) => o.key === 'bed' && inRoom(indoors, o));
 const sleepy = () => clock > 0.7 || clock < 0.2;
 
 function nearBed() {
-  const b = homeBed();
-  return indoors === ROOMS.home && sleepy() && !carrying() && Math.hypot(player.x - b.x, player.y - b.y + 10) < 26;
+  const b = bedHere();
+  return !!b && sleepy() && !carrying() && Math.hypot(player.x - b.x, player.y - b.y + 10) < 26;
 }
 
 // A long fade to black, and it's morning. The game saves.
 function sleep() {
   if (fade) return;
   Sfx.yawn();
+  const hut = indoors === ROOMS.hut;
   fade = {
     t: 0, len: 1.4, act: () => {
       if (clock > 0.5) dayCount++;
       clock = 0.27;
       setWeather('clear', true);
-      setTimeout(() => npcSay(mom, 'Morning, sleepyhead! Did you sleep well?'), 1500);
+      const hermit = npcs.find((n) => n.look.id === 'hermit');
+      setTimeout(() => {
+        if (!hut) npcSay(mom, 'Morning, sleepyhead! Did you sleep well?');
+        else if (sameSpace(hermit)) npcSay(hermit, 'Morning. The sea kept watch, and so did I.');
+        else muse('A good night\'s sleep at the hermit\'s. Time to get going.');
+      }, 1500);
       saveGame(true);
     },
   };

@@ -1,12 +1,9 @@
-// The hotbar at the bottom left holds the things F uses; the bag (B) shows everything carried: what's worn, the tools
-// and the backpack, and puts things on or off the hotbar.
+// The hotbar at the bottom left holds every tool carried, in TOOLS order, and F uses the selected one; the bag (B)
+// shows everything carried: what's worn, the tools and the backpack, and uses what's in it.
 
-const HOTBAR = 6;
-const hotbar = Array(HOTBAR).fill(null);
-// The hotbar slot F works from.
-let hand = 0;
-// Things the player took off the hotbar, so a new one turning up doesn't put them back.
-const unpinned = new Set();
+const hotbar = [];
+// The tool F works with.
+let hand = null;
 
 const hotbarEl = document.getElementById('hotbar');
 const hotbarSlots = document.getElementById('hotbar-slots');
@@ -15,72 +12,30 @@ const iconUrls = {};
 const iconOf = (id) => SPR.icon[id] || SPR.ui[id];
 const iconUrl = (id) => (iconUrls[id] ||= iconOf(id).toDataURL());
 const keyOf = (i) => String(i + 1);
+const primary = () => (hand && has(hand) ? hand : null);
 
-// What F does something with; these take a free hotbar slot by themselves. Outfits go on only when put there.
-const usable = (id) => !!(ITEMS[id].tool || id === 'torch' || id === 'saddle' || id === 'wood' || id === 'stone' || id === 'meat' || EDIBLE[id] || COOKS[id] || PLACE[id]);
-const pinnable = (id) => usable(id) || !!ITEMS[id].outfit;
-const primary = () => (hotbar[hand] && has(hotbar[hand]) ? hotbar[hand] : null);
-
-// Used-up things leave the hotbar; new usable ones fill the first free slot.
+// With the tool in hand gone, the first one left is picked up instead.
 function syncHotbar() {
-  for (let i = 0; i < HOTBAR; i++) if (hotbar[i] && !has(hotbar[i])) hotbar[i] = null;
-  for (const id of new Set([...BELT, ...Object.keys(ITEMS)])) {
-    if (!has(id) || !usable(id) || unpinned.has(id) || hotbar.includes(id)) continue;
-    const i = hotbar.indexOf(null);
-    if (i < 0) return;
-    hotbar[i] = id;
-  }
+  hotbar.splice(0, hotbar.length, ...TOOLS.filter(has));
+  if (!hotbar.includes(hand)) hand = hotbar[0] || null;
 }
 
-// The key that readies `id`: its hotbar number, or B to open the bag and put it there.
-const slotKey = (id) => (hotbar.includes(id) ? keyOf(hotbar.indexOf(id)) : 'B');
+// The key that readies `id`.
+const slotKey = (id) => keyOf(hotbar.indexOf(id));
 
 function selectHand(i) {
-  if (i === hand || !has('backpack')) return;
-  hand = i;
+  if (!hotbar[i] || hotbar[i] === hand || !has('backpack')) return;
+  hand = hotbar[i];
   renderInventory();
   Sfx.drop();
 }
 
-const pickTool = (n) => n >= 1 && n <= HOTBAR && selectHand(n - 1);
+const pickTool = (n) => n >= 1 && selectHand(n - 1);
 
-// E and Tab step to the next filled slot (`step` 1), Q back (-1), wrapping round.
+// E and Tab step to the next tool (`step` 1), Q back (-1), wrapping round.
 function cycleSelection(step) {
-  for (let k = 1; k <= HOTBAR; k++) {
-    const i = (hand + step * k + HOTBAR * 2) % HOTBAR;
-    if (hotbar[i]) return selectHand(i);
-  }
-}
-
-function dropActive() {
-  const id = primary();
-  if (id && inPack(id)) dropItem(id);
-}
-
-// Puts `id` in slot `i`; whatever was there moves to where `id` came from, or off the bar.
-function pinAt(id, i) {
-  const from = hotbar.indexOf(id);
-  if (from === i) return;
-  if (from >= 0) hotbar[from] = hotbar[i];
-  else if (hotbar[i]) unpinned.add(hotbar[i]);
-  hotbar[i] = id;
-  unpinned.delete(id);
-  renderInventory(id);
-  Sfx.drop();
-}
-
-function pin(id) {
-  const i = hotbar.indexOf(null);
-  pinAt(id, i >= 0 ? i : hand);
-}
-
-function unpin(id) {
-  const i = hotbar.indexOf(id);
-  if (i < 0) return;
-  hotbar[i] = null;
-  unpinned.add(id);
-  renderInventory();
-  Sfx.drop();
+  const n = hotbar.length;
+  if (n) selectHand((hotbar.indexOf(hand) + step + n) % n);
 }
 
 // Arrows show as a count on the bow, wherever it is.
@@ -109,13 +64,15 @@ function countTag(id) {
 
 // The bar and the bag button only appear once there's a backpack to keep things in.
 function renderInventory(changed) {
-  hotbarEl.hidden = bagBtn.hidden = !has('backpack');
-  if (hotbarEl.hidden) return;
-  if (!bagBtn.querySelector('img').src) bagBtn.querySelector('img').replaceWith(iconImg('backpack', 2));
+  bagBtn.hidden = !has('backpack');
   syncHotbar();
+  syncPack();
+  hotbarEl.hidden = bagBtn.hidden || !hotbar.length;
+  if (bagBtn.hidden) return;
+  if (!bagBtn.querySelector('img').src) bagBtn.querySelector('img').replaceWith(iconImg('backpack', 2));
   hotbarSlots.replaceChildren(...hotbar.map((id, i) => {
     const li = document.createElement('li');
-    const live = i === hand;
+    const live = id === hand;
     li.classList.toggle('primary', live);
     const key = document.createElement('b');
     key.textContent = keyOf(i);
@@ -123,18 +80,15 @@ function renderInventory(changed) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.dataset.slot = i;
-    if (id) {
-      btn.draggable = true;
-      btn.dataset.item = id;
-      btn.append(iconImg(id));
-      const n = countTag(id);
-      if (n) btn.append(n);
-      if (id === 'torch') btn.append(Object.assign(document.createElement('em'), { className: 'burn' }));
-    } else li.classList.add('empty');
-    btn.setAttribute('aria-label', `Slot ${keyOf(i)}, ${id ? itemLabel(id) : 'empty'}${live ? ', used with F' : ''}`);
+    btn.dataset.item = id;
+    btn.append(iconImg(id));
+    const n = countTag(id);
+    if (n) btn.append(n);
+    if (id === 'torch') btn.append(Object.assign(document.createElement('em'), { className: 'burn' }));
+    btn.setAttribute('aria-label', `${keyOf(i)}, ${itemLabel(id)}${live ? ', used with F' : ''}`);
     btn.setAttribute('aria-pressed', String(live));
     li.append(key, btn);
-    if (id && (id === changed || (id === 'bow' && changed === 'arrow'))) li.classList.add('bump');
+    if (id === changed || (id === 'bow' && changed === 'arrow')) li.classList.add('bump');
     return li;
   }));
   const room = `${held().length}/${packSize()}`;
@@ -161,35 +115,6 @@ bagBtn.addEventListener('click', () => {
   bagBtn.blur();
 });
 
-// Drag a hotbar thing onto another slot to swap them, or into the bag to take it off the bar; drag from the bag
-// onto a slot to put it there.
-let dragId = null;
-function slotOf(el) {
-  const li = el?.closest?.('#hotbar-slots li');
-  return li ? +li.querySelector('button').dataset.slot : -1;
-}
-document.addEventListener('dragstart', (e) => {
-  const btn = e.target.closest?.('[data-item]');
-  if (!btn || !(hotbarSlots.contains(btn) || bagEl.contains(btn)) || !pinnable(btn.dataset.item)) return;
-  dragId = btn.dataset.item;
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', dragId);
-});
-document.addEventListener('dragover', (e) => {
-  if (!dragId || (slotOf(e.target) < 0 && !(bagOpen && bagEl.querySelector('.panel').contains(e.target)))) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-});
-document.addEventListener('drop', (e) => {
-  if (!dragId) return;
-  e.preventDefault();
-  const i = slotOf(e.target);
-  if (i >= 0) pinAt(dragId, i);
-  else if (hotbar.includes(dragId)) unpin(dragId);
-  dragId = null;
-});
-document.addEventListener('dragend', () => { dragId = null; });
-
 // ---------- the bag ----------
 
 const bagEl = document.getElementById('bag');
@@ -208,10 +133,6 @@ let bagPick = null;
 
 const OUTFIT_IDS = Object.keys(ITEMS).filter((id) => ITEMS[id].outfit);
 const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow'];
-const TREASURE = new Set(['gold', 'ruby', 'emerald', 'goblet', 'crown']);
-const MATERIALS = new Set(['wood', 'stone', 'iceCube', 'wool', 'string', 'feather', 'hide', 'iron', 'plank', 'rope']);
-const GROUPS = ['Food', 'Materials', 'Treasure', 'Kits & other'];
-const groupOf = (id) => (EDIBLE[id] || COOKS[id] ? 'Food' : MATERIALS.has(id) ? 'Materials' : TREASURE.has(id) ? 'Treasure' : 'Kits & other');
 const tunicId = () => `tunic_${player.look.id}`;
 
 function toggleBag(open = !bagOpen) {
@@ -229,6 +150,22 @@ function toggleBag(open = !bagOpen) {
   (bagEl.querySelector('[aria-pressed="true"]') || bagClose).focus();
 }
 
+// The backpack's slots: each thing keeps its slot, new things take the first free one, null is an empty slot.
+const packSlots = [];
+
+function syncPack() {
+  const items = held();
+  packSlots.forEach((id, i) => { if (id && !items.includes(id)) packSlots[i] = null; });
+  for (const id of items) {
+    if (packSlots.includes(id)) continue;
+    const free = packSlots.indexOf(null);
+    if (free < 0) packSlots.push(id);
+    else packSlots[free] = id;
+  }
+  while (packSlots.length < packSize()) packSlots.push(null);
+  while (packSlots.length > packSize() && packSlots.at(-1) === null) packSlots.pop();
+}
+
 const bagHas = (id) => id === tunicId() || has(id);
 
 // One tile: a button with the icon and count, pressed while it's the bag's pick.
@@ -237,10 +174,6 @@ function bagTile(id, { locked = false, note = '' } = {}) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.dataset.pick = id;
-  if (!locked && ITEMS[id] && pinnable(id)) {
-    btn.draggable = true;
-    btn.dataset.item = id;
-  }
   btn.append(iconImg(id));
   const n = ITEMS[id] && !locked && countTag(id);
   if (n) btn.append(n);
@@ -259,6 +192,13 @@ function bagTile(id, { locked = false, note = '' } = {}) {
   return li;
 }
 
+function emptySlot() {
+  const li = document.createElement('li');
+  li.className = 'empty';
+  li.setAttribute('aria-hidden', 'true');
+  return li;
+}
+
 function renderBag() {
   const g = bagHero.getContext('2d');
   g.clearRect(0, 0, bagHero.width, bagHero.height);
@@ -270,23 +210,11 @@ function renderBag() {
     return li;
   }));
   bagGear.replaceChildren(...GEAR.filter(has).map((id) => bagTile(id)));
-  const tools = BELT.filter((id) => ITEMS[id].tool && has(id));
-  bagTools.replaceChildren(...tools.map((id) => bagTile(id, { note: onBelt(id) ? '' : ', in the backpack' })));
-  if (!tools.length) bagTools.append(Object.assign(document.createElement('li'), { className: 'none', textContent: 'None yet' }));
-  const items = held().filter((id) => !ITEMS[id].tool);
+  bagTools.replaceChildren(...hotbar.map((id) => bagTile(id)));
+  if (!hotbar.length) bagTools.append(Object.assign(document.createElement('li'), { className: 'none', textContent: 'None yet' }));
+  syncPack();
   bagRoom.textContent = `${held().length}/${packSize()}`;
-  bagItems.replaceChildren(...GROUPS.flatMap((group) => {
-    const ids = items.filter((id) => groupOf(id) === group);
-    if (!ids.length) return [];
-    const h = document.createElement('h4');
-    h.textContent = group.toUpperCase();
-    const ul = document.createElement('ul');
-    ul.className = 'bag-grid';
-    ul.setAttribute('aria-label', group);
-    ul.append(...ids.map((id) => bagTile(id)));
-    return [h, ul];
-  }));
-  if (!items.length) bagItems.append(Object.assign(document.createElement('p'), { className: 'none', textContent: 'Nothing in the backpack' }));
+  bagItems.replaceChildren(...packSlots.map((id) => id ? bagTile(id) : emptySlot()));
   renderPick();
 }
 
@@ -319,19 +247,26 @@ function renderPick() {
     else if (outfit === id) btn('TAKE OFF', () => wear(null));
   } else {
     const where = ITEMS[id].worn ? 'Worn, so it takes no backpack slot.'
-      : onBelt(id) ? 'Hangs on your tool belt.'
-        : ITEMS[id].tool ? 'Takes a backpack slot until the tanner makes you a tool belt.' : '';
+      : ITEMS[id].tool ? `On the hotbar: press ${slotKey(id)} to ready it, F to use it. Tools take no backpack slot.` : '';
     bagWhat.textContent = `${itemLabel(id)}. ${where}`.trim();
+    // what's done out in the world closes the bag first
+    const out = (label, act) => btn(label, () => { toggleBag(false); act(); });
+    const here = canUseTool() && !player.cook && !player.chop;
+    const fire = here && fireNear(player.x, player.y);
     if (EDIBLE[id]) btn('EAT', () => eat(id));
+    if (COOKS[id] && fire) out(COOK_VERB[id].toUpperCase(), () => startCook(id));
+    const fence = here && id === 'wood' && nearTarget('wood');
+    if (fence) out('MEND FENCE', () => mendWithWood(fence));
+    if (id === 'wood' && fire) out('ADD TO FIRE', () => dropItem('wood'));
+    if (here && PLACE[id]) out('PLACE', () => placeThing(id));
+    if (here && id === 'stone') out('THROW', throwStone);
+    if (id === 'saddle') {
+      if (nearDragon()) out('SADDLE UP', saddleUp);
+      else bagWhat.textContent += ' Stand by a grown dragon and open the bag to strap it on.';
+    }
     if (id === 'runeNote') btn('READ', () => toggleBag(false) || toggleNote(true));
     if (id === 'mapPiece') bagWhat.textContent += ` Each piece marks a dragon egg on your map (${bag.mapPiece}/${EGG_MARKS.length}).`;
     if (inPack(id) && has(id)) btn('DROP', () => dropItem(id));
-  }
-  if (ITEMS[id] && pinnable(id) && bagHas(id)) {
-    if (hotbar.includes(id)) btn('OFF HOTBAR', () => unpin(id));
-    else btn('ON HOTBAR', () => pin(id));
-    bagWhat.textContent += hotbar.includes(id) ? ` On hotbar slot ${keyOf(hotbar.indexOf(id))}.` : '';
-    bagWhat.textContent += ` Press 1-${HOTBAR} to put it in that slot.`;
   }
 }
 
@@ -353,8 +288,6 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' || e.code === 'KeyB') {
     e.preventDefault();
     toggleBag(false);
-  } else if (/^Digit[1-9]$/.test(e.code) && +e.code[5] <= HOTBAR && !e.repeat && ITEMS[bagPick] && pinnable(bagPick) && has(bagPick)) {
-    pinAt(bagPick, +e.code[5] - 1);
   }
 });
 

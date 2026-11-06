@@ -584,6 +584,7 @@ const ROOMS = {
     rugs: [[2, 2.2, 2.5, 1.5, '#6a6a3a']],
     furniture: [['bed', 0.9, 2.1], ['hearth', 3.5, 0.2], ['logPile', 5.6, 1.6], ['stool', 4.8, 3]],
   },
+  fireCave: { name: 'the fire cave', cave: true, fire: true, w: 34, h: 46, wall: [], rugs: [], furniture: [] },
 };
 
 // The ice cave is a maze of cells `pitch` tiles apart; the mouth opens under the `entry` cell of the bottom row,
@@ -599,7 +600,7 @@ const mazeY = (r) => MAZE.y0 + r * MAZE.pitch;
     r.rx = x;
     r.ry = ROOM_Y;
     if (r.cave) {
-      r.door = r.rx + Math.floor(r.sand ? r.w / 2 : mazeX(MAZE.entry));
+      r.door = r.rx + Math.floor(r.sand || r.fire ? r.w / 2 : mazeX(MAZE.entry));
       r.doorY = r.ry + r.h - 1;
       r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w) * TILE, y1: (r.ry + r.h) * TILE };
     } else {
@@ -613,6 +614,29 @@ const mazeY = (r) => MAZE.y0 + r * MAZE.pitch;
 const inCave = () => !!indoors?.cave;
 const caveSpot = (x, y) => [ROOMS.cave.rx + x, ROOMS.cave.ry + y];
 const sandSpot = (x, y) => [ROOMS.sandCave.rx + x, ROOMS.sandCave.ry + y];
+const fireSpot = (x, y) => [ROOMS.fireCave.rx + x, ROOMS.fireCave.ry + y];
+
+// The fire cave inside the volcano: from the mouth a tunnel climbs in switchbacks, stairs on every rise, past lava
+// seeping out of the walls, to the chamber at the top and its pool of lava. `r.steps` holds the stair tiles.
+const FIRE_POOL = { x: 17.5, y: 8.5, rx: 4, ry: 2.2 };
+function carveFireCave(r) {
+  const inside = (x, y) => x > 0 && y > 0 && x < r.w - 1 && y < r.h - 1;
+  const floor = (x, y) => { if (inside(x, y)) setTile(r.rx + x, r.ry + y, T.CAVE); };
+  const mid = r.door - r.rx + 0.5;
+  const turns = [[mid, r.h - 1], [mid, 40], [6, 40], [6, 32], [28, 32], [28, 24], [8, 24], [8, 16], [mid, 12]];
+  alongLine(turns, 1.6, floor);
+  inBlob(mid, 10, 11, 6.5, 4601, 0.25, floor);
+  r.steps = new Set();
+  for (const [x, y0, y1] of [[6, 33, 39], [28, 25, 31], [8, 17, 23]]) {
+    for (let y = y0; y <= y1; y++) for (let dx = -1; dx <= 1; dx++) r.steps.add((r.ry + y) * MAP_W + r.rx + Math.floor(x + dx));
+  }
+  const seep = (x, y) => { if (inside(x, y) && tileAt(r.rx + x, r.ry + y) === T.WALL) setTile(r.rx + x, r.ry + y, T.LAVA); };
+  for (const [x, y, rx, ry] of [[12, 42.6, 1.6, 0.9], [3.4, 36, 0.9, 1.6], [17, 34.6, 1.8, 0.9], [30.6, 28, 0.9, 1.6], [18, 21.4, 1.8, 0.9], [5.4, 20, 0.9, 1.4]]) {
+    inBlob(x, y, rx, ry, 4602 + x, 0.2, seep);
+  }
+  inBlob(FIRE_POOL.x, FIRE_POOL.y, FIRE_POOL.rx, FIRE_POOL.ry, 4610, 0.15, (x, y) => { if (inside(x, y)) setTile(r.rx + x, r.ry + y, T.LAVA); });
+  setTile(r.door, r.doorY, T.DOOR);
+}
 
 // The sand cave behind the sphinx: a pillared hall, a vault off each back corner and the sanctum at the far end.
 function carveSandCave(r) {
@@ -736,6 +760,7 @@ function buildRooms() {
     if (r.cave) {
       for (let y = r.ry; y < r.ry + r.h; y++) for (let x = r.rx; x < r.rx + r.w; x++) setTile(x, y, T.WALL);
       if (r.sand) carveSandCave(r);
+      else if (r.fire) carveFireCave(r);
       else carveCave(r);
       continue;
     }
@@ -913,6 +938,42 @@ function sandCaveTile(g, x, y) {
     let edge = false;
     for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]) if (caveOpen(tileAt(x + dx, y + dy))) edge = true;
     rect(g, X, Y, 16, 16, edge ? '#2a1808' : '#0c0602');
+  }
+}
+
+// Black rock underfoot, warmer and redder near the lava; stairs cut across the rises; scorched faces above.
+const fireOpen = (t) => t === T.CAVE || t === T.DOOR || t === T.LAVA;
+function fireCaveTile(g, x, y) {
+  const X = x * TILE;
+  const Y = y * TILE;
+  const t = tileAt(x, y);
+  if (t === T.LAVA) return lavaTile(g, x, y, X, Y);
+  if (t === T.CAVE) {
+    speckle(g, x, y, X, Y, '#5e4a42', '#735a4e', '#4a3a34', 10);
+    if (ROOMS.fireCave.steps.has(y * MAP_W + x)) {
+      for (const sy of [0, 8]) {
+        rect(g, X, Y + sy, 16, 2, '#2e221e');
+        rect(g, X, Y + sy + 2, 16, 1, '#8a6e60');
+      }
+    } else if (hash(x, y, 91) < 0.18) {
+      rect(g, X + 2 + Math.floor(hash(x, y, 92) * 9), Y + 3 + Math.floor(hash(x, y, 93) * 10), 4, 1, '#7a2a10');
+    }
+    if (!fireOpen(tileAt(x, y - 1))) {
+      g.fillStyle = 'rgba(0,0,0,0.4)';
+      g.fillRect(X, Y, 16, 4);
+    }
+  } else if (t === T.DOOR) {
+    rect(g, X, Y, 16, 16, '#c8a070');
+    rect(g, X + 2, Y, 12, 16, '#e8c890');
+  } else if (fireOpen(tileAt(x, y + 1))) {
+    rect(g, X, Y, 16, 16, '#4e3a34');
+    rect(g, X, Y, 16, 4, '#160c0a');
+    rect(g, X, Y + 13, 16, 3, '#33231f');
+    if (hash(x, y, 94) < 0.45) line(g, X + 3 + Math.floor(hash(x, y, 95) * 8), Y + 5, X + 5 + Math.floor(hash(x, y, 96) * 8), Y + 11, '#8a2a0e');
+  } else {
+    let edge = false;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]) if (fireOpen(tileAt(x + dx, y + dy))) edge = true;
+    rect(g, X, Y, 16, 16, edge ? '#1e1210' : '#080404');
   }
 }
 
@@ -1418,7 +1479,7 @@ function paintChunk(c, ci, cj) {
       if (!(r.px.x1 > x0 * TILE && r.px.x0 < (x0 + CHUNK) * TILE && r.px.y1 > top * TILE && r.px.y0 < (y0 + CHUNK) * TILE)) continue;
       if (r.cave) {
         for (let y = Math.max(top, r.ry); y < Math.min(y0 + CHUNK, r.ry + r.h); y++) {
-          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) (r.sand ? sandCaveTile : caveTile)(g, x, y);
+          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) (r.sand ? sandCaveTile : r.fire ? fireCaveTile : caveTile)(g, x, y);
         }
       } else {
         drawRoom(g, r);
@@ -1650,7 +1711,7 @@ const VILLAGE_NPCS = [
   },
   {
     look: 'tanner', x: 60.5, y: 63.6, job: { station: [62.1, 63.7], face: 'right', prop: 'hideFrame' },
-    lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'Tools filling your pack? Bring me two hides and I\'ll make you a tool belt.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.'],
+    lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'Pack filling up? Bring me two hides and I\'ll make you a tool belt with pouches.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.'],
     nightLines: ['Hides dry slower at night. Patience.', 'A soak in the hot spring under the stars. That\'s the life.', 'Still after a tool belt? Two hides, day or night.'],
   },
   {
@@ -1692,8 +1753,8 @@ const NPCS = [
   })),
   {
     look: 'hermit', x: HERMIT.x - 1, y: HERMIT.y + 1.4, roam: 2.5,
-    lines: ['Sail south-west to the ancient ruin. A dragon egg sleeps beneath its stones.', 'The egg rises only at night, when the rune stones wake.', 'The broken walls of the ruin remember the order of the stones.', 'Reefs ring the ruin. In from the east, round by the north.', 'A dragon egg hatches only in the fire mountain\'s crater. Climb the trail from the cairn.'],
-    nightLines: ['Few sail this far out... and fewer still by night.', 'The rune stones of the ruin are waking now. Can you feel it?', 'Touch all nine stones in order. The walls remember the start; a sailor\'s note on the skerries has the rest.', 'Reefs ring the ruin. In from the east, round by the north.', 'A dragon egg hatches only in the fire mountain\'s crater. Climb the trail from the cairn.'],
+    lines: ['Sail south-west to the ancient ruin. A dragon egg sleeps beneath its stones.', 'The egg rises only at night, when the rune stones wake.', 'The broken walls of the ruin remember the order of the stones.', 'Reefs ring the ruin. In from the east, round by the north.', 'A dragon egg hatches only in the lava at the heart of the fire mountain. A cave climbs up to it.'],
+    nightLines: ['Few sail this far out... and fewer still by night.', 'The rune stones of the ruin are waking now. Can you feel it?', 'Touch all nine stones in order. The walls remember the start; a sailor\'s note on the skerries has the rest.', 'Reefs ring the ruin. In from the east, round by the north.', 'A dragon egg hatches only in the lava at the heart of the fire mountain. A cave climbs up to it.'],
   },
   {
     look: 'mom', ...xy(roomSpot(ROOMS.home, 5.8, 2.4)), roam: 1.2, stays: true,
@@ -2073,9 +2134,11 @@ function placeIslands() {
   for (const [x, y] of [[k.x + 14, k.y + 10.5], [k.x - 13, k.y - 3], [k.x + 9, k.y - 12]]) addAbs('boulder', x, y);
   addAbs('cairn', k.x - 12, k.y + 9.3);
 
-  // the fire mountain, with a cairn at the foot of the trail up its west face
+  // the fire mountain, with the fire cave's mouth at the foot of its west face, and inside at the top the lava pool
   addAbs('volcano', VOLCANO.x, VOLCANO.y + 0.4);
-  addAbs('cairn', VOLCANO.x - 5.9, VOLCANO.y + 1.3);
+  addAbs('fireCaveMouth', VOLCANO.x - 2.75, VOLCANO.y + 0.85).room = 'fireCave';
+  addAbs('lavaPool', ...fireSpot(FIRE_POOL.x, FIRE_POOL.y));
+  for (const [x, y] of [[9, 9.5], [26.5, 7.5], [24, 14.2]]) addAbs('boulderDark', ...fireSpot(x, y));
   const v = isle('volcano');
   woods(v.x - v.rx, v.y - v.ry, v.x + v.rx, v.y + v.ry, 3, 1406, 0.5, (q) => (q < 0.55 ? 'deadTree' : 'boulderDark'));
 

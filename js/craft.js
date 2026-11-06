@@ -1,13 +1,13 @@
 // Crafting: villagers make tools when asked, and tools let you gather materials.
 
-// `worn` things are carried about the person and take no backpack slot. `tool`s are the ones F swings, shoots or casts.
-// Everything on the BELT rides in the backpack until the tanner makes a tool belt to hang it on.
+// `worn` things are carried about the person and take no backpack slot. `tool`s are the ones F swings, shoots, casts
+// or lights; they live on the hotbar and take no backpack slot either.
 // `slots` are the extra backpack room a worn upgrade adds. An `outfit` is worn instead of the tunic, one at a time.
 const ITEMS = {
   furCoat: { name: 'Thick fur coat', worn: true, outfit: true },
   fireJacket: { name: 'Fireproof jacket', worn: true, outfit: true },
   backpack: { name: 'Backpack', worn: true },
-  toolBelt: { name: 'Tool belt', worn: true },
+  toolBelt: { name: 'Tool belt', worn: true, slots: 2 },
   satchel: { name: 'Travel satchel', worn: true, slots: 2 },
   pouch: { name: 'Hunter\'s pouch', worn: true, slots: 2, plural: 'hunter\'s pouches' },
   map: { name: 'Map', worn: true },
@@ -46,7 +46,7 @@ const ITEMS = {
   string: { name: 'String', stack: true },
   feather: { name: 'Feather', stack: true, plural: 'feathers' },
   arrow: { name: 'Arrow', stack: true, plural: 'arrows', worn: true },
-  torch: { name: 'Torch', stack: true, plural: 'torches' },
+  torch: { name: 'Torch', stack: true, plural: 'torches', tool: true },
   saddle: { name: 'Saddle', stack: true, plural: 'saddles' },
   mushroom: { name: 'Glowcap', stack: true, plural: 'glowcaps' },
   grilledFish: { name: 'Grilled fish', stack: true },
@@ -61,10 +61,9 @@ const ITEMS = {
   campfire: { name: 'Campfire kit', stack: true, plural: 'campfire kits' },
   grapple: { name: 'Grappling hook', tool: true },
 };
-// The belt, in the order it hangs: tools, then the shield. Arrows show as a count on the bow.
-const BELT = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'shield'];
-const onBelt = (id) => BELT.includes(id) && has('toolBelt');
-const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !onBelt(id);
+// The hotbar's order. Arrows show as a count on the bow.
+const TOOLS = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'shield', 'torch'];
+const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !ITEMS[id].tool;
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
 const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0 };
@@ -120,7 +119,7 @@ const RECIPES = [
   {
     item: 'toolBelt', maker: 'tanner', words: /\b(tool ?)?belts?\b/, time: 2.4, needs: { hide: 2 },
     start: 'Two hides for a tool belt? Let me cut you a good long strap...',
-    done: 'There! Loops for every tool you own. Hang them off your hip and keep your pack for the rest.',
+    done: 'There! Two good pouches on it, so you can carry two more things.',
   },
   {
     item: 'pouch', maker: 'tanner', words: /\b(pouch(es)?|bags?|satchels?)\b/, time: 2.4, needs: { hide: 2 },
@@ -130,7 +129,7 @@ const RECIPES = [
   {
     item: 'furCoat', maker: 'seamstress', words: /\b(fur ?coats?|coats?|furs?|parkas?|cloaks?)\b/, time: 3, needs: { hide: 4, wool: 2 },
     start: 'A fur coat for the frozen isle? Four hides and a wool lining. Hold still while I measure you...',
-    done: 'Warm as a bear! Put it on before you land on the ice. B opens your bag, or ready it and press F.',
+    done: 'Warm as a bear! Put it on before you land on the ice. Open your bag (B) and wear it.',
   },
   {
     item: 'fireJacket', maker: 'seamstress', words: /\b(fire[ -]?proof|jackets?)\b/, time: 3, needs: { eel: 2, wool: 2 },
@@ -140,7 +139,7 @@ const RECIPES = [
   {
     item: 'saddle', maker: 'tanner', words: /\bsaddles?\b/, time: 2.8, needs: { hide: 3 },
     start: 'A dragon saddle? Three hides, double stitched. Nobody falls off one of mine...',
-    done: 'There! Ready it and press F by your dragon to strap it on. Then up you get.',
+    done: 'There! Stand by your dragon, open your bag and strap it on. Then up you get.',
   },
 ];
 
@@ -165,9 +164,8 @@ const BOW_ASK = /\b(bows?|upgrade\w*|improve\w*|better|farther|further)\b/;
 const nextBow = () => RECIPES.find((r) => r.tier === Math.min(BOWS.length - 1, upgrades.bow + 1));
 // What's in the backpack itself: one slot for each kind of thing, however many of it.
 const held = () => Object.keys(ITEMS).filter((id) => has(id) && inPack(id));
-const packSize = () => 6 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
-// A tool always squeezes in, even past the pack's slots, so one can never be left lying out of reach.
-const bagFull = (item) => inPack(item) && !ITEMS[item].tool && !has(item) && held().length >= packSize();
+const packSize = () => 8 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
+const bagFull = (item) => inPack(item) && !has(item) && held().length >= packSize();
 
 // With no room in the pack the item lands at the player's feet instead.
 function give(item, n = 1) {
@@ -192,7 +190,7 @@ function spawnDrop(item, x, y, vx = 0, z = 0, vz = 70, vy = 0) {
 }
 
 function dropItem(id) {
-  if (!has(id) || !started || naming || flight || sail || hop || player.swimming || player.trek) return;
+  if (!has(id) || !started || naming || flight || sail || hop || player.swimming) return;
   bag[id]--;
   renderInventory();
   const fire = id === 'wood' && fireNear(player.x, player.y);
@@ -455,7 +453,6 @@ function updateCraft(n, dt) {
   } else give(c.r.item, c.r.count || 1);
   if (c.r.item === 'arrow') stats.fletched++;
   if (ITEMS[c.r.item].slots) toast('UPGRADE', `Backpack: ${packSize()} slots`);
-  if (c.r.item === 'toolBelt') toast('TOOL BELT', 'Your tools hang off your belt now, and leave the backpack for everything else');
   npcSay(n, c.r.done);
   faceToward(n, player.x - n.x, player.y - n.y);
   popIcon(c.r.item, player.x, player.y - 30);
@@ -573,7 +570,7 @@ const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boul
 const SWUNG = new Set(Object.values(TOOL_FOR).flat());
 const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', mushroom: '#5affd8', roast: '#9a4a1e' };
 
-const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded() && !player.trek && !(player.downT > 0);
+const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded() && !(player.downT > 0);
 // The rod is the one tool that also works from the deck, once the ship has all but stopped.
 const shipStill = () => Math.hypot(sail.vx, sail.vy) < 20;
 const canCast = () => (sail ? !hop && !carrying() && shipStill() : canUseTool());
@@ -611,31 +608,36 @@ function mendWithWood(o) {
 
 const itemName = (id) => ITEMS[id].name.toLowerCase();
 
-// F: uses the selected belt tool, or else whatever's in the selected slot. At sea only the rod works.
+// F: uses the selected tool. At sea only the rod works.
 function useTool() {
   if (hop || fade || naming || player.cook) return;
   const id = primary();
-  if (id && ITEMS[id].outfit) return wear(outfit === id ? null : id);
   if (sail) return id === 'rod' ? useRod() : undefined;
   if (!id || !canUseTool()) return;
   if (id === 'rod') return useRod();
   player.fishing = null;
-  const fire = fireNear(player.x, player.y);
   if (SWUNG.has(id)) {
     const { o, prey } = swingAt(id);
     swing(id, o, prey);
   } else if (id === 'bow') drawBow();
   else if (id === 'shield') raiseShield();
-  else if (id === 'torch') toggleTorch();
-  else if (id === 'saddle') saddleUp();
-  else if (COOKS[id] && fire) startCook(id);
-  else if (id === 'wood' && nearTarget('wood')) mendWithWood(nearTarget('wood'));
-  else if (id === 'wood' && fire) dropItem('wood');
-  else if (id === 'grapple') throwGrapple();
-  else if (PLACE[id]) placeThing(id);
-  else if (EDIBLE[id]) eat(id);
-  else if (id === 'meat') muse('Raw? Yuck. I should roast it over a fire first.');
-  else if (id === 'stone') throwStone();
+  else if (id === 'torch') {
+    if (burnTarget()) lightBrambles(burnTarget());
+    else if (meltTarget()) torchIce(meltTarget());
+    else toggleTorch();
+  } else if (id === 'grapple') throwGrapple();
+}
+
+// What could be done here with something from the pack. Only the bag's buttons do it; the prompt just says so.
+function bagHint() {
+  if (!canUseTool() || player.cook || player.chop) return '';
+  const fire = fireNear(player.x, player.y);
+  const raw = fire && Object.keys(COOKS).find(has);
+  if (raw) return `${COOK_VERB[raw].toLowerCase()} the ${itemName(raw)}`;
+  if (has('wood') && nearTarget('wood')) return 'mend the fence with a log';
+  if (fire && has('wood')) return 'throw wood on the fire';
+  const kit = ['ladder', 'bridge'].find((id) => has(id) && placeLabel(id));
+  return kit ? placeLabel(kit).toLowerCase() : '';
 }
 
 function swing(tool, o, prey = null) {
@@ -663,18 +665,12 @@ function toolHint() {
   if (player.windup) return castPower() < 1 ? 'Winding up...   ·   Let go of F to cast' : 'Full cast!   ·   Let go of F to cast';
   const readyRod = id === 'rod' ? 'F  Cast your line   ·   Hold F to cast farther' : `${slotKey('rod')}  Ready the rod to fish`;
   const need = EXPOSE[exposedTo()]?.outfit;
-  if (need && outfit !== need && has(need)) return id === need ? `F  Put on the ${itemName(need)}` : `${slotKey(need)}  Put on your ${itemName(need)}`;
-  if (id && ITEMS[id].outfit) return outfit === id ? `F  Take off the ${itemName(id)}` : `F  Put on the ${itemName(id)}`;
+  if (need && outfit !== need && has(need)) return `B  Put on your ${itemName(need)}`;
   if (sail) return has('rod') && castSpot() ? readyRod : '';
   if (!canUseTool()) return '';
-  const fire = fireNear(player.x, player.y);
-  if (COOKS[id] && fire) return `F  ${COOK_VERB[id]} the ${itemName(id)}`;
-  if (id === 'wood' && nearTarget('wood')) return 'F  Mend the fence with a log';
-  if (id === 'wood' && fire) return 'F  Throw wood on the fire';
   const build = buildHint(id);
   if (build) return build;
   if (id === 'torch') return flame.out ? `F  Put the torch out   ·   ${torchHours()}h of burn left` : `F  Light the torch${flame.left > 0 ? ` (${torchHours()}h of burn left)` : ''}`;
-  if (id === 'saddle') return saddleHint();
   if (SWUNG.has(id)) {
     const { o, prey } = swingAt(id);
     if (prey) return `F  Strike the ${WILD[prey.kind].name}`;
@@ -683,12 +679,6 @@ function toolHint() {
   if (id === 'rod' && castSpot()) return readyRod;
   if (id === 'bow' && player.nock) return drawPower() < 1 ? 'Drawing...   ·   Let go of F to shoot' : 'Full draw!   ·   Let go of F to shoot';
   if (id === 'bow' && has('arrow')) return 'Hold F to draw the bow, let go to shoot. The longer the draw, the farther it flies';
-  if (fire) {
-    const raw = Object.keys(COOKS).find(has);
-    if (raw) return `${slotKey(raw)}  Ready the ${itemName(raw)} to cook`;
-    if (has('wood')) return `${slotKey('wood')}  Ready some wood for the fire`;
-  }
-  if (nearTarget('wood')) return `${slotKey('wood')}  Ready a log to mend the fence`;
   const tool = ['axe', 'pickaxe'].find((t) => t !== id && nearTarget(t));
   if (tool) return `${slotKey(tool)}  Ready the ${itemName(tool)}`;
   if (has('rod') && castSpot()) return readyRod;

@@ -23,7 +23,7 @@ function clearSave() {
 }
 
 const roomId = () => (indoors ? Object.keys(ROOMS).find((k) => ROOMS[k] === indoors) : null);
-const onFirmGround = () => !flight && !sail && !hop && !fade && !player.swimming && !player.flying && player.jumpT < 0 && !player.trek;
+const onFirmGround = () => !flight && !sail && !hop && !fade && !player.swimming && !player.flying && player.jumpT < 0;
 
 // The explored parts of the map, as run lengths of alternating unseen and seen tiles.
 function packSeen() {
@@ -64,12 +64,12 @@ function snapshot() {
     clock, dayCount, weather: weather.want,
     player: { ...spot, dir: player.dir, sail: !!sail, fedT: Math.max(0, player.fedT || 0) },
     ship: { x: shipObj.x, y: shipObj.y, facing: shipObj.facing, dir: shipObj.dir },
-    bag: things, hotbar: [...hotbar], hand, unpinned: [...unpinned], outfit, stats: { ...stats }, journal,
+    bag: things, pack: packSlots, hand, outfit, stats: { ...stats }, journal,
     npcs: npcs.map((n) => ({ gaveAxe: n.gaveAxe, gaveRod: n.gaveRod, scrapGiven: n.scrapGiven, tipTold: n.tipTold })),
     flock: { asked: flockAsked, done: flockDone },
     dog: { state: dog.state, asked: dog.asked },
     eggStage,
-    eggs: eggs.map((e) => ({ state: e.state, x: e.x, y: e.y, hatchT: e.hatchT, crater: !!e.crater })),
+    eggs: eggs.map((e) => ({ state: e.state, x: e.x, y: e.y, hatchT: e.hatchT, pool: !!e.pool, crater: !!e.crater })),
     dragons: dragons.map((d) => {
       const at = flight && flight.dragon === d ? spot : d;
       return {
@@ -114,12 +114,12 @@ function restore(s) {
 
   // items since retired (the hammer) are dropped
   for (const [id, n] of Object.entries(s.bag)) if (ITEMS[id]) bag[id] = n;
-  // saves from before the tanner made belts, whose tools already hung off one, keep it if they'd overflow the pack
-  if (!has('toolBelt') && Object.keys(ITEMS).filter((id) => has(id) && inPack(id)).length > packSize()) bag.toolBelt = 1;
   Object.assign(stats, s.stats);
   Object.assign(journal.started, s.journal.started);
   Object.assign(journal.done, s.journal.done);
   restoreHotbar(s);
+  packSlots.splice(0, Infinity, ...(s.pack || []));
+  syncPack();
   s.npcs.forEach((d, i) => { if (npcs[i]) Object.assign(npcs[i], d); });
   if (has('backpack')) wearBackpack();
   if (hasMap()) {
@@ -163,21 +163,10 @@ function restore(s) {
   renderInventory();
 }
 
-// Saves from before the hotbar put the belt's tools first, then the old backpack slots' usable things; the old pick
-// stays in hand.
+// The tool in hand; older saves kept it as a slot of their own hotbar, or older still as the active tool.
 function restoreHotbar(s) {
-  hotbar.fill(null);
-  unpinned.clear();
-  if (s.hotbar) {
-    s.hotbar.slice(0, HOTBAR).forEach((id, i) => { hotbar[i] = ITEMS[id] ? id : null; });
-    for (const id of s.unpinned || []) unpinned.add(id);
-    hand = Math.min(s.hand ?? 0, HOTBAR - 1);
-    return;
-  }
-  const old = [...BELT.filter((id) => has(id) && ITEMS[id].tool), ...(s.slots || []).filter((id) => ITEMS[id] && has(id) && usable(id))];
-  [...new Set(old)].slice(0, HOTBAR).forEach((id, i) => { hotbar[i] = id; });
-  const pick = s.focus === 'tools' ? s.activeTool : s.slots?.[s.activeSlot];
-  hand = Math.max(0, hotbar.indexOf(pick));
+  const id = typeof s.hand === 'string' ? s.hand : s.hotbar ? s.hotbar[s.hand] : s.focus === 'tools' ? s.activeTool : null;
+  hand = ITEMS[id]?.tool ? id : null;
 }
 
 // Saves from before clothes keep their way onto the frozen isle and the volcano: whoever has already been into the
@@ -251,10 +240,13 @@ function restoreEggs(s) {
   s.eggs.forEach((d, i) => {
     const e = eggs[i];
     if (!e || d.state === 'wild') return;
+    // in the cave's lava pool or the crater, only the egg's own drawing shows it
     if (d.state === 'warming') {
-      Object.assign(e, { x: d.x, y: d.y, hidden: !!d.crater, crater: !!d.crater, crack: 0, hatchT: d.hatchT, state: 'warming' });
+      const at = d.pool ? lavaPool : d.crater ? craterSpot() : d;
+      const sunk = !!(d.pool || d.crater);
+      Object.assign(e, { x: at.x, y: at.y, hidden: sunk, pool: !!d.pool, crater: !!d.crater, crack: 0, hatchT: d.hatchT, state: 'warming' });
       placeCollider(e);
-      e.col.off = !!d.crater;
+      e.col.off = sunk;
       return;
     }
     if (d.state === 'down') {

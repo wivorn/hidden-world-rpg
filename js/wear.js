@@ -42,8 +42,7 @@ function onIsle(id) {
 // Which weather the player is out in on foot, if any.
 function exposedTo() {
   if (sail || flight || hop || fade || player.swimming || player.flying) return null;
-  if (indoors) return indoors === ROOMS.cave ? 'cold' : null;
-  if (player.trek) return 'heat';
+  if (indoors) return indoors === ROOMS.cave ? 'cold' : indoors === ROOMS.fireCave ? 'heat' : null;
   if (onIsle('frozen')) return 'cold';
   if (onIsle('volcano')) return 'heat';
   return null;
@@ -97,7 +96,6 @@ function turnBack(e) {
   if (fade) return;
   muse(e.back);
   fadeTo(() => {
-    if (player.trek) endTrek();
     const out = indoors ? outsideDoor(indoors) : player;
     indoors = null;
     Object.assign(player, { x: out.x, y: out.y, fishing: null, chop: null, nock: null, swimming: false });

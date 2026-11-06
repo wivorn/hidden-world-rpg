@@ -198,7 +198,7 @@ function drawSphinxBubble(cx, cy) {
 }
 
 function nearTreasure() {
-  if ((indoors && indoors !== ROOMS.sandCave) || player.chop || !grounded() || player.trek) return null;
+  if ((indoors && indoors !== ROOMS.sandCave) || player.chop || !grounded()) return null;
   let best = null;
   let bd = 14;
   for (const o of hoard) {

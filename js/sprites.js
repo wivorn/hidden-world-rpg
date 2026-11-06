@@ -1099,8 +1099,6 @@ function buildPeak(w, h, seed, snow) {
 }
 
 // A smoking cone of black rock with a glowing crater and lava running down the south face.
-// The trail up the volcano's west face: its turns in the sprite's pixels, from the foot to the crater rim.
-const VOLCANO_TRAIL = [[30, 116], [70, 106], [40, 94], [74, 82], [54, 70], [76, 58], [64, 46], [74, 34], [72, 28]];
 
 function buildVolcano() {
   const w = 168;
@@ -1134,18 +1132,24 @@ function buildVolcano() {
         px(g, Math.round(x), y, y < rimY + len * 0.6 ? PAL.lavaLight : PAL.lava);
       }
     }
-    for (let i = 1; i < VOLCANO_TRAIL.length; i++) {
-      const [x0, y0] = VOLCANO_TRAIL[i - 1];
-      const [x1, y1] = VOLCANO_TRAIL[i];
-      line(g, x0, y0 + 1, x1, y1 + 1, PAL.basalt, 2);
-      line(g, x0, y0, x1, y1, '#9a9092', 2);
-      const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / 7);
-      for (let k = 1; k < n; k++) px(g, x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n + 1, '#5a5254');
-    }
-    for (const [x, y] of VOLCANO_TRAIL.slice(1, -1)) {
-      ellipse(g, x, y, 2.5, 1.5, '#9a9092');
-      px(g, x + (x < cx - 12 ? -3 : 3), y - 2, '#c8c0b8');
-    }
+  });
+}
+
+// The fire cave's mouth: a hump of black rock at the volcano's foot, red light breathing out of the arch.
+function buildFireCaveMouth() {
+  return sprite(60, 44, (g) => {
+    ellipse(g, 30, 30, 29, 14, PAL.basalt);
+    ellipse(g, 28, 27, 26, 13, PAL.ashDark);
+    ellipse(g, 24, 22, 17, 9, PAL.ash);
+    ellipse(g, 43, 28, 10, 7, PAL.ash);
+    ellipse(g, 20, 17, 8, 4, '#6a6163');
+    for (const [x0, y0, x1, y1] of [[9, 29, 14, 36], [47, 22, 51, 30], [14, 19, 12, 25]]) line(g, x0, y0, x1, y1, PAL.lavaDark);
+    poly(g, [[20, 43], [20, 31], [24, 25], [30, 23], [36, 25], [40, 31], [40, 43]], '#140402');
+    poly(g, [[23, 43], [23, 32], [26, 28], [30, 27], [34, 28], [37, 32], [37, 43]], '#3a0e04');
+    rect(g, 24, 37, 12, 6, '#6a1a06');
+    rect(g, 26, 39, 8, 4, PAL.lavaDark);
+    rect(g, 28, 41, 4, 2, PAL.lava);
+    rect(g, 12, 42, 36, 2, PAL.basalt);
   });
 }
 
@@ -1430,7 +1434,12 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   const P = (x, y) => [cx + x * S, cy + y * S];
   const T = (t) => Math.max(1, Math.round(t * S * a.chub));
   const ell = (x, y, rx, ry, c) => ellipse(g, cx + x * S, cy + y * S, rx * S, ry * S, c);
-  const legs = (...xs) => { for (const x of xs) ell(x * a.chub, ly, 2 * a.chub, 2, B); };
+  // `opts.step` (1 or -1) puts one foot forward and lifts it, the other back, for a walking stride.
+  const step = opts.step || 0;
+  const legs = (...xs) => xs.forEach((x, i) => {
+    const s = i % 2 ? -step : step;
+    ell(x * a.chub + s * 3, ly - (s > 0 ? 0.5 : 0), 2 * a.chub, 2, B);
+  });
 
   // Head parts are laid out around the head's centre and scaled by a.head on top of a.size.
   let hx = 0;
@@ -3223,12 +3232,13 @@ function buildBonfireFrames() {
 }
 
 // The grown dragon standing on the ground side on, wings folded and head up, facing right: breathing in
-// and out, then the same blinking. 84x52, with the ground point at (42, PERCH_Y). With `saddle` it wears its saddle.
+// and out, then the same blinking, then two strides of a walk. 84x52, with the ground point at (42, PERCH_Y).
+// With `saddle` it wears its saddle.
 const PERCH_Y = 46;
 function buildDragonFrames(pal, saddle) {
   const a = DRAGON_AGES[DRAGON_AGES.length - 1];
-  const draw = (breath, blink) => sprite(84, 52, (g) => drawDragon(g, pal, { ...a, chub: a.chub * (1 + breath * 0.06) }, 'right', -1, true, 42, PERCH_Y, { saddle, blink }));
-  return [draw(0, false), draw(1, false), draw(0, true), draw(1, true)];
+  const draw = (breath, blink, step = 0) => sprite(84, 52, (g) => drawDragon(g, pal, { ...a, chub: a.chub * (1 + breath * 0.06) }, 'right', -1, true, 42, PERCH_Y - (step < 0 ? 1 : 0), { saddle, blink, step }));
+  return [draw(0, false), draw(1, false), draw(0, true), draw(1, true), draw(0, false, 1), draw(0, false, -1)];
 }
 
 // Where the rider sits on the flying dragon's back in each view, from the middle of its body.
@@ -3263,7 +3273,7 @@ function buildSpecies(id, pal) {
   const right = buildDragonFrames(pal, false);
   const saddled = buildDragonFrames(pal, true);
   const sets = { right, saddled, left: right.map(mirror), saddledLeft: saddled.map(mirror) };
-  const blink = (t, o) => ((t + o.phase) % 3.7 < 0.18 ? 2 : 0) + (Math.floor(t * 1.4) % 2);
+  const blink = (t, o) => (o.walking ? 4 + (Math.floor(t * 5) % 2) : ((t + o.phase) % 3.7 < 0.18 ? 2 : 0) + (Math.floor(t * 1.4) % 2));
   def(`dragon_${id}`, {
     frames: sets.left,
     oy: PERCH_Y,
@@ -4000,6 +4010,8 @@ function buildSprites() {
     for (let v = 0; v < 3; v++) def(`${k}-${v}`, { img: buildPeak(w, h, 1 + i * 3 + v, snow * (0.85 + v * 0.15)) });
   });
   def('volcano', { img: buildVolcano(), light: { dx: 0, dy: -96, r: 40, color: '#ff6a1a' }, after: (g, x, y) => drawCraterEgg(g, x, y) });
+  def('fireCaveMouth', { img: buildFireCaveMouth(), foot: { w: 44, h: 10 }, door: { dx: 0, w: 14 }, light: { dx: 0, dy: -4, r: 18, color: '#ff6a1a' } });
+  def('lavaPool', { img: sprite(1, 1, () => {}), light: { dx: 0, dy: 0, r: 56, color: '#ff6a1a' }, after: (g, x, y) => drawPoolEgg(g, x, y) });
   def('snowPine', { img: buildPine(true, true), foot: { w: 8, h: 5 }, shadow: { rx: 10, ry: 3 } });
   def('jungleTree', { img: buildJungleTree(), foot: { w: 10, h: 5 }, shadow: { rx: 14, ry: 4 } });
   const vines = [0, 1, 2].map(buildVineTree);

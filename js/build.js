@@ -520,20 +520,19 @@ function openCache(c) {
 
 // ---------- prompts and hints ----------
 
-// What F would do with a building thing or the hook, facing what's in front.
-function buildHint(id) {
-  if (!canUseTool()) return '';
+// What a ladder or bridge kit would do, facing what's in front, if it would do anything.
+function placeLabel(id) {
   if (id === 'ladder') {
     const c = cliffAhead();
-    if (c) return c.k <= LADDER_REACH ? 'F  Lean the ladder against the cliff' : 'Too high for the ladder to reach the top';
-    const w = waterAhead(SPAN.ladder);
-    if (w) return w.wide ? 'Too wide for the ladder to span' : 'F  Lay the ladder across the water';
+    if (c) return c.k <= LADDER_REACH ? 'Lean the ladder against the cliff' : '';
   }
-  if (id === 'bridge') {
-    const w = waterAhead(SPAN.bridge);
-    if (w) return w.wide ? 'Too wide for the bridge to span' : 'F  Lay the bridge across';
-  }
-  if (id === 'campfire' && campfireSpot()) return 'F  Build a campfire here';
+  const w = waterAhead(SPAN[id]);
+  return w && !w.wide ? (id === 'ladder' ? 'Lay the ladder across the water' : 'Lay the bridge across') : '';
+}
+
+// What F would do with the hook, facing what's in front.
+function buildHint(id) {
+  if (!canUseTool()) return '';
   if (id === 'grapple') {
     const c = cliffAhead();
     if (c) return c.k <= HOOK_REACH ? `F  Throw the hook and climb ${c.s < 0 ? 'up' : 'down'}` : 'Too high, even for the hook';

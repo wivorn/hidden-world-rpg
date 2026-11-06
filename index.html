@@ -14,7 +14,7 @@
   <div id="bubbles"></div>
   <div id="prompt"></div>
   <div id="hotbar" hidden>
-    <ul id="hotbar-slots" aria-label="Hotbar. F uses the selected slot; number keys pick a slot, E or Tab steps forward and Q back"></ul>
+    <ul id="hotbar-slots" aria-label="Tools. F uses the selected tool; number keys pick one, E or Tab steps forward and Q back"></ul>
   </div>
   <div id="clock" role="img"><img alt="" /><span aria-hidden="true"></span></div>
   <div id="purse" role="status" hidden></div>
@@ -151,7 +151,7 @@
         </section>
         <section aria-labelledby="bag-items-title">
           <h3 id="bag-items-title">BACKPACK <span id="bag-room"></span></h3>
-          <div id="bag-items"></div>
+          <ul id="bag-items" class="bag-grid" aria-labelledby="bag-items-title"></ul>
         </section>
       </div>
       <div class="bag-detail">

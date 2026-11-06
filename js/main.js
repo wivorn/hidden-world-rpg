@@ -321,7 +321,7 @@ function diveSpot() {
 
 // Lava just ahead of the player on the volcano's shore, close enough to jump into.
 function lavaSpot() {
-  if (indoors || player.trek || hop) return null;
+  if (indoors || hop) return null;
   let [vx, vy] = readInput();
   if (!vx && !vy) [vx, vy] = DIR_VEC[player.dir];
   for (let d = 4; d <= 28; d += 2) {
@@ -460,9 +460,8 @@ function updateJump(e, dt) {
 
 function updatePlayer(dt) {
   if (player.swimming) return updateSwim(dt);
-  if (player.downT > 0 || player.trek || player.grapple) updateStamina(dt, false, false);
+  if (player.downT > 0 || player.grapple) updateStamina(dt, false, false);
   if (player.downT > 0) return updateDown(dt);
-  if (player.trek) return updateTrek(dt);
   if (player.grapple) {
     player.frame = 0;
     return;
@@ -705,7 +704,7 @@ const TIPS = {
       ? 'Grown yourself a dragon, have you? You\'ll want a saddle before you climb on. Bring me 3 hides and ask for one.'
       : has('toolBelt')
         ? 'That\'s a fine hide you\'ve got! Bring me two and I\'ll stitch you a hunter\'s pouch. Room for two more things in your pack.'
-        : 'Tools clogging up your pack, {name}? Bring me two hides and I\'ll make you a tool belt to hang them on. Deer and boar in the south woods give hides.'),
+        : 'Pack filling up, {name}? Bring me two hides and I\'ll make you a tool belt with two pouches on it. Deer and boar in the south woods give hides.'),
   },
   seamstress: {
     needed: () => has('backpack') && (!has('furCoat') || !has('fireJacket')),
@@ -969,11 +968,12 @@ function nearDragon() {
   return best;
 }
 
-// A dragon is only ridden with one of the tanner's saddles on: F with the saddle ready straps it on.
+// A dragon is only ridden with one of the tanner's saddles on, strapped on from the bag.
 function rideDragon(d) {
   if (d.saddled) return mount(d);
   faceToward(player, d.x - player.x, d.y - player.y);
-  muse(has('saddle') ? `I need to get the saddle on ${d.name} first.` : `Bareback? I'd slide right off ${d.name}. The tanner could make me a saddle from 3 hides.`);
+  if (has('saddle')) return muse(`${d.name} needs the saddle on first. It's in my bag.`);
+  muse(`Bareback? I'd slide right off ${d.name}. The tanner could make me a saddle from 3 hides.`);
 }
 
 function saddleUp() {
@@ -994,17 +994,11 @@ function saddleUp() {
   muse(`Buckled on tight! Up you get, ${d.name}... and me with you.`);
 }
 
-function saddleHint() {
-  const d = nearDragon();
-  if (!d) return 'Stand by a grown dragon and press F to put the saddle on';
-  return d.saddled ? `${d.name} already has a saddle on` : `F  Put the saddle on ${d.name}`;
-}
-
 // What SPACE says beside a perched dragon: ride it, or how to get a saddle on it first.
 function mountPrompt(d) {
   if (d.saddled) return `SPACE  Ride ${d.name}`;
   if (!has('saddle')) return `${d.name} needs a saddle before you can ride. The tanner makes one from 3 hides`;
-  return primary() === 'saddle' ? `F  Put the saddle on ${d.name}` : `${slotKey('saddle')}  Ready the saddle, then F to put it on ${d.name}`;
+  return `B  Open your bag to put the saddle on ${d.name}`;
 }
 
 // A short jump between the ground and the dragon's back; `lift` is visual height.
@@ -1305,8 +1299,8 @@ function drawFireballs(cx, cy) {
 const HATCH_TIME = 6;
 const STORY_LINES = {
   carried: {
-    hermit: 'You found it! No hearth is hot enough to wake it. Carry it up the fire mountain and drop it into the crater. And wear something fireproof, or the heat will drive you back.',
-    chief: 'A dragon egg! The old way is the crater of the fire mountain, {name}.',
+    hermit: 'You found it! No hearth is hot enough to wake it. A cave at the foot of the fire mountain climbs to a pool of lava at its heart: throw the egg in. And wear something fireproof, or the heat will drive you back.',
+    chief: 'A dragon egg! The old way is the lava pool at the heart of the fire mountain, {name}.',
     kid: 'Is that a DRAGON EGG?! Throw it in the VOLCANO!',
   },
   warming: { kid: 'It\'s hatching! It\'s hatching!' },
@@ -1343,10 +1337,7 @@ function nearEgg() {
 // F with the egg in hand sets it on the ground just in front, clear of the player's own feet.
 function setDownEgg() {
   if (!carried || flight || sail || hop || fade || !grounded()) return;
-  if (player.trek) {
-    if (onSummit()) dropInCrater();
-    return;
-  }
+  if (nearPool()) return throwEgg();
   const e = carried;
   const f = SPR[e.key].foot;
   const [vx, vy] = DIR_VEC[player.dir];
@@ -1361,6 +1352,7 @@ function setDownEgg() {
 }
 
 function pickUpEgg(e) {
+  if (torchLit()) toggleTorch();
   e.hidden = true;
   e.col.off = true;
   e.state = 'carried';
@@ -1369,7 +1361,7 @@ function pickUpEgg(e) {
   burst(e.x, e.y - 10, ['#ffffff', '#fff27a', DRAGON_SPECIES[e.species].egg.shine], 14, 40);
   Sfx.pickup();
   setStage('carried');
-  if (inCave()) returnToCaveMouth();
+  if (indoors === ROOMS.cave) returnToCaveMouth();
 }
 
 // With the egg in hand there's no walking the maze back: a fade, and the player stands just inside the mouth.
@@ -1457,9 +1449,9 @@ function hatch(e) {
     emote: 'heart', emoteT: 1.8, chirpT: 4, stage: 0, swoop: null, catchT: 0, home: { x, y }, wanderT: 3,
     name: DRAGON_SPECIES[e.species].defaultName,
   };
-  // out of the crater it comes flying, up and over the rim
-  if (e.crater) Object.assign(d, { flying: true, alt: 22, jumpT: -1 });
-  e.crater = false;
+  if (e.pool) Object.assign(d, poolHatchSpot(d));
+  if (e.crater) Object.assign(d, { flying: true, alt: 30 });
+  e.pool = e.crater = false;
   dragons.push(d);
   setFollower(d);
   for (const n of npcs) {
@@ -1534,7 +1526,6 @@ function babyLeader() {
     const [sx, sy] = sternPos();
     return { x: sx, y: sy, alt: 30, air: true };
   }
-  if (player.trek) return { x: player.x + (player.dir === 'left' ? 18 : -18), y: player.y + 4, alt: 30, air: true };
   if (player.flying || player.swimming) {
     const [vx, vy] = DIR_VEC[player.dir];
     return { x: player.x - vx * 16, y: player.y - vy * 12, alt: 16, air: true };
@@ -1822,8 +1813,9 @@ function perchSpot(cx, cy, offsets) {
 
 // A grown dragon that isn't following lands on the nearest open ground, or back in the village from the sea.
 function settleLeader(b) {
-  if (b.roost !== null && b.roost !== undefined) b.spot = roostSpot(b.roost);
-  else if (!b.spot || !dragonFits(b.spot.x, b.spot.y)) {
+  if (b.roost !== null && b.roost !== undefined) {
+    if (!b.spot || !dragonFits(b.spot.x, b.spot.y)) b.spot = roostLanding(b);
+  } else if (!b.spot || !dragonFits(b.spot.x, b.spot.y)) {
     b.spot = perchSpot(b.x, b.y, AROUND) || perchSpot(villageFire.x, villageFire.y + 40, AROUND);
   }
   const near = Math.hypot(b.x - b.spot.x, b.y - b.spot.y) < 40;
@@ -1873,6 +1865,8 @@ function updateGrown(b, dt) {
     return;
   }
   if (b.perched) {
+    if (b !== follower && !hop && inRoostPen(d.x, d.y)) roam(b, dt);
+    else d.walking = false;
     b.x = d.x;
     b.y = d.y;
     if (hop || b !== follower) return;
@@ -2553,7 +2547,7 @@ function nearBackpack() {
 function pickUpBackpack() {
   wearBackpack();
   Sfx.pickup();
-  toast('BACKPACK', 'Number keys pick from the hotbar and F uses it. B opens your bag');
+  toast('BACKPACK', 'Number keys pick a tool from the hotbar and F uses it. B opens your bag');
   faceToward(player, backpack.x - player.x, backpack.y - player.y);
   npcSay(mom, 'That\'s it! Off you go then, and be back for supper.');
 }
@@ -2583,29 +2577,24 @@ function action() {
   if (hop || fade || player.downT > 0) return;
   if (flight) {
     if (flight.mode !== 'fly') return;
-    if (landingSpot()) land();
+    if (overCrater()) dropInCrater();
+    else if (landingSpot()) land();
     else splashDive();
-    return;
-  }
-  if (player.trek) {
-    if (onSummit() && carried) dropInCrater();
     return;
   }
   if (sail) disembark();
   else if (nearMount() === 'ship') board();
   else if (roostLeave()) leaveAtRoost(roostLeave());
+  else if (carried && nearPool()) throwEgg();
   else if (nearEgg()) pickUpEgg(nearEgg());
   else if (nearMount()) rideDragon(nearMount());
   else if (roostBuildable()) raiseRoost();
-  else if (nearTrailhead()) startTrek();
   else if (nearRuneStone()) touchStone(nearRuneStone());
   else if (nearCarving()) readCarving(nearCarving());
   else if (nearSphinx()) speakToSphinx();
   else if (nearTreasure()) takeTreasure(nearTreasure());
   else if (nearLadder()) climbLadder(nearLadder());
   else if (nearCache()) openCache(nearCache());
-  else if (burnTarget()) lightBrambles(burnTarget());
-  else if (meltTarget()) torchIce(meltTarget());
   else if (nearBackpack()) pickUpBackpack();
   else if (nearBed()) sleep();
   else if (nearChest()) toggleChest(true);
@@ -2761,6 +2750,7 @@ const OPEN_SEA = 6;
 function musicArea() {
   if (indoors) {
     if (indoors === ROOMS.cave) musicHere = 'snow';
+    else if (indoors === ROOMS.fireCave) musicHere = 'volcano';
     else if (!indoors.cave) musicHere = 'village';
     return musicHere;
   }
@@ -2806,6 +2796,7 @@ function update(dt) {
   updateSinged(dt);
   updateRuin();
   updateDunes(dt);
+  updatePeak(dt);
   updateTinker();
   updateBuild(dt);
   updateIce(dt);
@@ -2881,7 +2872,7 @@ function drawAnimatedTiles(cx, cy) {
   const x0 = Math.max(0, Math.floor(cx / TILE));
   const y0 = Math.max(0, Math.floor(cy / TILE));
   const x1 = Math.min(MAP_W - 1, Math.floor((cx + viewW) / TILE));
-  const y1 = Math.min(MAP_H - 1, Math.floor((cy + viewH) / TILE));
+  const y1 = Math.min((indoors ? ROWS : MAP_H) - 1, Math.floor((cy + viewH) / TILE));
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const t = map[y * MAP_W + x];
@@ -3275,11 +3266,10 @@ function render() {
 
   if (flight && flight.mode === 'fly') {
     const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
-    setPrompt(`${space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost`);
+    const egg = carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '';
+    setPrompt(`${overCrater() ? 'SPACE  Drop the egg into the volcano' : space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost${egg}`);
   } else if (player.downT > 0) {
     setPrompt('Bitten! You can\'t move until the venom wears off...');
-  } else if (player.trek) {
-    setPrompt(peakPrompt());
   } else if (sail && player.fishing) {
     setPrompt(toolHint());
   } else if (sail) {
@@ -3293,14 +3283,14 @@ function render() {
     setPrompt('SPACE  Board the ship');
   } else if (roostLeave()) {
     setPrompt(`SPACE  Leave ${roostLeave().name} at the roost`);
+  } else if (carried && nearPool()) {
+    setPrompt('SPACE or F  Throw the egg into the lava');
   } else if (nearEgg()) {
     setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
   } else if (nearMount()) {
     setPrompt(mountPrompt(nearMount()));
   } else if (roostSite()) {
     setPrompt(roostPrompt());
-  } else if (nearTrailhead()) {
-    setPrompt('SPACE  Climb the trail up the volcano');
   } else if (nearRuneStone()) {
     setPrompt('SPACE  Touch the rune stone');
   } else if (nearCarving()) {
@@ -3314,16 +3304,17 @@ function render() {
   } else if (nearCache()) {
     setPrompt('SPACE  Reach into the cairn');
   } else if (burnTarget()) {
-    setPrompt(`SPACE  Set the brambles alight with your torch${toolHint() ? `   ·   ${toolHint()}` : ''}`);
+    setPrompt(primary() === 'torch' ? 'F  Set the brambles alight with your torch'
+      : `${slotKey('torch')}  Ready your torch, then F to set the brambles alight${toolHint() ? `   ·   ${toolHint()}` : ''}`);
   } else if (meltTarget()) {
-    setPrompt('SPACE  Melt the ice with your torch');
+    setPrompt(primary() === 'torch' ? 'F  Melt the ice with your torch' : `${slotKey('torch')}  Ready your torch, then F to melt the ice`);
   } else if (iceBlocking()) {
     const ready = primary() === 'torch' ? 'F' : slotKey('torch');
     setPrompt(has('torch') ? `Solid ice, far too thick to break   ·   ${ready}  ${ready === 'F' ? 'Light your torch to melt it' : 'Ready your torch, then F to light it'}` : 'Solid ice, far too thick to break. A torch might melt it');
   } else if (nearBackpack()) {
     setPrompt('SPACE  Pick up your backpack');
   } else if (nearBed()) {
-    setPrompt('SPACE  Sleep until morning');
+    setPrompt(indoors === ROOMS.hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning');
   } else if (nearChest()) {
     setPrompt('SPACE  Open the chest');
   } else if (nearWallMap()) {
@@ -3332,11 +3323,13 @@ function render() {
     setPrompt('SPACE  Pick the glowcap');
   } else if (nearDrop()) {
     const { item } = nearDrop();
-    setPrompt(bagFull(item) ? 'Your backpack is full. Press X or click the selected item to drop it' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
+    setPrompt(bagFull(item) ? 'Your backpack is full. Drop something from your bag (B) first' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
   } else if (dogFirst()) {
     setPrompt(dog.state === 'lost' ? `SPACE  Pick up ${dogName()}` : 'SPACE  Pet Fred');
   } else if (dog.state === 'carried' && nearNpc() === dogOwner) {
     setPrompt('SPACE  Give Fred back');
+  } else if (bagHint()) {
+    setPrompt(`B  Open your bag to ${bagHint()}`);
   } else if (doorAhead()) {
     setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
   } else if (!nearNpc() && fenceHopSpot()) {
@@ -3353,7 +3346,7 @@ function render() {
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
   } else if (carried) {
-    setPrompt('Carry the egg up the volcano and drop it into the crater to hatch it   ·   F  Set it down');
+    setPrompt('Carry the egg up through the fire mountain\'s cave and throw it into the lava   ·   F  Set it down');
   } else if (dog.state === 'carried') {
     setPrompt(`Carry ${dogName()} home${dog.asked ? ' to the girl in the village' : ''}`);
   } else if (eggs.some((e) => e.state === 'warming' && Math.hypot(player.x - e.x, player.y - e.y) < 70)) {
@@ -3476,7 +3469,6 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyC') toggleTinker(true);
     if (e.code === 'KeyG') takeBack();
     if (/^Digit\d$/.test(e.code)) pickTool(+e.code[5] || 10);
-    if (e.code === 'KeyX') dropActive();
   }
   keys.add(e.code);
 });

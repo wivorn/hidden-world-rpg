@@ -52,7 +52,7 @@ const QUESTS = [
       { id: 'stones', text: () => `At night, touch all nine rune stones in order. The walls show the start; the sailor's note in a skerry chest has the rest${ruinEgg && ruin.step && !ruin.solved ? ` (${ruin.step}/${RUIN_ORDER.length})` : ''}`, done: () => eggPast('carried') || ruin.solved },
       { id: 'egg', text: 'Take the dragon egg', done: () => eggPast('carried') },
       { id: 'eggJacket', text: 'Get a fireproof jacket from the seamstress (2 fire eels, 2 wool) and put it on', done: () => outfit === 'fireJacket' || eggPast('warming') },
-      { id: 'hatch', text: 'Climb the volcano and drop the egg into its crater to hatch it', done: () => eggPast('hatched') },
+      { id: 'hatch', text: 'Climb up through the cave at the foot of the fire mountain and throw the egg into the lava pool at the top, or drop it into the crater from dragonback', done: () => eggPast('hatched') },
       { id: 'grow', text: 'Feed your dragon fish till it\'s grown: fish from the longship, or put a fish down and tell it to eat', done: () => eggPast('grown') },
     ],
   },
@@ -60,7 +60,7 @@ const QUESTS = [
     id: 'saddle', title: 'Saddle Up', start: () => eggPast('grown'),
     steps: [
       { id: 'made', text: 'Bring the tanner 3 hides and ask for a saddle', done: () => has('saddle') || dragons.some((d) => d.saddled) },
-      { id: 'on', text: 'Ready the saddle and press F by your grown dragon to strap it on', done: () => dragons.some((d) => d.saddled) },
+      { id: 'on', text: 'Stand by your grown dragon, open your bag (B) and strap the saddle on', done: () => dragons.some((d) => d.saddled) },
       { id: 'fly', text: 'Climb on with SPACE and take to the skies', done: () => stats.flown > 0 },
     ],
   },
@@ -69,8 +69,8 @@ const QUESTS = [
     steps: [
       { id: 'clear', text: () => `Fell the pines between the hermit's stakes (${siteTrees.length - treesLeft()}/${siteTrees.length})`, done: () => roost.built || !treesLeft() },
       { id: 'build', text: `Bring ${ROOST_WOOD} wood and build the roost between the stakes`, done: () => roost.built },
-      { id: 'leave', text: 'Bring two grown dragons and tell them to stay at the roost', done: () => roost.laid.length > 0 || roosting().length >= 2 },
-      { id: 'laid', text: 'Wait for the pair to lay an egg', done: () => roost.laid.length > 0 },
+      { id: 'leave', text: 'Bring two grown dragons and tell them to stay at the roost', done: () => roost.bred.length > 0 || roosting().length >= 2 },
+      { id: 'laid', text: `Wait ${ROOST_DAYS} days for an egg to turn up in the nest`, done: () => roost.bred.length > 0 },
       { id: 'newKind', text: 'Hatch it in the volcano: a kind of dragon never seen before', done: () => dragons.some((d) => d.species.startsWith('bred')) },
     ],
   },

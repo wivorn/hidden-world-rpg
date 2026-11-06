@@ -110,13 +110,15 @@ function updateCave(dt) {
     if (indoors.sand) {
       stats.sandCave++;
       muse('Gold glinting in the firelight... it\'s a treasure cave!');
+    } else if (indoors.fire) {
+      muse('Phew, the heat! Steps cut in the rock, climbing up inside the mountain.');
     } else {
       stats.caves++;
       muse(torchLit() ? 'Brr... My torch lights the way.' : has('torch') ? 'It\'s pitch dark in here... I should light my torch.' : 'It\'s pitch dark in here... I need a torch.');
     }
   }
   wasInCave = cave && !fade;
-  if (!cave || indoors.sand) return;
+  if (!cave || indoors.sand || indoors.fire) return;
   // meltwater dripping from the roof somewhere in view
   if ((dripT -= dt) <= 0) {
     dripT = 0.4 + Math.random() * 0.9;

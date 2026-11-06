@@ -1,15 +1,19 @@
 // The dragon roost on the hermit's isle. Once the player has a grown dragon the hermit asks for one: fell the stand
-// of pines between his stakes, bring ROOST_WOOD wood and raise it there. Grown dragons told to stay by it take a
-// perch in front, and any two that roost together long enough lay an egg, once per pair. Every egg from the roost
-// hatches a kind of dragon nobody has seen before, mixed from its parents.
+// of pines between his stakes, bring ROOST_WOOD wood and raise it there. Grown dragons told to stay by it land inside
+// its fence and wander about in there. Once two or more have spent ROOST_DAYS days in there an egg turns up in the
+// nest, and every one hatches a kind of dragon nobody has seen before, mixed at random from the kinds there are.
 
 const ROOST_WOOD = 12;
-const ROOST_LAY = 90;
+const ROOST_DAYS = 3;
 const ROOST_NEAR = 130;
 // Perches in front of the roost and the nest between the front two, from its ground point.
 const ROOST_SLOTS = [[-50, 34], [50, 34], [-26, 70], [26, 70]];
 const ROOST_NEST = [0, 30];
-const roost = { asked: false, built: false, laid: [], bred: [], togetherT: 0 };
+// The fence's lines from the roost's ground point, in tiles, and how fast dragons amble about inside it.
+const ROOST_PEN = { x: 6.2, top: -2.6, bottom: 5.6 };
+const PEN_PACE = 14;
+// `days` is how long two or more dragons have spent in the pen since the last egg; `lastDay` the game time last seen.
+const roost = { asked: false, built: false, bred: [], days: 0, lastDay: null };
 let roostObj = null;
 let roostNest = null;
 let siteTrees = [];
@@ -110,46 +114,109 @@ function leaveAtRoost(d) {
   muse(`Stay here, ${d.name}. This is your roost now.`);
 }
 
-const roosting = () => dragons.filter((d) => d.roost != null && d.perched && d !== follower);
-const pairKey = (a, b) => [dragons.indexOf(a), dragons.indexOf(b)].sort((x, y) => x - y).join('-');
+// ---------- the pen inside the fence ----------
 
-// The first two roosting dragons who haven't laid an egg together yet.
-function newPair(list) {
-  for (let i = 0; i < list.length; i++) {
-    for (let j = i + 1; j < list.length; j++) if (!roost.laid.includes(pairKey(list[i], list[j]))) return [list[i], list[j]];
+function inRoostPen(x, y) {
+  if (!roost.built) return false;
+  const dx = x - roostObj.x;
+  const dy = y - roostObj.y;
+  return Math.abs(dx) < ROOST_PEN.x * TILE && dy > ROOST_PEN.top * TILE && dy < ROOST_PEN.bottom * TILE;
+}
+
+// Room for dragon `b` to stand at (x, y) inside the pen, not counting its own body.
+function penFits(b, x, y) {
+  const c = b.obj.col;
+  const off = c.off;
+  c.off = true;
+  const ok = inRoostPen(x - 23, y) && inRoostPen(x + 23, y) && dragonFits(x, y);
+  c.off = off;
+  return ok;
+}
+
+// A free spot somewhere in the pen, near (x, y) if `near` is given.
+function penSpot(b, near = null) {
+  for (let i = 0; i < 24; i++) {
+    const x = Math.round(near ? near.x + (Math.random() - 0.5) * 140 : roostObj.x + (Math.random() - 0.5) * 2 * (ROOST_PEN.x * TILE - 26));
+    const y = Math.round(near ? near.y + (Math.random() - 0.5) * 80 : roostObj.y + 16 + Math.random() * (ROOST_PEN.bottom * TILE - 22));
+    if (penFits(b, x, y)) return { x, y };
   }
   return null;
 }
 
-function updateRoost(dt) {
-  if (!roost.built) return;
-  const pair = newPair(roosting());
-  // one egg in the nest at a time
-  if (!pair || eggs.some((e) => e.roostEgg && e.state === 'wild')) {
-    roost.togetherT = 0;
-    return;
-  }
-  roost.togetherT += dt;
-  for (const d of pair) {
-    if (d.emoteT > 0 || Math.random() > dt * 0.15) continue;
-    Object.assign(d, { emote: 'heart', emoteT: 1.6 });
-  }
-  if (roost.togetherT >= ROOST_LAY) layEgg(pair);
+// Where a dragon told to stay flies in to land: its own perch if that's clear, else any free spot in the pen.
+function roostLanding(b) {
+  const own = roostSpot(b.roost);
+  return dragonFits(own.x, own.y) ? own : penSpot(b) || own;
 }
 
-function layEgg([a, b]) {
-  roost.togetherT = 0;
-  roost.laid.push(pairKey(a, b));
+// A dragon standing in the pen strolls to a free spot nearby, stands about a while, and goes again.
+function roam(b, dt) {
+  const d = b.obj;
+  const w = (b.roam ||= { wait: 1 + Math.random() * 3, fx: d.x, fy: d.y, to: null });
+  if (Math.abs(w.fx - d.x) > 1 || Math.abs(w.fy - d.y) > 1) Object.assign(w, { fx: d.x, fy: d.y, to: null });
+  if (!w.to) {
+    d.walking = false;
+    if ((w.wait -= dt) > 0) return;
+    w.to = penSpot(b, d);
+    w.wait = 1;
+    return;
+  }
+  const dx = w.to.x - w.fx;
+  const dy = w.to.y - w.fy;
+  const dist = Math.hypot(dx, dy);
+  const s = Math.min(dist, PEN_PACE * dt);
+  const nx = w.fx + (dx / dist) * s;
+  const ny = w.fy + (dy / dist) * s;
+  if (dist < 0.5 || !penFits(b, Math.round(nx), Math.round(ny))) {
+    Object.assign(w, { to: null, wait: dist < 0.5 ? 2 + Math.random() * 5 : 0.5 + Math.random() });
+    d.walking = false;
+    return;
+  }
+  Object.assign(w, { fx: nx, fy: ny });
+  if (Math.abs(dx) > 2) d.faceRight = dx > 0;
+  if (d.x !== Math.round(nx) || d.y !== Math.round(ny)) {
+    Object.assign(d, { x: Math.round(nx), y: Math.round(ny) });
+    placeCollider(d);
+  }
+  d.walking = true;
+}
+
+// Grown dragons standing inside the fence, the follower too if it's waiting in there.
+const roosting = () => dragons.filter((d) => d.stage === GROWN && d.perched && inRoostPen(d.obj.x, d.obj.y));
+const gameDays = () => dayCount + clock;
+const nestFull = () => eggs.some((e) => e.roostEgg && e.state === 'wild');
+
+// Game time counts, nights slept through included, while two or more are in the pen and the nest is empty; it only
+// pauses otherwise.
+function updateRoost(dt) {
+  if (!roost.built) return;
+  const now = gameDays();
+  const passed = Math.max(0, now - (roost.lastDay ?? now));
+  roost.lastDay = now;
+  const here = roosting();
+  if (here.length < 2 || nestFull()) return;
+  roost.days += passed;
+  for (const d of here) {
+    if (d.emoteT > 0 || Math.random() > dt * 0.05) continue;
+    Object.assign(d, { emote: 'heart', emoteT: 1.6 });
+  }
+  if (roost.days >= ROOST_DAYS) layEgg();
+}
+
+function layEgg() {
+  roost.days = 0;
+  const kinds = Object.values(DRAGON_SPECIES);
+  const any = () => kinds[Math.floor(Math.random() * kinds.length)];
   const n = roost.bred.length;
   const id = `bred${n + 1}`;
-  const pal = breedSpecies(DRAGON_SPECIES[a.species], DRAGON_SPECIES[b.species], 7001 + n * 389 + roost.laid.length * 53);
+  const pal = breedSpecies(any(), any(), Math.floor(Math.random() * 1e9));
   roost.bred.push({ id, pal });
   registerSpecies(id, pal);
   const e = placeRoostEgg(id);
   stats.laid++;
   burst(e.x, e.y - 8, [pal.egg.base, pal.egg.speck, '#ffe9a8'], 14, 40);
   Sfx.chirp(earshot(e.x, e.y));
-  toast('A NEW EGG', `${a.name} and ${b.name} have laid a ${pal.name} egg at the roost`);
+  toast('A NEW EGG', `A ${pal.name} egg has turned up in the roost's nest`);
 }
 
 function placeRoostEgg(id) {
@@ -292,16 +359,15 @@ function roostLine() {
   }
   const here = roosting().length;
   if (eggs.some((e) => e.roostEgg && e.state === 'wild')) return 'An egg in the roost! Nothing like it ever hatched before. Take it up the fire mountain to warm.';
-  if (here < 2) return 'A dragon on its own just sleeps. Leave two at the roost together and see what happens. Tell them to stay.';
-  if (!newPair(roosting())) return 'Each pair only ever lays the one egg. Bring another dragon to the roost to make a new pair.';
-  return 'Two dragons roosting together. Give them time, and some morning there\'ll be an egg.';
+  if (here < 2) return 'A dragon on its own just sleeps. Leave two or more at the roost and tell them to stay.';
+  return `Dragons roosting together. Give them ${ROOST_DAYS} days, and there'll be an egg in the nest.`;
 }
 
 // ---------- saving ----------
 
 function saveRoost() {
   return {
-    asked: roost.asked, built: roost.built, laid: roost.laid, bred: roost.bred, togetherT: Math.round(roost.togetherT),
+    asked: roost.asked, built: roost.built, bred: roost.bred, days: +roost.days.toFixed(3),
     felled: siteTrees.map((o, i) => (o.key !== o.tree ? i : -1)).filter((i) => i >= 0),
   };
 }
@@ -309,7 +375,7 @@ function saveRoost() {
 // Before the eggs: the eggs laid at the roost are made again, in order, so they line up with the saved ones.
 function restoreRoost(s) {
   if (!s) return;
-  Object.assign(roost, { asked: s.asked, built: s.built, laid: s.laid || [], bred: s.bred || [], togetherT: s.togetherT || 0 });
+  Object.assign(roost, { asked: s.asked, built: s.built, bred: s.bred || [], days: s.days || 0, lastDay: null });
   for (const b of roost.bred) {
     registerSpecies(b.id, b.pal);
     placeRoostEgg(b.id);
