@@ -78,11 +78,11 @@ body {
   opacity: 1;
 }
 
-/* Top left: how much sprint the player has left, a bare bar. */
+/* Bottom right: how much sprint the player has left, a bare bar. */
 #stamina {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  right: 16px;
+  bottom: 18px;
   pointer-events: none;
   transition: opacity 0.4s;
 }
@@ -291,6 +291,91 @@ body.title #clock {
   color: #f6e7c1;
 }
 
+.fish p.rarity {
+  color: #7ac8e0;
+}
+
+.fish p.rarity.rare {
+  color: #ff9ad0;
+}
+
+.fish p.rarity.legendary {
+  color: #ffd36b;
+}
+
+.panel.lure-panel {
+  width: min(420px, calc(100vw - 48px));
+  align-items: stretch;
+}
+
+#lurepick img {
+  width: 20px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+#lurepick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel #lurepick-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(20, 24, 40, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.3);
+  color: #f6e7c1;
+  text-align: left;
+  font-size: 8px;
+}
+
+.panel #lurepick-list button:hover,
+.panel #lurepick-list button:focus-visible {
+  border-color: #ffd36b;
+  background: rgba(60, 40, 20, 0.8);
+}
+
+#lurepick-list b {
+  flex: none;
+  width: 14px;
+  color: #ffd36b;
+}
+
+#lurepick-list .hook {
+  flex: none;
+  width: 20px;
+  height: 28px;
+  background: linear-gradient(#c9ccd4, #c9ccd4) 9px 0 / 2px 20px no-repeat,
+    linear-gradient(#c9ccd4, #c9ccd4) 9px 20px / 7px 2px no-repeat;
+}
+
+#lurepick-list span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+#lurepick-list small {
+  font-size: 7px;
+  color: #c8b48a;
+}
+
+.lure-help {
+  margin: 0;
+  font-size: 7px;
+  color: #c8b48a;
+  text-align: center;
+}
+
 .panel.trade-panel {
   width: min(760px, calc(100vw - 48px));
   max-height: calc(100vh - 80px);
@@ -372,6 +457,57 @@ body.title #clock {
 .trade-cols .price {
   color: #e8eaf0;
   white-space: nowrap;
+}
+
+.trade-cols .ware-icon {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: 54px;
+}
+
+.trade-cols .ware-icon img {
+  width: auto;
+}
+
+.trade-cols li.owned {
+  opacity: 0.6;
+}
+
+.trade-cols .makings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: #e8d8b0;
+}
+
+.trade-cols .need {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #ff9a7a;
+}
+
+.trade-cols .need.got {
+  color: #9be07a;
+}
+
+.trade-cols .makings em {
+  font-style: normal;
+  color: #ffd36b;
+}
+
+.trade-cols .what small.lock {
+  color: #ff9a7a;
+}
+
+#trade-hint {
+  margin: 0;
+  font-size: 7px;
+  line-height: 1.6;
+  color: #c8b48a;
+  text-align: center;
 }
 
 .panel .trade-cols button {
@@ -464,7 +600,7 @@ body.title #clock {
 
 #toast {
   position: fixed;
-  top: 84px;
+  top: 132px;
   left: 50%;
   transform: translate(-50%, -12px);
   padding: 10px 16px;
@@ -666,7 +802,7 @@ body.title #toast {
 /* Centred, unless that would run it into the hotbar at the bottom left (14px + 6 slots + gaps, a gap, half the bar). */
 #chat {
   position: fixed;
-  left: max(50%, 750px);
+  left: 50%;
   bottom: 16px;
   transform: translateX(-50%);
   display: flex;
@@ -705,11 +841,12 @@ body.title #toast {
   color: rgba(232, 244, 255, 0.5);
 }
 
-/* Bottom left: a slot for each tool carried, up to nine; F uses the lit one. */
+/* Along the top, under the clock: a slot for each tool carried, up to nine; F uses the lit one. */
 #hotbar {
   position: fixed;
-  left: 14px;
-  bottom: 16px;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
   --slot: 52px;
 }
 
@@ -717,9 +854,222 @@ body.title #toast {
   display: none;
 }
 
-/* While the bag is open the hotbar stays in sight above it. */
-body.bag-open #hotbar {
-  z-index: 1;
+/* Bottom left: the backpack button, and over it the backpack's slots once folded out. */
+#pack {
+  position: fixed;
+  left: 14px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+#pack[hidden],
+#pack-tray[hidden] {
+  display: none;
+}
+
+#bag-btn {
+  width: 52px;
+  height: 52px;
+  background: rgba(40, 24, 12, 0.8);
+  border-color: #e1a03c;
+}
+
+#bag-btn[aria-expanded='true'] {
+  border-color: #fff0a0;
+  background: rgba(92, 56, 18, 0.92);
+}
+
+#pack-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(40, 24, 12, 0.85);
+  border: 3px solid #e1a03c;
+  font: 8px/1 'Press Start 2P', monospace;
+  color: #f6e7c1;
+}
+
+.pack-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pack-head h3 {
+  margin: 0;
+  font: 8px/1 'Press Start 2P', monospace;
+  color: #ffd36b;
+}
+
+#pack-room {
+  color: #c8b48a;
+}
+
+#pack-open {
+  margin: 0;
+  padding: 5px 7px;
+  font: 7px/1 'Press Start 2P', monospace;
+  color: #3a2414;
+  background: #e1a03c;
+  border: 2px solid #3a2414;
+  cursor: pointer;
+}
+
+#pack-open:hover {
+  background: #ffd36b;
+}
+
+#pack-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 44px);
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#pack-slots li {
+  position: relative;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  background: rgba(20, 12, 6, 0.6);
+  border: 2px solid #a8783a;
+}
+
+#pack-slots li.empty {
+  background: rgba(20, 12, 6, 0.3);
+  border-color: rgba(138, 101, 52, 0.5);
+}
+
+#pack-slots button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+#pack-slots button:hover {
+  background: rgba(255, 211, 107, 0.15);
+}
+
+#pack-slots button:focus-visible,
+#pack-open:focus-visible {
+  outline: 2px solid #ffd36b;
+  outline-offset: 2px;
+}
+
+#pack-slots img {
+  image-rendering: pixelated;
+}
+
+#pack-slots span {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  font: 8px/1 'Press Start 2P', monospace;
+  color: #f6e7c1;
+  text-shadow: 2px 2px 0 #3a2414;
+}
+
+#pack-slots .bump {
+  animation: bump 0.35s ease-out;
+}
+
+/* Over the prompt: which of the things lying here to pick up. */
+#pile {
+  position: fixed;
+  left: 50%;
+  bottom: 130px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  padding: 12px;
+  background: rgba(40, 24, 12, 0.94);
+  border: 3px solid #e1a03c;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
+  font: 8px/1.4 'Press Start 2P', monospace;
+  color: #f6e7c1;
+}
+
+#pile[hidden] {
+  display: none;
+}
+
+#pile h3 {
+  margin: 0;
+  font: 10px/1 'Press Start 2P', monospace;
+  color: #ffd36b;
+  text-align: center;
+}
+
+#pile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#pile-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  background: rgba(20, 24, 40, 0.5);
+  border: 2px solid rgba(225, 160, 60, 0.35);
+  font: 8px/1 'Press Start 2P', monospace;
+  color: #f6e7c1;
+  text-align: left;
+  cursor: pointer;
+}
+
+#pile-list button:hover,
+#pile-list button:focus-visible {
+  border-color: #ffd36b;
+  background: rgba(92, 56, 18, 0.9);
+}
+
+#pile-list button:focus-visible {
+  outline: 2px solid #7cf05a;
+  outline-offset: 2px;
+}
+
+#pile-list button:disabled {
+  color: #a8946c;
+  cursor: not-allowed;
+}
+
+#pile-list b {
+  flex: none;
+  width: 10px;
+  color: #ffd36b;
+}
+
+#pile-list img {
+  image-rendering: pixelated;
+}
+
+.pile-help {
+  margin: 0;
+  font-size: 7px;
+  color: #c8b48a;
+  text-align: center;
 }
 
 #hotbar-slots {
@@ -879,23 +1229,17 @@ body.bag-open #hotbar {
   #bag-btn.bump { animation: none; }
 }
 
-/* Too narrow for nine slots beside the chat box: the hotbar sits above it. */
-@media (max-width: 1000px) {
-  #chat { left: 50%; }
-  #hotbar { bottom: 66px; }
-}
-
 @media (max-width: 760px) {
   #hotbar { --slot: 42px; }
   #hotbar-slots { gap: 3px; }
   #hotbar img { transform: scale(0.8); }
 }
 
-/* Below the stamina bar: how long before the cold or heat drives the player back. */
+/* Over the stamina bar: how long before the cold or heat drives the player back. */
 #exposure {
   position: fixed;
-  top: 38px;
-  left: 14px;
+  right: 14px;
+  bottom: 40px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1031,16 +1375,6 @@ body.hot .vignette {
   border-color: #7cf05a;
 }
 
-.bag-grid li.locked {
-  border-style: dashed;
-  border-color: rgba(225, 160, 60, 0.45);
-}
-
-.bag-grid li.locked img {
-  filter: grayscale(1) brightness(0.6);
-  opacity: 0.45;
-}
-
 .bag-detail {
   display: flex;
   align-items: center;
@@ -1067,6 +1401,14 @@ body.hot .vignette {
   padding: 8px 12px;
 }
 
+#bag-keys {
+  margin: -4px 0 0;
+  font-size: 7px;
+  color: #c8b48a;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
 .bag-panel > #bag-close {
   align-self: center;
 }
@@ -1077,6 +1419,8 @@ body.hot .vignette {
 }
 
 body.title #hotbar,
+body.title #pack,
+body.title #pile,
 body.title #exposure,
 body.title #purse,
 body.title #chat,

@@ -142,6 +142,7 @@ function restore(s) {
   packSlots.splice(0, Infinity, ...(s.pack || []));
   syncPack();
   s.npcs.forEach((d, i) => { if (npcs[i]) Object.assign(npcs[i], d); });
+  homeBelt.hidden = has('toolBelt');
   if (has('backpack')) wearBackpack();
   if (hasMap()) {
     wallMap().hidden = true;
@@ -204,10 +205,13 @@ function restoreOutfit(s) {
   dress();
 }
 
-// Saves from before the merchant, the fish log and the archer's challenges simply start those fresh.
+// Saves from before the merchant, the fish log and the archer's challenges simply start those fresh. The golden
+// lure used to be bought once and kept for good; now lures get used up, so a save that bought it gets ten.
 function restoreTrade(s) {
   coins = s.coins ?? (s.silver || 0) * 10;
-  Object.assign(upgrades, s.upgrades);
+  const { lure, ...kept } = s.upgrades || {};
+  Object.assign(upgrades, kept, { tools: { ...kept.tools } });
+  if (lure) bag.goldenLure = (bag.goldenLure || 0) + 10;
   Object.assign(chestStore, s.chest);
   if (s.fishLog) {
     Object.assign(fishLog.caught, s.fishLog.caught);

@@ -6,7 +6,7 @@ const POIS = [
   { id: 'home', name: 'Home', icon: 'house', x: 60 + OX, y: 76.5 + OY, known: true },
   { id: 'hall', name: 'Great Hall', icon: 'hall', x: 78 + OX, y: 38.5 + OY, words: /\b(great hall|chief)\b/i },
   { id: 'forge', name: 'Forge', icon: 'anvil', x: 58.5 + OX, y: 56.5 + OY, words: /\b(smith|forge)\b/i },
-  { id: 'bakery', name: 'Bakery', icon: 'bread', x: 70 + OX, y: 66 + OY, words: /\b(baker|bread|oven)\b/i },
+  { id: 'bakery', name: 'Bakery', icon: 'bread', x: 70 + OX, y: 69 + OY, words: /\b(baker|bread|oven)\b/i },
   { id: 'workshop', name: 'Carpenter', icon: 'saw', x: 95 + OX, y: 67 + OY, words: /\b(carpenter|longbows?|horn bows?)\b/i },
   { id: 'market', name: 'Market', icon: 'stall', x: 78.5 + OX, y: 56 + OY, words: /\b(market|plaza|square|stalls?)\b/i },
   { id: 'pen', name: 'Sheep Pen', icon: 'sheep', x: 115.5 + OX, y: 54.5 + OY, words: /\b(sheep|pen|shepherd|farm)\b/i },

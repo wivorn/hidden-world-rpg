@@ -13,21 +13,21 @@ const ITEMS = {
   map: { name: 'Map', worn: true },
   mapPiece: { name: 'Map piece', worn: true, stack: true, plural: 'map pieces' },
   runeNote: { name: 'Sailor\'s note', worn: true },
-  axe: { name: 'Axe', tool: true },
+  axe: { get name() { return toolName('axe'); }, tool: true },
   wood: { name: 'Wood', stack: true },
-  apple: { name: 'Apple', stack: true },
-  pear: { name: 'Pear', stack: true },
-  banana: { name: 'Banana', stack: true },
-  pineapple: { name: 'Pineapple', stack: true },
+  apple: { name: 'Apple', stack: true, plural: 'apples' },
+  pear: { name: 'Pear', stack: true, plural: 'pears' },
+  banana: { name: 'Banana', stack: true, plural: 'bananas' },
+  pineapple: { name: 'Pineapple', stack: true, plural: 'pineapples' },
   berries: { name: 'Berries', stack: true },
-  coconut: { name: 'Coconut', stack: true },
+  coconut: { name: 'Coconut', stack: true, plural: 'coconuts' },
   stone: { name: 'Stone', stack: true, plural: 'stones' },
   iceCube: { name: 'Ice Cube', stack: true, plural: 'ice cubes' },
   wool: { name: 'Wool', stack: true },
   bow: { get name() { return bowTier().name; }, tool: true },
-  sword: { name: 'Sword', tool: true },
+  sword: { get name() { return toolName('sword'); }, tool: true },
   shield: { name: 'Shield', tool: true },
-  spear: { name: 'Spear', tool: true },
+  spear: { get name() { return toolName('spear'); }, tool: true },
   rod: { name: 'Fishing rod', tool: true },
   fishLog: { name: 'Fish log', worn: true },
   fish: { name: 'Herring', stack: true },
@@ -36,21 +36,32 @@ const ITEMS = {
   eel: { name: 'Fire eel', stack: true, plural: 'fire eels' },
   cavefish: { name: 'Cave fish', stack: true },
   goldenFish: { name: 'Golden fish', stack: true },
-  pickaxe: { name: 'Pickaxe', tool: true },
+  mackerel: { name: 'Mackerel', stack: true },
+  salmon: { name: 'Salmon', stack: true },
+  anglerfish: { name: 'Anglerfish', stack: true },
+  emberKoi: { name: 'Ember koi', stack: true },
+  crystalFish: { name: 'Crystal fish', stack: true },
+  featherLure: { name: 'Feather lure', stack: true, worn: true, plural: 'feather lures' },
+  spinner: { name: 'Silver spinner', stack: true, worn: true, plural: 'silver spinners' },
+  glowLure: { name: 'Glow lure', stack: true, worn: true, plural: 'glow lures' },
+  goldenLure: { name: 'Golden lure', stack: true, worn: true, plural: 'golden lures' },
+  pickaxe: { get name() { return toolName('pickaxe'); }, tool: true },
   iron: { name: 'Iron', stack: true },
   gold: { name: 'Gold nugget', stack: true, plural: 'gold nuggets' },
   ruby: { name: 'Ruby', stack: true, plural: 'rubies' },
   emerald: { name: 'Emerald', stack: true, plural: 'emeralds' },
   goblet: { name: 'Golden goblet', stack: true, plural: 'golden goblets' },
   crown: { name: 'Golden crown', stack: true, plural: 'golden crowns' },
-  string: { name: 'String', stack: true },
+  string: { name: 'String', stack: true, plural: 'lengths of string' },
   feather: { name: 'Feather', stack: true, plural: 'feathers' },
   arrow: { name: 'Arrow', stack: true, plural: 'arrows', worn: true },
   torch: { name: 'Torch', stack: true, plural: 'torches', tool: true },
   saddle: { name: 'Saddle', stack: true, plural: 'saddles' },
   mushroom: { name: 'Glowcap', stack: true, plural: 'glowcaps' },
   grilledFish: { name: 'Grilled fish', stack: true },
-  bakedApple: { name: 'Baked apple', stack: true },
+  bakedApple: { name: 'Baked apple', stack: true, plural: 'baked apples' },
+  bread: { name: 'Rye bread', stack: true, plural: 'loaves of rye bread' },
+  honeyCake: { name: 'Honey cake', stack: true, plural: 'honey cakes' },
   meat: { name: 'Raw meat', stack: true },
   roast: { name: 'Roast meat', stack: true },
   hide: { name: 'Hide', stack: true, plural: 'hides' },
@@ -143,6 +154,32 @@ const RECIPES = [
   },
 ];
 
+// What the smith can make of a tool you have. Each tier adds a blow's worth to every swing and swings faster:
+// fewer chops to fell a tree, fewer strikes to crack ore or bring down game.
+const TOOL_TIERS = {
+  axe: ['Axe', 'Steel axe', 'Runed axe'],
+  pickaxe: ['Pickaxe', 'Steel pickaxe', 'Runed pickaxe'],
+  sword: ['Sword', 'Steel sword', 'Runed sword'],
+  spear: ['Spear', 'Steel spear', 'Runed spear'],
+};
+const TIER_NEEDS = [null, { iron: 2, wood: 1 }, { iron: 2, gold: 2 }];
+const TIER_WORDS = { axe: '(?<!pick[ -]?)axes?', pickaxe: 'pick[ -]?axes?', sword: 'swords?', spear: 'spears?' };
+const TIER_NOTE = { axe: 'Fells trees and game in fewer blows', pickaxe: 'Cracks ore and rock in fewer blows', sword: 'Strikes harder and faster', spear: 'Strikes harder and faster' };
+const UPGRADE_ASK = /\b(upgrade\w*|improve\w*|better|stronger|sharper|steel|run(ed|ic))\b/;
+const tierOf = (id) => (id === 'bow' ? upgrades.bow : upgrades.tools[id] || 0);
+const maxTier = (id) => (id === 'bow' ? BOWS : TOOL_TIERS[id]).length - 1;
+const tierName = (id, t) => (id === 'bow' ? BOWS[t] : { name: TOOL_TIERS[id][t] }).name;
+const toolName = (id) => tierName(id, tierOf(id));
+const nextTier = (id) => RECIPES.find((r) => r.item === id && r.tier === Math.min(maxTier(id), tierOf(id) + 1));
+// How many blows' worth one swing does (the pickaxe hits rock twice as hard as the axe), and how long it takes.
+const toolPower = (id) => (id === 'pickaxe' ? 2 : 1) + tierOf(id);
+const swingTime = (id) => CHOP_TIME / (1 + 0.25 * tierOf(id));
+RECIPES.unshift(...Object.entries(TOOL_TIERS).flatMap(([id, names]) => [1, 2].map((tier) => ({
+  item: id, tier, maker: 'smith', words: new RegExp(`\\b${tier === 1 ? 'steel' : 'run(ed|ic)'} ${TIER_WORDS[id]}\\b`), time: 2.6, needs: TIER_NEEDS[tier],
+  start: tier === 1 ? 'Heat it, fold it, hammer it, fold it again... that\'s how iron turns to steel.' : 'Gold for the runes, iron for the edge. The old smiths knew this trick...',
+  done: tier === 1 ? `A ${names[1].toLowerCase()}! Twice the bite of the old one.` : `A ${names[2].toLowerCase()}. The runes keep that edge keen forever.`,
+}))));
+
 // Where the smith sends you for iron. A pickaxe needs iron to make, so the first lump comes from the dog's owner;
 // if that's been spent on something else, the smith spares one scrap so the player can't get stuck.
 function ironHint(n) {
@@ -161,7 +198,7 @@ const has = (item) => (bag[item] || 0) > 0;
 const recipeFor = (text) => RECIPES.find((r) => r.words.test(text.toLowerCase()));
 // Asked about a bow, the carpenter offers the next one up from the bow you carry.
 const BOW_ASK = /\b(bows?|upgrade\w*|improve\w*|better|farther|further)\b/;
-const nextBow = () => RECIPES.find((r) => r.tier === Math.min(BOWS.length - 1, upgrades.bow + 1));
+const nextBow = () => nextTier('bow');
 // What's in the backpack itself: one slot for each kind of thing, however many of it.
 const held = () => Object.keys(ITEMS).filter((id) => has(id) && inPack(id));
 const packSize = () => 8 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
@@ -192,19 +229,27 @@ function spawnDrop(item, x, y, vx = 0, z = 0, vz = 70, vy = 0) {
   drops.push({ item, x, y, z, vz, vx, vy, phase: Math.random() * 6 });
 }
 
-function dropItem(id) {
+// The `i`th of several dropped at once lands a little to the side of the last, in a heap of three across.
+function dropItem(id, i = 0) {
   if (!has(id) || !started || naming || flight || sail || hop || player.swimming) return;
   bag[id]--;
   renderInventory();
   const fire = id === 'wood' && fireNear(player.x, player.y);
   if (fire) return tossLog(fire);
   const [vx, vy] = DIR_VEC[player.dir];
-  const x = player.x + vx * 12;
-  const y = player.y + vy * 10 + 2;
+  const jx = ((i % 3) - 1) * 4 * Math.sign(i);
+  const jy = (Math.floor(i / 3) % 3 - 1) * 3 * Math.sign(i);
+  const x = player.x + vx * 12 + jx;
+  const y = player.y + vy * 10 + 2 + jy;
   const ok = !blocked(x - 3, y - 3, x + 3, y, player);
-  spawnDrop(id, ok ? x : player.x, ok ? y : player.y + 3);
+  spawnDrop(id, ok ? x : player.x + jx, ok ? y : player.y + 3 + jy);
   drops[drops.length - 1].left = true;
-  Sfx.drop();
+  if (!i) Sfx.drop();
+}
+
+function dropAll(id) {
+  const n = bag[id] || 0;
+  for (let i = 0; i < n; i++) dropItem(id, i);
 }
 
 const canReach = (d) => !flight && !sail && !hop && Math.hypot(d.x - player.x, d.y - player.y) < REACH && sameSpace(d);
@@ -231,12 +276,109 @@ function dropAt(wx, wy) {
   return null;
 }
 
-function pickUp(d, auto = false) {
+// ---------- picking from a pile ----------
+
+// What's on the ground within reach of Space, a kind at a time: [{ item, drops }].
+const PILE_REACH = 26;
+function pileNear() {
+  if (flight || sail || hop || player.swimming) return [];
+  const kinds = new Map();
+  for (const d of drops) {
+    if (d.z > 0 || !sameSpace(d) || Math.hypot(d.x - player.x, d.y - 2 - player.y) >= PILE_REACH) continue;
+    if (!kinds.has(d.item)) kinds.set(d.item, []);
+    kinds.get(d.item).push(d);
+  }
+  return [...kinds].map(([item, ds]) => ({ item, drops: ds }));
+}
+
+// Space by one kind of thing picks it all up; by a mix, a little menu asks which.
+function takeFromPile() {
+  const pile = pileNear();
+  if (pile.length > 1) return openPile();
+  if (pile.length) pickAll(pile[0]);
+}
+
+function pickAll({ item, drops: ds }) {
+  ds.forEach((d, i) => { if (!bagFull(item)) pickUp(d, false, i > 0); });
+}
+
+const pileEl = document.getElementById('pile');
+const pileList = document.getElementById('pile-list');
+let pileOpen = false;
+
+function openPile() {
+  pileOpen = true;
+  keys.clear();
+  pileEl.hidden = false;
+  renderPile();
+  Sfx.drop();
+}
+
+function closePile() {
+  pileOpen = false;
+  pileEl.hidden = true;
+  keys.clear();
+}
+
+function renderPile() {
+  const pile = pileNear();
+  if (!pile.length) return closePile();
+  const was = document.activeElement?.dataset?.item;
+  pileList.replaceChildren(...pile.map((p, i) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.item = p.item;
+    const n = p.drops.length;
+    const name = n > 1 ? `${n} ${ITEMS[p.item].plural || ITEMS[p.item].name.toLowerCase()}` : ITEMS[p.item].name;
+    const full = bagFull(p.item);
+    b.disabled = full;
+    const key = Object.assign(document.createElement('b'), { textContent: i + 1 });
+    key.setAttribute('aria-hidden', 'true');
+    b.append(key, iconImg(p.item, 2), Object.assign(document.createElement('span'), { textContent: full ? `${name} (bag full)` : name }));
+    b.setAttribute('aria-label', `Pick up ${name}${full ? ', backpack full' : ''}`);
+    li.append(b);
+    return li;
+  }));
+  const btns = [...pileList.querySelectorAll('button:not(:disabled)')];
+  (btns.find((b) => b.dataset.item === was) || btns[0] || pileList.querySelector('button')).focus();
+}
+
+function takePileItem(item) {
+  const p = pileNear().find((q) => q.item === item);
+  if (p) pickAll(p);
+  renderPile();
+}
+
+pileList.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) takePileItem(b.dataset.item);
+});
+// Registered before the game's own keys, so while the menu is open they never reach it.
+window.addEventListener('keydown', (e) => {
+  if (!pileOpen) return;
+  e.stopImmediatePropagation();
+  const btns = [...pileList.querySelectorAll('button')];
+  const i = btns.indexOf(document.activeElement);
+  const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Tab: e.shiftKey ? -1 : 1 }[e.code];
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    closePile();
+  } else if (/^Digit[1-9]$/.test(e.code) && btns[+e.code[5] - 1]) {
+    e.preventDefault();
+    btns[+e.code[5] - 1].click();
+  } else if (step) {
+    e.preventDefault();
+    btns[(i + step + btns.length) % btns.length]?.focus();
+  }
+});
+
+function pickUp(d, auto = false, quiet = false) {
   if (bagFull(d.item)) return;
   drops.splice(drops.indexOf(d), 1);
   give(d.item);
   if (!auto) faceToward(player, d.x - player.x, d.y - player.y);
-  Sfx.pickup();
+  if (!quiet) Sfx.pickup();
   if (d.item === 'mapPiece') markEgg(d.mark);
   if (d.item === 'runeNote') {
     toast('SAILOR\'S NOTE', 'Read it again any time from your bag (B)');
@@ -331,6 +473,7 @@ const MADE_AT = {
 function askCraft(n, text) {
   let r = recipeFor(text);
   if (n.look.id === 'carpenter' && (!r || (r.item === 'bow' && !r.tier)) && BOW_ASK.test(text.toLowerCase())) r = nextBow();
+  if (n.look.id === 'smith' && r && TOOL_TIERS[r.item] && !r.tier && UPGRADE_ASK.test(text.toLowerCase())) r = nextTier(r.item);
   if (r && r.maker === 'archer' && n.look.id !== 'archer') {
     npcSay(n, 'Arrows? Ask the archer at the range. He fletches his own.');
     return true;
@@ -344,7 +487,7 @@ function askCraft(n, text) {
     return true;
   }
   if (!r || r.maker !== n.look.id) return false;
-  const name = (r.tier ? BOWS[r.tier] : ITEMS[r.item]).name.toLowerCase();
+  const name = (r.tier ? tierName(r.item, r.tier) : ITEMS[r.item].name).toLowerCase();
   const needs = Object.entries(r.needs || {});
   const short = Object.fromEntries(needs.filter(([id, k]) => (bag[id] || 0) < k).map(([id, k]) => [id, k - (bag[id] || 0)]));
   const shortN = Object.keys(short).length;
@@ -352,9 +495,9 @@ function askCraft(n, text) {
   // handing over every last piece of a material frees up its slot
   const freed = needs.filter(([id, k]) => bag[id] === k).length;
   if (n.craft) npcSay(n, 'Patience! I\'m working on it.');
-  else if (r.tier && !has('bow')) npcSay(n, 'Bring me a bow to work on, {lad}. The smith makes one from 1 wood and 1 string.');
-  else if (r.tier && upgrades.bow >= r.tier) npcSay(n, upgrades.bow === BOWS.length - 1 ? 'That horn bow is as good as bows get. Nothing more I can do for it!' : `That's a ${bowTier().name.toLowerCase()} already. Want it a horn bow? Ask me for one.`);
-  else if (r.tier && upgrades.bow < r.tier - 1) npcSay(n, 'One thing at a time, {lad}! A longbow first. Bring me 3 wood and 1 string.');
+  else if (r.tier && !has(r.item)) npcSay(n, r.item === 'bow' ? 'Bring me a bow to work on, {lad}. The smith makes one from 1 wood and 1 string.' : `Bring me ${TOOL_TIERS[r.item][0].toLowerCase() === 'axe' ? 'an' : 'a'} ${TOOL_TIERS[r.item][0].toLowerCase()} to work on first, {lad}.`);
+  else if (r.tier && tierOf(r.item) >= r.tier) npcSay(n, tierOf(r.item) === maxTier(r.item) ? `That ${toolName(r.item).toLowerCase()} is as good as they get. Nothing more I can do for it!` : `That's a ${toolName(r.item).toLowerCase()} already. Want it a ${tierName(r.item, tierOf(r.item) + 1).toLowerCase()}? Ask me for one.`);
+  else if (r.tier && tierOf(r.item) < r.tier - 1) npcSay(n, `One thing at a time, {lad}! A ${tierName(r.item, r.tier - 1).toLowerCase()} first. Bring me ${listNeeds(nextTier(r.item).needs)}.`);
   else if (has(r.item) && !ITEMS[r.item].stack && !r.tier) npcSay(n, `You've already got one of my ${ITEMS[r.item].plural || `${name}s`}!${r.item === 'bow' && upgrades.bow < BOWS.length - 1 ? ' The carpenter can make it shoot farther.' : ''}`);
   else if (!has('backpack')) npcSay(n, 'And carry it how, {lad}? Fetch your backpack first.');
   else if (r.item === 'arrow' && !has('bow')) npcSay(n, 'Arrows are no use without a bow. Get the smith to make you one first.');
@@ -439,6 +582,13 @@ function welcomeRod(n) {
   return true;
 }
 
+function setTier(id, tier) {
+  if (id === 'bow') upgrades.bow = tier;
+  else upgrades.tools[id] = tier;
+  renderInventory(id);
+  toast('UPGRADE', id === 'bow' ? `${bowTier().name}: shoots ${Math.round(bowTier().reach / BOWS[0].reach * 10) / 10}x as far` : `${toolName(id)}: ${TIER_NOTE[id].toLowerCase()}`);
+}
+
 const welcomeGift = (n) => welcomeAxe(n) || welcomeRod(n);
 
 function updateCraft(n, dt) {
@@ -479,11 +629,8 @@ function updateCraft(n, dt) {
   }
   if (c.t < c.r.time) return;
   n.craft = null;
-  if (c.r.tier) {
-    upgrades.bow = c.r.tier;
-    renderInventory('bow');
-    toast('UPGRADE', `${bowTier().name}: shoots ${Math.round(bowTier().reach / BOWS[0].reach * 10) / 10}x as far`);
-  } else give(c.r.item, c.r.count || 1);
+  if (c.r.tier) setTier(c.r.item, c.r.tier);
+  else give(c.r.item, c.r.count || 1);
   if (c.r.item === 'arrow') stats.fletched++;
   if (ITEMS[c.r.item].slots) toast('UPGRADE', `Backpack: ${packSize()} slots`);
   npcSay(n, c.r.done);
@@ -601,7 +748,7 @@ const TOOL_FOR = {
 // Chores win over game, so a rabbit underfoot doesn't get in the way of the woodcutting.
 const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder', 'crystal', 'bramble', 'log']);
 const SWUNG = new Set(Object.values(TOOL_FOR).flat());
-const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', mushroom: '#5affd8', roast: '#9a4a1e' };
+const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', bread: '#c08a4a', honeyCake: '#f2b01a', mushroom: '#5affd8', roast: '#9a4a1e' };
 
 const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded() && !(player.downT > 0);
 // The rod is the one tool that also works from the deck, once the ship has all but stopped.
@@ -677,7 +824,7 @@ function swing(tool, o, prey = null) {
   if (player.chop) return;
   const at = prey || o;
   if (at) faceToward(player, at.x - player.x, at.y - 2 - player.y);
-  player.chop = { o, prey, t: 0, hit: false, tool };
+  player.chop = { o, prey, t: 0, hit: false, tool, len: swingTime(tool) };
   Sfx.swish();
 }
 
@@ -693,10 +840,11 @@ function toolHint() {
   const id = primary();
   const f = player.fishing;
   if (f && f.fight) return id === 'rod' ? 'A big one!   ·   Tap F fast to reel it in!' : `${slotKey('rod')}  Ready the rod, quick!`;
-  if (f && id === 'rod') return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}   ·   F  Reel in`;
+  if (f && id === 'rod') return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}${f.lure ? `   ·   ${ITEMS[f.lure].name} on` : ''}   ·   F  Reel in`;
   if (f) return f.biting ? `${slotKey('rod')}  Ready the rod to reel it in!` : 'Waiting for a bite...';
   if (player.windup) return castPower() < 1 ? 'Winding up...   ·   Let go of F to cast' : 'Full cast!   ·   Let go of F to cast';
-  const readyRod = id === 'rod' ? 'F  Cast your line   ·   Hold F to cast farther' : `${slotKey('rod')}  Ready the rod to fish`;
+  const lure = lureToPick() ? '   ·   Pick a lure' : lureOn() ? `   ·   ${ITEMS[lureOn()].name} ×${bag[lureOn()]}` : '';
+  const readyRod = id === 'rod' ? `F  Cast your line   ·   Hold F to cast farther${lure}` : `${slotKey('rod')}  Ready the rod to fish`;
   const need = EXPOSE[exposedTo()]?.outfit;
   if (need && outfit !== need && has(need)) return `B  Put on your ${itemName(need)}`;
   if (sail) return has('rod') && castSpot() ? readyRod : '';
@@ -782,7 +930,10 @@ function useRod() {
     player.fishing = null;
     return Sfx.swish(0.6);
   }
-  if (!player.windup && castSpot()) player.windup = { t: 0 };
+  if (!player.windup && castSpot()) {
+    if (lureToPick()) return openLurePick();
+    player.windup = { t: 0 };
+  }
 }
 
 const castPower = () => (player.windup ? Math.min(1, player.windup.t / CAST_TIME) : 0);
@@ -795,7 +946,8 @@ function releaseCast() {
   const spot = primary() === 'rod' && !player.fishing && castSpot(power);
   if (!spot) return;
   const [x, y] = spot;
-  player.fishing = { x, y, px: player.x, py: player.y, boat: !!sail, t: 0, bite: biteWait(x, y), missT: 0 };
+  const lure = lureOn();
+  player.fishing = { x, y, px: player.x, py: player.y, boat: !!sail, t: 0, bite: biteWait(x, y, lure), missT: 0, lure };
   Sfx.swish(0.6 + 0.4 * power);
 }
 
@@ -804,6 +956,7 @@ function reelIn(f) {
   const [hx, hy] = headPos();
   const b = f.boat && hungryDragon();
   const id = catchFish(f, f.boat && !b);
+  useLure(f.lure);
   if (b) {
     feedFromLine(b, id, f.x, f.y);
     popIcon(id, f.x, f.y - 8);
@@ -815,7 +968,7 @@ function reelIn(f) {
 
 // The big ones fight: `taps` presses of F fill the bar, which slips back once you pause for FIGHT_REST seconds, and
 // `time` is how long it stays on the hook.
-const FIGHT = { cod: { taps: 8, time: 3.5 }, eel: { taps: 10, time: 3.5 }, goldenFish: { taps: 12, time: 4 } };
+const FIGHT = { cod: { taps: 8, time: 3.5 }, salmon: { taps: 9, time: 3.5 }, eel: { taps: 10, time: 3.5 }, anglerfish: { taps: 11, time: 4 }, emberKoi: { taps: 11, time: 4 }, goldenFish: { taps: 12, time: 4 } };
 const FIGHT_SLIP = 0.25;
 const FIGHT_REST = 0.35;
 
@@ -829,16 +982,16 @@ function tugFight(f) {
 }
 
 function escapeFight(f) {
-  Object.assign(f, { fight: null, fish: null, biting: false, missT: 1.5, bite: f.t + biteWait(f.x, f.y) });
+  Object.assign(f, { fight: null, fish: null, biting: false, missT: 1.5, bite: f.t + biteWait(f.x, f.y, f.lure) });
   seaSplash(f.x, f.y, 0.8);
   Sfx.splash(0.5);
   if (!stats.escaped++) muse('It got away! The big ones fight. I need to reel faster.');
 }
 
-// Seconds until the next nibble; a school nearby bites much sooner.
-function biteWait(x, y) {
+// Seconds until the next nibble; a school nearby bites much sooner, and so does a lure.
+function biteWait(x, y, lure) {
   const school = seaLife.schools.some((s) => s.fish.length && Math.hypot(s.x - x, s.y - y) < 90);
-  return ((school ? 0.8 : 2) + Math.random() * (school ? 1.5 : 3)) * (upgrades.lure ? 0.6 : 1);
+  return ((school ? 0.8 : 2) + Math.random() * (school ? 1.5 : 3)) * (LURES[lure]?.bite || 1);
 }
 
 function updateFishing(dt) {
@@ -861,7 +1014,7 @@ function updateFishing(dt) {
   }
   if (f.biting) {
     if ((f.biteT += dt) < 0.9) return;
-    Object.assign(f, { biting: false, fish: null, missT: 1.5, bite: f.t + biteWait(f.x, f.y) });
+    Object.assign(f, { biting: false, fish: null, missT: 1.5, bite: f.t + biteWait(f.x, f.y, f.lure) });
   } else if (f.t >= f.bite) {
     const fish = pickFish(f);
     const big = FIGHT[fish];
@@ -1062,9 +1215,10 @@ function eat(id) {
 // ---------- cooking ----------
 
 // Raw food held over a fire turns into a hot meal; eating one puts a spring in your step for `MEALS` seconds.
-const COOKS = { fish: 'grilledFish', cod: 'grilledFish', trout: 'grilledFish', eel: 'grilledFish', cavefish: 'grilledFish', apple: 'bakedApple', meat: 'roast' };
-const COOK_VERB = { fish: 'Grill', cod: 'Grill', trout: 'Grill', eel: 'Grill', cavefish: 'Grill', apple: 'Bake', meat: 'Roast' };
-const MEALS = { grilledFish: 90, bakedApple: 45, roast: 150 };
+const GRILLED = ['fish', 'mackerel', 'cod', 'trout', 'salmon', 'eel', 'cavefish', 'anglerfish', 'emberKoi', 'crystalFish'];
+const COOKS = { ...Object.fromEntries(GRILLED.map((id) => [id, 'grilledFish'])), apple: 'bakedApple', meat: 'roast' };
+const COOK_VERB = { ...Object.fromEntries(GRILLED.map((id) => [id, 'Grill'])), apple: 'Bake', meat: 'Roast' };
+const MEALS = { grilledFish: 90, bakedApple: 45, roast: 150, bread: 60, honeyCake: 120 };
 const COOK_TIME = 2.6;
 const FED_SPEED = 1.3;
 const fedBoost = () => (player.fedT > 0 ? FED_SPEED : 1);
@@ -1165,7 +1319,7 @@ function axeHit(o, tool = 'axe') {
   if (k.chips) chips(o, k.chips, 4, 6);
   if (k.leaves) shedLeaves(o, k.leaves);
   if (k.hit) return k.hit(o);
-  o.hp = (o.hp ?? k.hits) - (tool === 'pickaxe' ? 2 : 1);
+  o.hp = (o.hp ?? k.hits) - toolPower(tool);
   if (o.hp > 0) return;
   o.hp = undefined;
   k.done(o);
@@ -1173,7 +1327,7 @@ function axeHit(o, tool = 'axe') {
 
 function hitTree(o) {
   const t = TREES[o.tree];
-  o.hp = (o.hp ?? t.hits) - 1;
+  o.hp = (o.hp ?? t.hits) - toolPower('axe');
   o.shakeT = 0.25;
   Sfx.chop();
   chips(o, [PAL.woodLight, '#d9b07a'], 6);
@@ -1357,11 +1511,11 @@ function updateChopping(dt) {
   const c = player.chop;
   if (c) {
     c.t += dt;
-    if (!c.hit && c.t >= CHOP_TIME * CHOP_HIT) {
+    if (!c.hit && c.t >= c.len * CHOP_HIT) {
       c.hit = true;
       toolHit(c);
     }
-    if (c.t >= CHOP_TIME) player.chop = null;
+    if (c.t >= c.len) player.chop = null;
   }
   updateTools(dt);
   for (const o of hittables) {
@@ -1388,8 +1542,8 @@ function drawFallingTree(o, cx, cy) {
 }
 
 // Swing position: -1 is raised over the shoulder, 1 is buried in the trunk.
-function swingPose(t) {
-  const u = t / CHOP_TIME;
+function swingPose(t, len = CHOP_TIME) {
+  const u = t / len;
   if (u < 0.3) return 0.2 - (u / 0.3) * 1.2;
   if (u < CHOP_HIT) return -1 + ((u - 0.3) / (CHOP_HIT - 0.3)) * 2;
   return 1 - ((u - CHOP_HIT) / (1 - CHOP_HIT)) * 0.4;
@@ -1453,7 +1607,7 @@ function drawWindup(e, x, top) {
 }
 
 function drawSwing(e, x, top) {
-  const s = swingPose(e.chop.t);
+  const s = swingPose(e.chop.t, e.chop.len);
   const tool = e.chop.tool || 'axe';
   const img = ((e.dir === 'up' || e.dir === 'down') && SPR.heldFront[tool]) || SPR.held[tool];
   const side = e.dir === 'left' ? -1 : 1;

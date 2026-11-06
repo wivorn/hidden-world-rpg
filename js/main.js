@@ -561,8 +561,10 @@ function updateNpc(n, dt) {
     if (n.job) n.job.prop.active = false;
     return;
   }
+  nightHome(n);
+  if (n.trip) return nightTrip(n, dt);
   if (festivalNpc(n, dt)) return;
-  if (n.job) return updateJob(n, dt);
+  if (n.job && !n.inside) return updateJob(n, dt);
   if (n.fixed) {
     n.dir = n.fixed;
     n.frame = 0;
@@ -600,6 +602,37 @@ function updateNpc(n, dt) {
   faceToward(n, dx, dy);
   n.anim += dt * 6;
   n.frame = Math.floor(n.anim) % 4;
+}
+
+// After dark each shopkeeper shuts up and goes home to bed, and at dawn heads back out to work.
+const NIGHT_HOMES = { smith: 'smithy', tanner: 'tannery', weaver: 'weaverHouse', seamstress: 'seamstressHouse', baker: 'bakery', carpenter: 'workshop', fisher: 'fishShack' };
+const roomDoor = (r) => ({ x: (r.door + 0.5) * TILE, y: r.doorY * TILE - 4 });
+
+function nightHome(n) {
+  const key = NIGHT_HOMES[n.look.id];
+  if (!key || n.followT > 0 || fest.on || n.festGoing || isNight() === !!n.inside) return;
+  const r = ROOMS[key];
+  const out = standSpotNear(n, doorX(r.building), r.building.y + 12);
+  if (n.job) Object.assign(n.job, { working: false }).prop.active = false;
+  if (n.inside) {
+    n.inside = null;
+    n.home = { ...n.origin };
+    n.trip = [{ ...roomDoor(r), through: out }, n.home];
+  } else {
+    const bed = objects.find((o) => o.key === 'bed' && inRoom(r, o));
+    n.inside = key;
+    n.home = standSpotNear(n, bed.x + 18, bed.y - 2);
+    n.trip = [{ ...out, through: roomDoor(r) }, n.home];
+  }
+}
+
+// Walks `n` leg by leg along `n.trip`, stepping through the door at the end of a leg that has one.
+function nightTrip(n, dt) {
+  const leg = n.trip[0];
+  if (!stroll(n, leg.x, leg.y, dt)) return;
+  n.trip.shift();
+  if (leg.through) Object.assign(n, leg.through);
+  if (!n.trip.length) Object.assign(n, { trip: null, state: 'idle', timer: 1, frame: 0, stuck: 0, dir: 'down' });
 }
 
 // Shopkeepers mind their stall, and every so often step over to their workstation.
@@ -1745,7 +1778,7 @@ function drawBaby(b, cx, cy) {
 // ---------- feeding & growing up ----------
 
 const GROWN = DRAGON_SCALES.length;
-const BIG_FISH = new Set(['cod', 'eel', 'goldenFish']);
+const BIG_FISH = new Set(['cod', 'salmon', 'eel', 'anglerfish', 'emberKoi', 'goldenFish']);
 
 // The young follower out at sea, free to take a fish reeled in from the longship.
 const hungryDragon = () => (sail && follower && follower.stage < GROWN && !follower.swoop && follower.catchT <= 0 ? follower : null);
@@ -2536,6 +2569,8 @@ const FADE = 0.22;
 const buildings = objects.filter((o) => o.room);
 for (const b of buildings) ROOMS[b.room].building = b;
 const backpack = objects.find((o) => o.key === 'backpack');
+const homeBelt = objects.find((o) => o.key === 'toolBelt');
+let beltNagged = false;
 const mom = npcs.find((n) => n.look.id === 'mom');
 let momNagT = 0;
 
@@ -2591,20 +2626,24 @@ function enterBuilding(b) {
 }
 
 function leaveRoom() {
-  if (indoors === ROOMS.home && !has('backpack')) {
+  // she won't let them out without the backpack, and calls them back for the belt the first time
+  const belt = !has('toolBelt') && !homeBelt.hidden && (!beltNagged || momNagT > 0);
+  if (indoors === ROOMS.home && (!has('backpack') || belt)) {
     player.y = (indoors.ry + indoors.h + 2) * TILE - 2;
     player.dir = 'up';
     if (momNagT <= 0) {
       momNagT = 2.5;
-      npcSay(mom, '{name}! Your backpack! You\'ll forget your head one day.');
+      npcSay(mom, !has('backpack') ? '{name}! Your backpack! You\'ll forget your head one day.'
+        : 'Wait, {name}! Take your father\'s old tool belt too, it\'s by your bed. Room for two more things!');
       Object.assign(mom, { emote: 'exclaim', emoteT: 1.2 });
+      if (has('backpack')) beltNagged = true;
     }
     return;
   }
   fadeTo(() => {
     for (const n of npcs) {
-      const left = inRoom(indoors, n) && !(n.followT > 0) && !inRoom(indoors, n.origin);
-      if (left) Object.assign(n, n.origin, { home: { ...n.origin } });
+      const left = inRoom(indoors, n) && !(n.followT > 0) && !n.inside && !inRoom(indoors, n.origin);
+      if (left) Object.assign(n, n.origin, { home: { ...n.origin }, trip: null });
     }
     Object.assign(player, outsideDoor(indoors), { dir: 'down' });
     indoors = null;
@@ -2630,7 +2669,23 @@ function pickUpBackpack() {
   Sfx.pickup();
   toast('BACKPACK', 'Number keys pick a tool from the hotbar and F uses it. B opens your bag');
   faceToward(player, backpack.x - player.x, backpack.y - player.y);
-  npcSay(mom, 'That\'s it! Off you go then, and be back for supper.');
+  npcSay(mom, has('toolBelt') ? 'That\'s it! Off you go then, and be back for supper.'
+    : 'That\'s it! And take your father\'s old tool belt too, it\'s right beside it.');
+}
+
+function nearHomeBelt() {
+  return indoors && !homeBelt.hidden && Math.hypot(homeBelt.x - player.x, homeBelt.y - player.y) < 22;
+}
+
+function pickUpBelt() {
+  homeBelt.hidden = true;
+  give('toolBelt');
+  Sfx.pickup();
+  toast('TOOL BELT', 'Worn at the waist: room for two more things in your backpack');
+  faceToward(player, homeBelt.x - player.x, homeBelt.y - player.y);
+  npcSay(mom, has('backpack') ? 'Your father\'s old belt! It suits you. Off you go, and be back for supper.'
+    : 'Good, the belt. Now your backpack, love, it\'s right there by the bed.');
+  setMomLines();
 }
 
 function wearBackpack() {
@@ -2639,8 +2694,22 @@ function wearBackpack() {
   renderInventory();
   player.look = { ...player.look, pack: true };
   journalBtn.hidden = false;
-  mom.lines = ['Be home before dark, {name}!', 'The smith makes a fine axe, I hear. Go and ask him.', 'Say hello to the chief for me.', 'Off you go! The island won\'t explore itself.', 'When it gets dark, come home. Your bed\'s made.'];
-  mom.nightLines = ['There you are! It\'s late, {name}. Your bed\'s made.', 'Get some sleep, love. The island will still be there in the morning.', 'There\'s stew keeping warm by the fire.', 'Going out again in the dark? Take a torch, and don\'t be long.'];
+  setMomLines();
+}
+
+// What mom says depends on what's still lying by the bed.
+function setMomLines() {
+  const belt = !has('toolBelt') && !homeBelt.hidden;
+  if (!has('backpack')) {
+    mom.lines = belt
+      ? ['Your backpack and your father\'s old tool belt are by your bed. Take them both!', 'Don\'t forget your backpack when you go out!', 'Breakfast is on the table if you\'re hungry.']
+      : ['Now your backpack, love. It\'s by your bed.', 'Don\'t forget your backpack when you go out!', 'Breakfast is on the table if you\'re hungry.'];
+    mom.nightLines = [`Your backpack${belt ? ' and tool belt are' : ' is'} by your bed, sweetheart.`, 'It\'s dark out! Adventures can wait for the morning.', 'There\'s stew keeping warm by the fire.'];
+  } else {
+    mom.lines = ['Be home before dark, {name}!', 'The smith makes a fine axe, I hear. Go and ask him.', 'Say hello to the chief for me.', 'Off you go! The island won\'t explore itself.', 'When it gets dark, come home. Your bed\'s made.'];
+    mom.nightLines = ['There you are! It\'s late, {name}. Your bed\'s made.', 'Get some sleep, love. The island will still be there in the morning.', 'There\'s stew keeping warm by the fire.', 'Going out again in the dark? Take a torch, and don\'t be long.'];
+    if (belt) mom.lines.unshift('Your father\'s old tool belt is still by your bed. It holds two more things!');
+  }
   mom.lineI = 0;
 }
 
@@ -2680,12 +2749,14 @@ function action() {
   else if (nearLadder()) climbLadder(nearLadder());
   else if (nearCache()) openCache(nearCache());
   else if (nearBackpack()) pickUpBackpack();
+  else if (nearHomeBelt()) pickUpBelt();
   else if (nearBed()) sleep();
   else if (nearChest()) toggleChest(true);
   else if (nearWallMap()) takeMap();
   else if (nearGlowcap()) pickGlowcap(nearGlowcap());
-  else if (nearDrop()) pickUp(nearDrop());
+  else if (nearDrop()) takeFromPile();
   else if (dogFirst()) dog.state === 'lost' ? pickUpDog() : petDog();
+  else if (signFirst()) openBoard(nearSign().shop);
   else if (doorAhead()) enterBuilding(doorAhead());
   else if (!talk() && !petSheep()) jump();
 }
@@ -3424,6 +3495,8 @@ function render() {
     setPrompt(has('torch') ? `Solid ice, far too thick to break   ·   ${ready}  ${ready === 'F' ? 'Light your torch to melt it' : 'Ready your torch, then F to light it'}` : 'Solid ice, far too thick to break. A torch might melt it');
   } else if (nearBackpack()) {
     setPrompt('SPACE  Pick up your backpack');
+  } else if (nearHomeBelt()) {
+    setPrompt('SPACE  Pick up the tool belt');
   } else if (nearBed()) {
     setPrompt(indoors === ROOMS.hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning');
   } else if (nearChest()) {
@@ -3433,12 +3506,17 @@ function render() {
   } else if (nearGlowcap()) {
     setPrompt('SPACE  Pick the glowcap');
   } else if (nearDrop()) {
-    const { item } = nearDrop();
-    setPrompt(bagFull(item) ? 'Your backpack is full. Drop something from your bag (B) first' : `SPACE  Pick up the ${ITEMS[item].name.toLowerCase()}`);
+    const pile = pileNear();
+    const { item, drops: ds } = pile.find((p) => p.item === nearDrop().item) || { item: nearDrop().item, drops: [nearDrop()] };
+    const what = ds.length > 1 ? `${ds.length} ${ITEMS[item].plural || ITEMS[item].name.toLowerCase()}` : ITEMS[item].name.toLowerCase();
+    setPrompt(pile.length > 1 ? 'SPACE  Pick from the pile'
+      : bagFull(item) ? 'Your backpack is full. Drop something from your bag (B) first' : `SPACE  Pick up the ${what}`);
   } else if (dogFirst()) {
     setPrompt(dog.state === 'lost' ? `SPACE  Pick up ${dogName()}` : 'SPACE  Pet Fred');
   } else if (dog.state === 'carried' && nearNpc() === dogOwner) {
     setPrompt('SPACE  Give Fred back');
+  } else if (signFirst()) {
+    setPrompt(`SPACE  See what ${SHOPS[nearSign().shop].who} ${coinShown() ? 'makes and sells' : 'makes'}`);
   } else if (shopNear()) {
     setPrompt(`B  Shop with ${SHOPS[shopNear().look.id].who}`);
   } else if (bagHint()) {
@@ -3566,8 +3644,8 @@ window.addEventListener('pointerdown', () => Sfx.init());
 
 window.addEventListener('keydown', (e) => {
   Sfx.init();
-  if (!started || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || bagOpen || noteOpen || (flight && flight.warp) || document.activeElement === chatInput) return;
-  if (hotbarEl.contains(document.activeElement) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
+  if (!started || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || bagOpen || noteOpen || pileOpen || lurePickOpen || (flight && flight.warp) || document.activeElement === chatInput) return;
+  if ((hotbarEl.contains(document.activeElement) || packEl.contains(document.activeElement)) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
     chatInput.focus();
@@ -3637,10 +3715,22 @@ const pointerPos = (e) => {
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 };
 screenCanvas.addEventListener('pointerdown', (e) => {
+  if (pileOpen) {
+    e.preventDefault();
+    closePile();
+    return;
+  }
   const p = pointerPos(e);
-  const d = started && !naming && dropAt(p.x / zoom + Math.round(cam.x), p.y / zoom + Math.round(cam.y));
+  const [wx, wy] = [p.x / zoom + Math.round(cam.x), p.y / zoom + Math.round(cam.y)];
+  const d = started && !naming && dropAt(wx, wy);
   if (d) {
     pickUp(d);
+    return;
+  }
+  const board = started && !naming && !flight && !sail && signAt(wx, wy);
+  if (board) {
+    e.preventDefault();
+    openBoard(board.shop);
     return;
   }
   pointer = p;

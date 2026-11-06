@@ -1,5 +1,6 @@
-// The hotbar at the bottom left holds every tool carried, in TOOLS order, and F uses the selected one; the bag (B)
-// shows everything carried: what's worn, the tools and the backpack, and uses what's in it.
+// The hotbar along the top holds every tool carried, in TOOLS order, and F uses the selected one. The backpack button
+// at the bottom left folds out the backpack's slots, and the bag (B) shows everything carried: what's worn, the tools
+// and the backpack, and uses what's in it.
 
 const hotbar = [];
 // The tool F works with.
@@ -8,6 +9,12 @@ let hand = null;
 const hotbarEl = document.getElementById('hotbar');
 const hotbarSlots = document.getElementById('hotbar-slots');
 const bagBtn = document.getElementById('bag-btn');
+const packEl = document.getElementById('pack');
+const packTray = document.getElementById('pack-tray');
+const packSlotsEl = document.getElementById('pack-slots');
+const packRoom = document.getElementById('pack-room');
+const packOpen = document.getElementById('pack-open');
+let trayOpen = localStorage.getItem('hw-tray') === '1';
 const iconUrls = {};
 const iconOf = (id) => SPR.icon[id] || SPR.ui[id];
 const iconUrl = (id) => (iconUrls[id] ||= iconOf(id).toDataURL());
@@ -62,13 +69,14 @@ function countTag(id) {
   return span;
 }
 
-// The bar and the bag button only appear once there's a backpack to keep things in.
+// The bar and the backpack button only appear once there's a backpack to keep things in.
 function renderInventory(changed) {
-  bagBtn.hidden = !has('backpack');
+  const worn = has('backpack');
+  packEl.hidden = !worn;
   syncHotbar();
   syncPack();
-  hotbarEl.hidden = bagBtn.hidden || !hotbar.length;
-  if (bagBtn.hidden) return;
+  hotbarEl.hidden = !worn || !hotbar.length;
+  if (!worn) return;
   if (!bagBtn.querySelector('img').src) bagBtn.querySelector('img').replaceWith(iconImg('backpack', 2));
   hotbarSlots.replaceChildren(...hotbar.map((id, i) => {
     const li = document.createElement('li');
@@ -93,14 +101,45 @@ function renderInventory(changed) {
   }));
   const room = `${held().length}/${packSize()}`;
   bagBtn.querySelector('span').textContent = room;
-  bagBtn.setAttribute('aria-label', `Bag, backpack ${room} full`);
+  bagBtn.setAttribute('aria-label', `Backpack, ${room} full`);
   bagBtn.classList.toggle('full', held().length >= packSize());
   if (changed && !hotbar.includes(changed) && ITEMS[changed] && inPack(changed)) {
     bagBtn.classList.remove('bump');
     void bagBtn.offsetWidth;
     bagBtn.classList.add('bump');
   }
+  renderTray(changed);
   if (bagOpen) renderBag();
+}
+
+// Every slot of the backpack, the empty ones too; picking a thing opens the bag on it.
+function renderTray(changed) {
+  packTray.hidden = !trayOpen;
+  bagBtn.setAttribute('aria-expanded', String(trayOpen));
+  if (!trayOpen) return;
+  packRoom.textContent = `${held().length}/${packSize()}`;
+  packSlotsEl.replaceChildren(...packSlots.map((id) => {
+    if (!id) return emptySlot();
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.item = id;
+    btn.append(iconImg(id, 2));
+    const n = countTag(id);
+    if (n) btn.append(n);
+    btn.title = ITEMS[id].name;
+    btn.setAttribute('aria-label', `${itemLabel(id)}, opens the bag`);
+    if (id === changed) li.classList.add('bump');
+    li.append(btn);
+    return li;
+  }));
+}
+
+function toggleTray(open = !trayOpen) {
+  trayOpen = open;
+  localStorage.setItem('hw-tray', open ? '1' : '0');
+  renderTray();
+  Sfx.drop();
 }
 
 hotbarSlots.addEventListener('click', (e) => {
@@ -111,8 +150,16 @@ hotbarSlots.addEventListener('click', (e) => {
 });
 
 bagBtn.addEventListener('click', () => {
-  toggleBag();
+  toggleTray();
   bagBtn.blur();
+});
+packOpen.addEventListener('click', () => {
+  packOpen.blur();
+  toggleBag(true);
+});
+packSlotsEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) toggleBag(true, btn.dataset.item);
 });
 
 // ---------- the bag ----------
@@ -132,22 +179,51 @@ let bagOpen = false;
 let bagPick = null;
 
 const OUTFIT_IDS = Object.keys(ITEMS).filter((id) => ITEMS[id].outfit);
-const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow'];
+const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow', 'featherLure', 'spinner', 'glowLure', 'goldenLure'];
 const tunicId = () => `tunic_${player.look.id}`;
 
-function toggleBag(open = !bagOpen) {
-  if (open && (!has('backpack') || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen)) return;
+// Opens on `pick` if given, else on the first tool or item.
+function toggleBag(open = !bagOpen, pick = null) {
+  if (open && (!has('backpack') || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || pileOpen)) return;
   bagOpen = open;
   bagEl.hidden = !open;
   document.body.classList.toggle('bag-open', open);
-  bagBtn.setAttribute('aria-expanded', String(open));
   keys.clear();
   Sfx.door();
   if (!open) return;
-  if (bagPick && !bagHas(bagPick)) bagPick = null;
-  bagPick ||= primary();
+  bagPick = pick;
   renderBag();
-  (bagEl.querySelector('[aria-pressed="true"]') || bagClose).focus();
+  (pick && cycleTile(pick) || bagCycle()[0] || bagClose).focus();
+}
+
+// The tools then the backpack's things, which the arrow keys and Tab step through, wrapping round.
+const bagCycle = () => [...bagTools.querySelectorAll('[data-pick]'), ...bagItems.querySelectorAll('[data-pick]')];
+const cycleTile = (id) => bagCycle().find((b) => b.dataset.pick === id);
+
+function stepFocus(step) {
+  const list = bagCycle();
+  if (!list.length) return;
+  const i = list.indexOf(document.activeElement);
+  list[i < 0 ? (step > 0 ? 0 : list.length - 1) : (i + step + list.length) % list.length].focus();
+}
+
+// Whatever has focus is the pick, without redrawing the tiles under it.
+function setPick(id) {
+  bagPick = id;
+  for (const b of bagEl.querySelectorAll('[data-pick]')) b.setAttribute('aria-pressed', String(b.dataset.pick === id));
+  renderPick();
+}
+
+// X drops one of the pick, Shift+X all of it; focus stays on its tile, or moves to the next one once it's gone.
+function dropPicked(all) {
+  const id = bagPick;
+  if (!ITEMS[id] || !inPack(id) || !has(id)) return;
+  const i = bagCycle().findIndex((b) => b.dataset.pick === id);
+  if (all) dropAll(id);
+  else dropItem(id);
+  renderBag();
+  const after = bagCycle();
+  (cycleTile(id) || after[Math.min(i, after.length - 1)] || bagClose).focus();
 }
 
 // The backpack's slots: each thing keeps its slot, new things take the first free one, null is an empty slot.
@@ -169,13 +245,13 @@ function syncPack() {
 const bagHas = (id) => id === tunicId() || has(id);
 
 // One tile: a button with the icon and count, pressed while it's the bag's pick.
-function bagTile(id, { locked = false, note = '' } = {}) {
+function bagTile(id, note = '') {
   const li = document.createElement('li');
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.dataset.pick = id;
   btn.append(iconImg(id));
-  const n = ITEMS[id] && !locked && countTag(id);
+  const n = ITEMS[id] && countTag(id);
   if (n) btn.append(n);
   if (ITEMS[id] && hotbar.includes(id)) {
     const k = document.createElement('b');
@@ -184,10 +260,9 @@ function bagTile(id, { locked = false, note = '' } = {}) {
     btn.append(k);
   }
   const name = id === tunicId() ? 'Tunic' : ITEMS[id].name;
-  btn.setAttribute('aria-label', `${locked ? `${name}, not made yet` : ITEMS[id] ? itemLabel(id) : name}${note}`);
-  btn.title = locked ? `${name} (not made yet)` : name;
+  btn.setAttribute('aria-label', `${ITEMS[id] ? itemLabel(id) : name}${note}`);
+  btn.title = name;
   btn.setAttribute('aria-pressed', String(id === bagPick));
-  if (locked) li.classList.add('locked');
   li.append(btn);
   return li;
 }
@@ -200,12 +275,13 @@ function emptySlot() {
 }
 
 function renderBag() {
+  if (bagPick && !bagHas(bagPick)) bagPick = null;
   const g = bagHero.getContext('2d');
   g.clearRect(0, 0, bagHero.width, bagHero.height);
   g.drawImage(charSprite(player.look, 'down', Math.floor(time * 4) % 4 === 1 ? 1 : 0), 0, 0);
   const worn = outfit || tunicId();
-  bagOutfits.replaceChildren(...[tunicId(), ...OUTFIT_IDS].map((id) => {
-    const li = bagTile(id, { locked: !bagHas(id), note: id === worn ? ', wearing' : '' });
+  bagOutfits.replaceChildren(...[tunicId(), ...OUTFIT_IDS.filter(has)].map((id) => {
+    const li = bagTile(id, id === worn ? ', wearing' : '');
     li.classList.toggle('worn', id === worn);
     return li;
   }));
@@ -226,24 +302,23 @@ function renderPick() {
     bagWhat.textContent = 'Pick something to see what you can do with it.';
     return;
   }
-  const btn = (label, act) => {
+  // `use` marks what Enter does from the tile: anything but dropping
+  const btn = (label, act, use = true) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = label;
+    if (use) b.dataset.use = '';
     b.addEventListener('click', () => {
       act();
       renderBag();
-      (bagActions.querySelector('button') || bagEl.querySelector(`[data-pick="${CSS.escape(id)}"]`) || bagClose).focus();
+      (bagEl.querySelector(`[data-pick="${CSS.escape(id)}"]`) || bagCycle()[0] || bagClose).focus();
     });
     bagActions.append(b);
   };
   if (id === tunicId() || ITEMS[id].outfit) {
-    const owned = bagHas(id);
     const name = id === tunicId() ? 'Your tunic' : ITEMS[id].name;
-    const recipe = RECIPES.find((r) => r.item === id);
-    bagWhat.textContent = !owned ? `${name}. The ${recipe.maker} sews one from ${listNeeds(recipe.needs)}.`
-      : `${name}. ${OUTFIT_NOTE[id] || ''}${(outfit || tunicId()) === id ? ' You have it on.' : ''}`;
-    if (owned && (outfit || tunicId()) !== id) btn('WEAR', () => wear(id === tunicId() ? null : id));
+    bagWhat.textContent = `${name}. ${OUTFIT_NOTE[id] || ''}${(outfit || tunicId()) === id ? ' You have it on.' : ''}`;
+    if ((outfit || tunicId()) !== id) btn('WEAR', () => wear(id === tunicId() ? null : id));
     else if (outfit === id) btn('TAKE OFF', () => wear(null));
   } else {
     const where = ITEMS[id].worn ? 'Worn, so it takes no backpack slot.'
@@ -265,8 +340,10 @@ function renderPick() {
       else bagWhat.textContent += ' Stand by a grown dragon and open the bag to strap it on.';
     }
     if (id === 'runeNote') btn('READ', () => toggleBag(false) || toggleNote(true));
+    if (LURES[id]) bagWhat.textContent += ` ${LURES[id].note} Cast with the rod to pick a lure; it's used up when you land a fish.`;
     if (id === 'mapPiece') bagWhat.textContent += ` Each piece marks a dragon egg on your map (${bag.mapPiece}/${EGG_MARKS.length}).`;
-    if (inPack(id) && has(id)) btn('DROP', () => dropItem(id));
+    if (inPack(id) && has(id)) btn('DROP', () => dropItem(id), false);
+    if (inPack(id) && bag[id] > 1) btn('DROP ALL', () => dropAll(id), false);
   }
 }
 
@@ -274,10 +351,13 @@ bagEl.addEventListener('click', (e) => {
   if (e.target === bagEl) return toggleBag(false);
   const t = e.target.closest('[data-pick]');
   if (!t) return;
-  bagPick = t.dataset.pick;
   Sfx.drop();
-  renderBag();
-  bagEl.querySelector(`[data-pick="${CSS.escape(bagPick)}"]`)?.focus();
+  setPick(t.dataset.pick);
+  t.focus();
+});
+bagEl.addEventListener('focusin', (e) => {
+  const t = e.target.closest('[data-pick]');
+  if (t && t.dataset.pick !== bagPick) setPick(t.dataset.pick);
 });
 bagClose.addEventListener('click', () => toggleBag(false));
 
@@ -285,9 +365,19 @@ bagClose.addEventListener('click', () => toggleBag(false));
 window.addEventListener('keydown', (e) => {
   if (!bagOpen) return;
   e.stopImmediatePropagation();
+  const step = e.code === 'Tab' ? (e.shiftKey ? -1 : 1) : { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.code];
   if (e.code === 'Escape' || e.code === 'KeyB') {
     e.preventDefault();
     toggleBag(false);
+  } else if (step) {
+    e.preventDefault();
+    stepFocus(step);
+  } else if (e.code === 'KeyX' && !e.repeat) {
+    e.preventDefault();
+    dropPicked(e.shiftKey);
+  } else if ((e.code === 'Enter' || e.code === 'NumpadEnter') && document.activeElement?.dataset.pick) {
+    e.preventDefault();
+    bagActions.querySelector('[data-use]')?.click();
   }
 });
 

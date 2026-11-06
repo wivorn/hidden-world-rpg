@@ -1986,6 +1986,60 @@ function buildRock(big) {
 
 // ---------- props ----------
 
+// A shop's board on two posts; the shop's emblem is painted on afterwards (`drawSignEmblem`).
+function buildShopSign() {
+  return sprite(24, 32, (g) => {
+    for (const x of [4, 18]) {
+      rect(g, x, 18, 2, 14, PAL.woodDark);
+      px(g, x, 18, PAL.wood);
+    }
+    rect(g, 0, 0, 24, 21, '#4a3018');
+    rect(g, 1, 1, 22, 19, '#c49a62');
+    rect(g, 1, 1, 22, 1, '#e0b880');
+    rect(g, 1, 19, 22, 1, '#9a7240');
+    for (const y of [7, 13]) rect(g, 2, y, 20, 1, '#b48a54');
+    for (const [x, y] of [[2, 2], [21, 2], [2, 18], [21, 18]]) px(g, x, y, '#4a3018');
+  });
+}
+
+function drawSignEmblem(g, x, y, o) {
+  const img = SPR.icon[SHOPS[o.shop]?.emblem];
+  if (img) g.drawImage(img, Math.round(x - img.width / 2), Math.round(y - 21 - img.height / 2));
+}
+
+// The fisher's shack on the harbour beach: driftwood planks under a turf roof, the day's catch hung by the hatch
+// and a net drying on the wall.
+function buildFishShack() {
+  return sprite(52, 46, (g) => {
+    rect(g, 6, 20, 40, 24, '#7a5530');
+    for (let x = 6; x < 46; x += 5) rect(g, x, 20, 1, 24, '#5e3f22');
+    rect(g, 5, 43, 42, 3, '#4a3018');
+    poly(g, [[0, 23], [26, 2], [52, 23]], '#4a3018');
+    poly(g, [[3, 22], [26, 4], [49, 22]], '#5f7f36');
+    poly(g, [[3, 22], [26, 4], [26, 9], [9, 22]], '#7a9a44');
+    for (const [x, y] of [[14, 16], [22, 10], [34, 14], [40, 19], [28, 18]]) px(g, x, y, '#94b45a');
+    rect(g, 0, 22, 52, 2, '#4a3018');
+    line(g, 21, 0, 26, 5, '#a07040');
+    line(g, 31, 0, 26, 5, '#a07040');
+    rect(g, 31, 29, 10, 15, '#2a1a10');
+    rect(g, 30, 28, 12, 1, '#5e3f22');
+    rect(g, 39, 36, 1, 2, '#c8a060');
+    rect(g, 9, 28, 16, 8, '#2a1a10');
+    rect(g, 8, 36, 18, 2, '#a07040');
+    rect(g, 8, 26, 18, 1, '#5e3f22');
+    for (const [x, c] of [[12, '#8fa8b8'], [17, '#c8a060'], [22, '#8fa8b8']]) {
+      px(g, x, 27, '#e8e0c8');
+      rect(g, x - 1, 28, 3, 5, c);
+      px(g, x, 33, c);
+      px(g, x - 1, 34, c);
+      px(g, x + 1, 34, c);
+      px(g, x, 29, '#22160f');
+    }
+    for (let y = 30; y < 43; y += 3) line(g, 43, y, 47, y + 2, '#d8c89a');
+    for (let x = 43; x < 47; x += 2) line(g, x, 29, x, 43, '#d8c89a');
+  });
+}
+
 function buildBarrel() {
   return sprite(14, 18, (g) => {
     for (let y = 3; y < 16; y++) {
@@ -2732,6 +2786,63 @@ function buildLure() {
     line(g, 5, 12, 7, 11, '#c9ccd4');
     px(g, 8, 10, '#c9ccd4');
     px(g, 3, 8, '#c8322a');
+  });
+}
+
+// The fisher's lures, all on the same line and hook as the golden one: a tuft of feathers, a silver blade, a glow bulb.
+function buildLureKind(kind) {
+  return sprite(10, 14, (g) => {
+    line(g, 5, 0, 5, 3, '#e8e0c8');
+    if (kind === 'feather') {
+      poly(g, [[5, 3], [2, 10], [5, 8]], '#c8322a');
+      poly(g, [[5, 3], [8, 10], [5, 8]], '#f4efe2');
+      rect(g, 4, 3, 2, 3, '#5a3a22');
+    } else if (kind === 'spinner') {
+      ellipse(g, 5, 6, 2.5, 3.5, '#9aa4b4');
+      ellipse(g, 4.5, 5.5, 1.2, 2.2, '#e8eef8');
+      px(g, 6, 8, '#5a6474');
+    } else {
+      ellipse(g, 5, 6, 3, 3, '#1a6a6a');
+      ellipse(g, 5, 6, 2, 2, '#5affd8');
+      px(g, 4, 5, '#d8fff4');
+    }
+    line(g, 5, 10, 5, 12, '#c9ccd4');
+    line(g, 5, 12, 7, 11, '#c9ccd4');
+    px(g, 8, 10, '#c9ccd4');
+  });
+}
+
+// A fish from the very bottom of the deep: big jaw, a row of teeth and a little lantern on a stalk.
+function buildAnglerfish() {
+  return sprite(17, 12, (g) => {
+    poly(g, [[12, 7], [16, 4], [16, 10]], '#2a2230');
+    ellipse(g, 7, 7, 6, 4, '#4a3a4e');
+    ellipse(g, 7, 9, 4, 1.5, '#6a5a6a');
+    for (const x of [2, 4, 6]) px(g, x, 8, '#f4efe2');
+    rect(g, 1, 7, 6, 1, '#1a141e');
+    line(g, 6, 3, 4, 0, '#6a5a6a');
+    px(g, 3, 0, '#a8ffe8');
+    px(g, 2, 1, '#5affd8');
+    px(g, 4, 5, '#ffe080');
+  });
+}
+
+function buildBread() {
+  return sprite(14, 9, (g) => {
+    ellipse(g, 7, 5, 6, 3.5, '#8a5a2a');
+    ellipse(g, 7, 4, 5.5, 2.8, '#c08a4a');
+    for (const x of [4, 7, 10]) line(g, x - 1, 3, x + 1, 5, '#8a5a2a');
+    px(g, 5, 2, '#e8c08a');
+  });
+}
+
+function buildHoneyCake() {
+  return sprite(12, 10, (g) => {
+    rect(g, 1, 4, 10, 5, '#c88a3a');
+    rect(g, 1, 6, 10, 1, '#f4e0b0');
+    ellipse(g, 6, 4, 5, 1.5, '#f2b01a');
+    for (const [x, h] of [[3, 2], [6, 3], [9, 2]]) rect(g, x, 4, 1, h, '#f2b01a');
+    px(g, 5, 3, '#fff0a0');
   });
 }
 
@@ -4184,6 +4295,13 @@ function buildSprites() {
     eel: buildFishKind({ body: '#d8502a', belly: '#ffc040', fin: '#8a2a14', len: 8, tall: 1.6, spots: [[6, 1], [10, 1], [14, 1]] }),
     cavefish: buildFishKind({ body: '#e8d4d4', belly: '#fff4f4', fin: '#c8a8b0', len: 4, tall: 2.5, eye: false }),
     goldenFish: buildFishKind({ body: '#f2c03a', belly: '#fff0a0', fin: '#c88a1a', len: 5, tall: 3, shine: '#ffffff' }),
+    mackerel: buildFishKind({ body: '#3e7a8a', belly: '#d8e8e8', fin: '#24505e', len: 6, tall: 2.5, spots: [[5, 1], [7, 2], [9, 1], [11, 2]] }),
+    salmon: buildFishKind({ body: '#a8a0a4', belly: '#f4a890', fin: '#6a6268', len: 7, tall: 3, spots: [[6, 2], [9, 2], [12, 3]] }),
+    anglerfish: buildAnglerfish(),
+    emberKoi: buildFishKind({ body: '#ff7a2a', belly: '#ffe0a0', fin: '#c83a14', len: 5, tall: 3, spots: [[5, 2], [8, 3], [10, 2]], shine: '#fff0c0' }),
+    crystalFish: buildFishKind({ body: '#bfe8f4', belly: '#f4ffff', fin: '#7ac8e0', len: 5, tall: 2.5, shine: '#ffffff' }),
+    featherLure: buildLureKind('feather'), spinner: buildLureKind('spinner'), glowLure: buildLureKind('glow'), goldenLure: buildLure(),
+    bread: buildBread(), honeyCake: buildHoneyCake(),
     arrow: buildArrowIcon(), feather: buildFeather(), torch: buildTorchIcon(), gold: buildGoldNugget(), mushroom: buildGlowcapIcon(),
     lure: buildLure(), sail: buildSailIcon(), silver: buildCoin(), goldCoin: buildCoin(['#b07a1e', '#f2c94a', '#fff6c8']), copper: buildCoin(['#7a3e1c', '#c97a42', '#f4c8a0']), meat: buildMeat(false), roast: buildMeat(true),
     hide: buildHide(), satchel: buildSatchel(), pouch: buildPouch(), toolBelt: buildToolBelt(), saddle: buildSaddleIcon(),
@@ -4249,6 +4367,7 @@ function buildSprites() {
   def('chestOpen', { img: buildChest(true), foot: { w: 16, h: 6 } });
   def('throne', { img: buildThrone(), foot: { w: 22, h: 8 } });
   def('backpack', { img: SPR.icon.backpack, shadow: { rx: 5, ry: 2 } });
+  def('toolBelt', { img: SPR.icon.toolBelt, shadow: { rx: 7, ry: 2 } });
   const wallMap = buildWallMap();
   def('wallMap', { img: wallMap, oy: wallMap.height + 3 });
   def('bushPink', { img: buildBush('#f25c9a'), foot: { w: 12, h: 4 } });
@@ -4256,6 +4375,8 @@ function buildSprites() {
   def('rock', { img: buildRock(true) });
   def('stone', { img: buildRock(false), foot: { w: 10, h: 4 } });
   def('barrel', { img: buildBarrel(), foot: { w: 12, h: 6 }, shadow: { rx: 6, ry: 2 } });
+  def('shopSign', { img: buildShopSign(), foot: { w: 20, h: 3 }, shadow: { rx: 10, ry: 2 }, after: (g, x, y, t, o) => drawSignEmblem(g, x, y, o) });
+  def('fishShack', { img: buildFishShack(), foot: { w: 46, h: 12 }, shadow: { rx: 26, ry: 4 }, door: { dx: 10, w: 10 } });
   def('fenceH', { img: buildFence(false), foot: { w: 16, h: 4 } });
   def('fenceV', { img: buildFence(true), foot: { w: 4, h: 16 } });
   def('post', { img: buildPost(), foot: { w: 4, h: 4 } });

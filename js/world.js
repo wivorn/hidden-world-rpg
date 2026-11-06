@@ -488,7 +488,7 @@ const ROOMS = {
     name: 'your house', w: 10, h: 6,
     wall: [['window', 1.5], ['shelf', 7.5], ['shield', 9.4]],
     rugs: [[2.5, 3, 4, 2.4, '#a8432f']],
-    furniture: [['bed', 1, 2.1], ['hearth', 4.5, 0.2], ['backpack', 2.4, 1.6], ['table', 7, 3.9], ['stool', 5.6, 3.7], ['stool', 8.4, 3.7], ['chest', 9.2, 1], ['barrel', 0.6, 5.7]],
+    furniture: [['bed', 1, 2.1], ['hearth', 4.5, 0.2], ['backpack', 2.4, 1.6], ['toolBelt', 3.4, 1.7], ['table', 7, 3.9], ['stool', 5.6, 3.7], ['stool', 8.4, 3.7], ['chest', 9.2, 1], ['barrel', 0.6, 5.7]],
   },
   cottage: {
     name: 'the cottage', w: 8, h: 5,
@@ -510,7 +510,7 @@ const ROOMS = {
     name: 'the forge', w: 8, h: 5,
     wall: [['rack', 1.5], ['window', 4], ['rack', 6.5]],
     rugs: [],
-    furniture: [['hearth', 4, 0.2], ['anvil', 4, 2.8], ['vat', 6.9, 1.4], ['table', 1.5, 1.6], ['barrel', 0.6, 4.6], ['sacks', 7.2, 4.7]],
+    furniture: [['bed', 7, 2.1], ['hearth', 4, 0.2], ['anvil', 4, 2.8], ['vat', 2.4, 4.5], ['table', 1.5, 1.6], ['barrel', 0.6, 4.6], ['sacks', 7.2, 4.7]],
   },
   hut: {
     name: 'the hermit\'s hut', w: 6, h: 4,
@@ -589,6 +589,12 @@ const ROOMS = {
     furniture: [['bed', 0.9, 2.1], ['hearth', 3.5, 0.2], ['logPile', 5.6, 1.6], ['stool', 4.8, 3]],
   },
   fireCave: { name: 'the fire cave', cave: true, fire: true, w: 34, h: 46, wall: [], rugs: [], furniture: [] },
+  fishShack: {
+    name: 'the fisherman\'s shack', w: 6, h: 4,
+    wall: [['window', 1.5], ['rack', 4.5]],
+    rugs: [[2.2, 2.2, 2.4, 1.5, '#3b5c6c']],
+    furniture: [['bed', 0.9, 2.1], ['barrel', 5.4, 3.7], ['barrel', 4.5, 3.9], ['sacks', 5.3, 1.4], ['stool', 3.4, 2.6]],
+  },
 };
 
 // The ice cave is a maze of cells `pitch` tiles apart; the mouth opens under the `entry` cell of the bottom row,
@@ -1651,6 +1657,8 @@ function addAbs(key, tx, ty) {
 const addObj = (key, tx, ty) => addAbs(key, tx + OX, ty + OY);
 // A trader's house and stall, placed so the counter's middle lands on (sx, sy).
 const shopAt = (key, sx, sy, room) => { addObj(key, sx - SPR[key].stall / TILE, sy).room = room; };
+// The board by a shop that lists what's made there; `shop` keys into SHOPS.
+const signBy = (shop, x, y) => { addObj('shopSign', x, y).shop = shop; };
 
 const SOIL = {
   snowPine: [T.SNOW, T.ROCK], palm: [T.SAND, T.GRASS, T.JUNGLE], fern: [T.GRASS, T.SAND, T.JUNGLE], jungleTree: [T.JUNGLE], deadTree: [T.ASH],
@@ -1699,17 +1707,17 @@ const VILLAGE_NPCS = [
     nightLines: ['The forge is banked for the night, but I can still make you something. Just ask.', 'Late one, {lad}. Even hot iron has to cool some time.', 'Best light in the village, these coals.', 'Heading out in the dark? Bring me 1 wood and 1 wool and I\'ll make you a torch.'],
   },
   {
-    look: 'baker', x: 69.5, y: 65.5, job: { station: [67, 65.5], face: 'left', prop: 'oven' },
+    look: 'baker', x: 69.5, y: 68.6, job: { station: [67, 68.6], face: 'left', prop: 'oven' },
     lines: ['Fresh bread! Still warm.', 'I bake rye loaves, honey cakes and berry pies.', 'Mind the oven, dear. It bites!', 'The best berries grow on the bushes in the forest.'],
     nightLines: ['The oven\'s still warm. I\'m setting the dough for the morning.', 'Up late, dear? The first loaves come out at dawn.', 'Night baking is the best baking. Nobody pinching the buns.', 'Mind the oven in the dark, dear. It still bites!'],
   },
   {
-    look: 'weaver', x: 72, y: 53.5, job: { station: [74.3, 53.5], face: 'right', prop: 'loom' },
+    look: 'weaver', x: 72, y: 51.9, job: { station: [74.3, 51.9], face: 'right', prop: 'loom' },
     lines: ['Wool in, cloth out. Clack, clack!', 'I can weave you linen or wool, in any colour you like.', 'The shepherd\'s sheep give me the softest wool.'],
     nightLines: ['Weaving by firelight. My eyes aren\'t what they were.', 'One more row, then bed. ...I said that an hour ago.', 'The sheep are all asleep. Lucky things.'],
   },
   {
-    look: 'seamstress', x: 84.5, y: 53.5, job: { station: [81.7, 53.5], face: 'left', prop: 'dressForm' },
+    look: 'seamstress', x: 84.5, y: 51.9, job: { station: [81.7, 51.9], face: 'left', prop: 'dressForm' },
     lines: ['Every stitch by hand, dear.', 'I can sew you a tunic, a dress or a warm cloak.', 'Hold still, I\'m measuring you with my eyes.', 'Going up the mountain pass? Take a warm cloak, it snows up there all year.'],
     nightLines: ['Can\'t see my stitches in this light! I\'ll finish in the morning.', 'A warm cloak is just the thing on a chilly night, dear.', 'Out late? Mind you don\'t snag your sleeve in the dark.'],
   },
@@ -1762,8 +1770,8 @@ const NPCS = [
   },
   {
     look: 'mom', ...xy(roomSpot(ROOMS.home, 5.8, 2.4)), roam: 1.2, stays: true,
-    lines: ['Don\'t forget your backpack when you go out!', 'Your backpack is by your bed, sweetheart.', 'Breakfast is on the table if you\'re hungry.'],
-    nightLines: ['Your backpack is by your bed, sweetheart.', 'It\'s dark out! Adventures can wait for the morning.', 'There\'s stew keeping warm by the fire.'],
+    lines: ['Your backpack and your father\'s old tool belt are by your bed. Take them both!', 'Don\'t forget your backpack when you go out!', 'Breakfast is on the table if you\'re hungry.'],
+    nightLines: ['Your backpack and tool belt are by your bed, sweetheart.', 'It\'s dark out! Adventures can wait for the morning.', 'There\'s stew keeping warm by the fire.'],
   },
   // the travelling merchant waits out of the world until his ship docks
   {
@@ -1808,22 +1816,28 @@ function placeObjects() {
   addObj('forge', 58.5, 58).room = 'smithy';
   addObj('anvil', 61.6, 59.6);
   addObj('barrel', 64.2, 58.6);
+  signBy('smith', 65.6, 58.6);
   shopAt('shopTanner', 60.5, 64.6, 'tannery');
   addObj('hideFrame', 63.5, 63.9);
   addObj('vat', 62.9, 66.3);
+  signBy('tanner', 64.6, 65.4);
 
   // the market round the square: each trader lives in the house behind their stall
-  shopAt('shopWeaver', 72, 54.5, 'weaverHouse');
-  addObj('loom', 75.6, 53.8);
-  shopAt('shopSeamstress', 84.5, 54.5, 'seamstressHouse');
-  addObj('dressForm', 80.9, 53.7);
-  shopAt('shopBaker', 69.5, 66.5, 'bakery');
-  addObj('oven', 65.6, 65.8);
-  addObj('sacks', 65.4, 67.6);
+  shopAt('shopWeaver', 72, 52.9, 'weaverHouse');
+  addObj('loom', 75.6, 52.2);
+  signBy('weaver', 73.9, 53.9);
+  shopAt('shopSeamstress', 84.5, 52.9, 'seamstressHouse');
+  addObj('dressForm', 80.9, 52.1);
+  signBy('seamstress', 83.1, 53.9);
+  shopAt('shopBaker', 69.5, 69.6, 'bakery');
+  addObj('oven', 65.6, 68.9);
+  addObj('sacks', 65.4, 70.7);
+  signBy('baker', 67.2, 70.7);
   // the carpenter's, out in the open south-east of the square
   shopAt('shopCarpenter', 94, 68.5, 'workshop');
   addObj('workbench', 90.4, 68.4);
   addObj('logPile', 89.4, 70.6);
+  signBy('carpenter', 92.3, 70.2);
   addObj('bonfire', 78.5, 60);
   addObj('bannerBlue', 75.5, 56.7);
   addObj('bannerBlue', 81.5, 56.7);
@@ -1892,8 +1906,10 @@ function placeObjects() {
   addObj('bannerRed', 74.3, 92.8);
   addObj('bannerRed', 82.7, 92.8);
 
-  // the harbour
-  addObj('barrel', 75.8, 97.6);
+  // the harbour, with the fisher's shack on the beach by the jetty
+  addObj('fishShack', 76, 97.9).room = 'fishShack';
+  signBy('fisher', 77.9, 98.8);
+  addObj('barrel', 78.3, 96.7);
   addObj('barrel', 83.2, 97.4);
   addObj('sacks', 84.4, 97.8);
   addObj('ship', 85.6, 102.5).dir = 'right';

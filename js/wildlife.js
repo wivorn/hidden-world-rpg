@@ -1,20 +1,20 @@
 // Wild animals: deer, boar and rabbits to hunt for meat, foxes, goats and frogs that just live here, and the snakes
 // that lie in wait in the jungle maze. Hedgehogs, badgers, wolves, owls and bats only come out at night.
 
-// `hp`, `meat` and `hide` only for game animals. Speeds in px/s; `shy` is how close the player can get before it bolts,
+// `hp`, `meat` and `hide` only for game animals; the bigger the beast, the more hides. Speeds in px/s; `shy` is how close the player can get before it bolts,
 // `range` how far from home it wanders, `box` the half-width an arrow or blade has to land within.
 const WILD = {
-  deer: { name: 'deer', hp: 2, meat: 2, hide: 1, walk: 20, run: 100, shy: 72, alert: 120, range: 64, box: 10, tiles: [T.GRASS, T.DIRT], call: 'snort', every: [14, 30] },
-  boar: { name: 'boar', hp: 4, meat: 3, hide: 1, walk: 14, run: 70, charge: 95, shy: 0, range: 48, box: 9, tiles: [T.GRASS, T.DIRT, T.JUNGLE], call: 'grunt', every: [6, 14] },
-  rabbit: { name: 'rabbit', hp: 1, meat: 1, walk: 28, run: 105, shy: 48, range: 40, box: 5, tiles: [T.GRASS], hops: true },
+  deer: { name: 'deer', hp: 2, meat: 2, hide: 2, walk: 20, run: 100, shy: 72, alert: 120, range: 64, box: 10, tiles: [T.GRASS, T.DIRT], call: 'snort', every: [14, 30] },
+  boar: { name: 'boar', hp: 4, meat: 3, hide: 2, walk: 14, run: 70, charge: 95, shy: 0, range: 48, box: 9, tiles: [T.GRASS, T.DIRT, T.JUNGLE], call: 'grunt', every: [6, 14] },
+  rabbit: { name: 'rabbit', hp: 1, meat: 1, hide: 1, walk: 28, run: 105, shy: 48, range: 40, box: 5, tiles: [T.GRASS], hops: true },
   fox: { name: 'fox', walk: 22, run: 90, shy: 40, watch: 90, range: 64, box: 7, tiles: [T.SNOW, T.GRASS, T.ROCK], call: 'yip', every: [16, 34] },
   goat: { name: 'goat', walk: 12, run: 70, shy: 34, range: 44, box: 7, tiles: [T.ROCK, T.GRASS, T.SNOW], call: 'bleat', every: [10, 24] },
   frog: { name: 'frog', walk: 34, shy: 26, range: 14, box: 4, tiles: [T.GRASS, T.JUNGLE, T.SAND, T.DIRT], hops: true, call: 'croak', every: [5, 12] },
-  sealion: { name: 'sea lion', hp: 2, meat: 3, hide: 1, box: 11 },
+  sealion: { name: 'sea lion', hp: 2, meat: 3, hide: 3, box: 11 },
   snake: { name: 'snake', hp: 1, meat: 0, walk: 10, lunge: 40, strike: 170, shy: 0, range: 28, box: 7, tiles: [T.JUNGLE] },
   hedgehog: { name: 'hedgehog', walk: 9, shy: 30, range: 36, box: 5, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [7, 14] },
   badger: { name: 'badger', hp: 3, meat: 2, hide: 1, walk: 15, run: 72, shy: 56, range: 52, box: 8, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [10, 20] },
-  wolf: { name: 'wolf', hp: 4, meat: 3, hide: 2, walk: 24, run: 115, shy: 70, watch: 150, range: 80, box: 11, tiles: [T.GRASS, T.SNOW, T.ROCK], night: true, call: 'howl', every: [22, 30] },
+  wolf: { name: 'wolf', hp: 4, meat: 3, hide: 3, walk: 24, run: 115, shy: 70, watch: 150, range: 80, box: 11, tiles: [T.GRASS, T.SNOW, T.ROCK], night: true, call: 'howl', every: [22, 30] },
   owl: { name: 'owl', shy: 44, range: 0, box: 5, night: true, call: 'hoot', every: [8, 16] },
   bat: { name: 'bat', fly: 55, range: 90, box: 5, tiles: [T.GRASS, T.DIRT, T.PATH, T.SAND, T.ROCK], night: true, call: 'squeak', every: [5, 12] },
 };
@@ -586,7 +586,7 @@ function animalAt(x, y) {
 
 function strikePrey(a, tool) {
   if (!alive(a) || Math.hypot(a.x - player.x, a.y - player.y) > (tool === 'spear' ? 36 : 28)) return;
-  hurtAnimal(a, MELEE[tool]);
+  hurtAnimal(a, MELEE[tool] + tierOf(tool));
 }
 
 function hurtAnimal(a, dmg) {
