@@ -71,6 +71,8 @@ player.dir = 'up';
 player.stroke = 0;
 player.sprinting = false;
 player.running = false;
+player.stamina = 1;
+player.winded = false;
 
 const npcs = NPCS.map((d) => Object.assign(makeEntity(LOOKS[d.look], d.x * TILE, d.y * TILE), {
   home: { x: d.x * TILE, y: d.y * TILE },
@@ -107,6 +109,13 @@ const sheep = SHEEP.map((s) => ({
 initHens();
 initTrade();
 initCave();
+initRuin();
+initDunes();
+initTinker();
+initBuild();
+initIce();
+initPeak();
+initRoost();
 initWildlife();
 
 const cloudRng = mulberry32(42);
@@ -124,7 +133,7 @@ function blocked(x0, y0, x1, y1, self, swim = false) {
     for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x1 - 0.001) / TILE); tx++) {
       if (!inBounds(tx, ty)) return true;
       const t = tileAt(tx, ty);
-      if (isWet(t) ? !swim : isSolidTile(t)) return true;
+      if (isWet(t) ? !swim || isReef(tx, ty) : isSolidTile(t)) return true;
     }
   }
   if (solidAt(x0, y0, x1, y1)) return true;
@@ -180,6 +189,44 @@ function faceToward(e, dx, dy) {
 
 const boosting = () => keys.has('ShiftLeft') || keys.has('ShiftRight');
 
+// Sprinting with SHIFT, on foot or in the water, wears the player out: a full bar lasts STAMINA_RUN seconds.
+// Walking gets the breath back slowly and standing still faster. Run it right down and there's no more sprinting
+// until the bar is back to WINDED.
+const STAMINA_RUN = 7;
+const STAMINA_WALK = 9;
+const STAMINA_REST = 4;
+const WINDED = 0.35;
+const staminaEl = document.getElementById('stamina');
+const canSprint = () => boosting() && !player.winded;
+let staminaShown = -1;
+
+function updateStamina(dt, sprinting, moving) {
+  if (sprinting) player.stamina = Math.max(0, player.stamina - dt / STAMINA_RUN);
+  else player.stamina = Math.min(1, player.stamina + dt / (moving ? STAMINA_WALK : STAMINA_REST));
+  if (player.stamina <= 0 && !player.winded) {
+    player.winded = true;
+    muse('Phew... I need to catch my breath.');
+  }
+  if (player.winded && player.stamina >= WINDED) player.winded = false;
+  renderStamina();
+}
+
+function restStamina(k) {
+  player.stamina = Math.min(1, player.stamina + k);
+  if (player.stamina >= WINDED) player.winded = false;
+  renderStamina();
+}
+
+function renderStamina() {
+  const v = Math.round(player.stamina * 100);
+  if (v === staminaShown && staminaEl.classList.contains('winded') === player.winded) return;
+  staminaShown = v;
+  staminaEl.style.setProperty('--stamina', player.stamina.toFixed(3));
+  staminaEl.setAttribute('aria-valuenow', v);
+  staminaEl.classList.toggle('winded', player.winded);
+  staminaEl.classList.toggle('full', v >= 100);
+}
+
 function readInput() {
   let ix = 0;
   let iy = 0;
@@ -203,6 +250,11 @@ function jump() {
   if (player.swimming || player.jumpT >= 0) return;
   Sfx.jump();
   const over = fenceHopSpot();
+  if (over && over.log && !player.running) {
+    player.jumpT = 0;
+    muse('Too big to hop from standing still. With a run-up, maybe?');
+    return;
+  }
   if (over) {
     startHop(over.x, over.y, 0, 0, () => {
       player.flying = false;
@@ -211,6 +263,8 @@ function jump() {
     });
     return;
   }
+  const lava = lavaSpot();
+  if (lava) return jumpInLava(lava);
   const spot = diveSpot();
   if (!spot) {
     player.jumpT = 0;
@@ -229,19 +283,20 @@ function jump() {
 
 // Where a jump from the shore edge would land in the sea, or null when not at an edge.
 // A fence right in front of the player, and clear ground just beyond it to land on.
-const FENCES = new Set(['fenceH', 'fenceV', 'post']);
+const FENCES = new Set(['fenceH', 'fenceV', 'post', 'fallenLog']);
 function fenceHopSpot() {
   if (indoors || player.swimming || player.flying || hop || sail) return null;
   const [vx, vy] = DIR_VEC[player.dir];
   const near = objects.filter((o) => FENCES.has(o.key) && !o.col.off && Math.abs(o.x - player.x) < 32 && Math.abs(o.y - player.y) < 32);
-  const hits = (x, y) => near.some(({ col: c }) => x + 5 > c.x0 && x - 5 < c.x1 && y > c.y0 && y - 4 < c.y1);
+  const hitBy = (x, y) => near.find(({ col: c }) => x + 5 > c.x0 && x - 5 < c.x1 && y > c.y0 && y - 4 < c.y1);
   let d = 1;
-  while (d <= 6 && !hits(player.x + vx * d, player.y + vy * d)) d++;
+  while (d <= 6 && !hitBy(player.x + vx * d, player.y + vy * d)) d++;
   if (d > 6) return null;
+  const log = hitBy(player.x + vx * d, player.y + vy * d).key === 'fallenLog';
   for (d += 2; d <= 30; d += 2) {
     const x = player.x + vx * d;
     const y = player.y + vy * d;
-    if (!hits(x, y) && canStand(player, x, y)) return { x, y };
+    if (!hitBy(x, y) && canStand(player, x, y)) return { x, y, log };
   }
   return null;
 }
@@ -262,6 +317,61 @@ function diveSpot() {
     if (wet && !blocked(x - 5, y - 4, x + 5, y, player, true)) return { x, y };
   }
   return null;
+}
+
+// Lava just ahead of the player on the volcano's shore, close enough to jump into.
+function lavaSpot() {
+  if (indoors || player.trek || hop) return null;
+  let [vx, vy] = readInput();
+  if (!vx && !vy) [vx, vy] = DIR_VEC[player.dir];
+  for (let d = 4; d <= 28; d += 2) {
+    const x = player.x + vx * d;
+    const y = player.y + vy * d;
+    const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
+    if (t === T.LAVA) return { x: player.x + vx * (d + 6), y: player.y + vy * (d + 6) };
+    if (t !== T.ASH && t !== T.ROCK) return null;
+  }
+  return null;
+}
+
+// In with a jump, then straight back out again in a cloud of smoke, singed and none the wiser.
+function jumpInLava(spot) {
+  const from = { x: player.x, y: player.y };
+  startHop(spot.x, spot.y, 0, 0, () => {
+    lavaSplash(player.x, player.y);
+    player.smokeT = 2.8;
+    hop = { fx: player.x, fy: player.y, tx: from.x, ty: from.y, lift0: 0, lift1: 0, t: 0, dur: 0.7, arc: 34, done: () => {
+      player.flying = false;
+      dust(player.x, player.y);
+      Sfx.land();
+    } };
+    faceToward(player, from.x - player.x, from.y - player.y);
+    stats.lava++;
+    muse(['YOW! Hot hot HOT!', 'Ow ow ow! My feet!', 'Lava. Very hot. Must remember that.'][(stats.lava - 1) % 3]);
+  });
+  hop.dur = 0.35;
+}
+
+function lavaSplash(x, y) {
+  Sfx.sizzle();
+  Sfx.hiss(0.8);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    particles.push({ type: 'ember', x: x + Math.cos(a) * 4, y: y - 2, vx: Math.cos(a) * 40, vy: -30 - Math.random() * 50, life: 0, max: 0.5 + Math.random() * 0.5 });
+  }
+  for (let i = 0; i < 8; i++) {
+    particles.push({ type: 'plume', x: x + (Math.random() - 0.5) * 12, y: y - 6 - Math.random() * 8, vx: (Math.random() - 0.5) * 14, vy: -18 - Math.random() * 14, life: 0, max: 1.2 + Math.random() * 0.8 });
+  }
+}
+
+// A singed player trails smoke for a little while after a dip in the lava.
+function updateSinged(dt) {
+  if (!(player.smokeT > 0)) return;
+  player.smokeT -= dt;
+  if (Math.random() < dt * 20) {
+    const type = Math.random() < 0.4 ? 'plume' : 'smoke';
+    particles.push({ type, x: player.x + (Math.random() - 0.5) * 8, y: player.y - 8 - Math.random() * 14, vx: (Math.random() - 0.5) * 6, vy: -16 - Math.random() * 8, life: 0, max: 0.9 + Math.random() * 0.5 });
+  }
 }
 
 function splash(x, y) {
@@ -300,13 +410,15 @@ function strokeSplash(side) {
 }
 
 function updateSwim(dt) {
+  if (sweptAlong(dt)) return;
   const [ix, iy] = readInput();
-  player.sprinting = !!(ix || iy) && boosting() && !carrying();
+  player.sprinting = !!(ix || iy) && canSprint() && !carrying();
+  updateStamina(dt, player.sprinting, !!(ix || iy));
   if (!ix && !iy) {
     player.frame = 0;
     return;
   }
-  const speed = (boosting() ? 62 : 42) * fedBoost() * dt;
+  const speed = (player.sprinting ? 62 : 42) * fedBoost() * dt;
   move(player, ix * speed, iy * speed);
   faceToward(player, ix, iy);
   const prev = Math.floor(player.anim);
@@ -348,9 +460,17 @@ function updateJump(e, dt) {
 
 function updatePlayer(dt) {
   if (player.swimming) return updateSwim(dt);
+  if (player.downT > 0 || player.trek || player.grapple) updateStamina(dt, false, false);
+  if (player.downT > 0) return updateDown(dt);
+  if (player.trek) return updateTrek(dt);
+  if (player.grapple) {
+    player.frame = 0;
+    return;
+  }
   updateJump(player, dt);
   const [ix, iy] = readInput();
-  player.running = !!(ix || iy) && boosting();
+  player.running = !!(ix || iy) && canSprint();
+  updateStamina(dt, player.running, !!(ix || iy));
   if (!ix && !iy) {
     player.anim = 0;
     player.frame = 0;
@@ -516,7 +636,7 @@ function nearNpc() {
 function talk() {
   const best = nearNpc();
   if (!best) return false;
-  const special = welcomeGift(best) || dogTalk(best) || spinWool(best) || tradeTalk(best) || archerTalk(best) || fisherTalk(best);
+  const special = welcomeGift(best) || dogTalk(best) || spinWool(best) || tradeTalk(best) || archerTalk(best) || fisherTalk(best) || roostTalk(best);
   if (!special) npcSay(best, tipLine(best) || skyLine(best) || nextLine(best));
   faceToward(player, best.x - player.x, best.y - player.y);
   return true;
@@ -545,16 +665,26 @@ const TIPS = {
     text: fisherTip,
   },
   tanner: {
-    needed: () => has('backpack') && (!has('toolBelt') || (has('hide') && !has('pouch'))),
-    text: () => (has('toolBelt')
-      ? 'That\'s a fine hide you\'ve got! Bring me two and I\'ll stitch you a hunter\'s pouch. Room for two more things in your pack.'
-      : 'Tools clogging up your pack, {name}? Bring me two hides and I\'ll make you a tool belt to hang them on. Deer and boar in the south woods give hides.'),
+    needed: () => needsSaddle() || (has('backpack') && (!has('toolBelt') || (has('hide') && !has('pouch')))),
+    text: () => (needsSaddle()
+      ? 'Grown yourself a dragon, have you? You\'ll want a saddle before you climb on. Bring me 3 hides and ask for one.'
+      : has('toolBelt')
+        ? 'That\'s a fine hide you\'ve got! Bring me two and I\'ll stitch you a hunter\'s pouch. Room for two more things in your pack.'
+        : 'Tools clogging up your pack, {name}? Bring me two hides and I\'ll make you a tool belt to hang them on. Deer and boar in the south woods give hides.'),
+  },
+  seamstress: {
+    needed: () => has('backpack') && (!has('furCoat') || !has('fireJacket')),
+    text: () => (!has('furCoat')
+      ? 'Going out to the frozen isle in that tunic, {name}? You\'d freeze solid! Bring me 4 hides and 2 wool and I\'ll sew you a thick fur coat.'
+      : 'Near the fire mountain the very air burns. Bring me 2 fire eels and 2 wool for a fireproof jacket. Eels love hot water, even the hot spring.'),
   },
   smith: {
     needed: () => has('pickaxe') && !has('torch') && !stats.caves,
-    text: 'Heard of the ice cave on the frozen isle? Black as pitch inside. Bring me 1 wood and 1 wool and I\'ll make you a torch.',
+    text: 'Heard of the ice cave on the frozen isle? Ice all round the mouth and black as pitch inside. Bring me 1 wood and 1 wool and I\'ll make you a torch.',
   },
 };
+
+const needsSaddle = () => !has('saddle') && dragons.some((d) => d.stage === GROWN && !d.saddled);
 
 // `text` may be a function, for tips that change as the player gets on.
 function tipLine(n) {
@@ -596,6 +726,7 @@ function npcSay(n, text) {
 
 // NPCs in earshot react to what the player says: the addressed or nearest one replies, others emote.
 function hear(text) {
+  if (sphinxHears(text)) return;
   const [lx, ly] = flight ? [flight.x, flight.y] : sail ? [shipObj.x, shipObj.y] : [player.x, player.y];
   const byDist = (list, r) => list
     .map((n) => [n, Math.hypot(n.x - lx, n.y - ly)])
@@ -615,7 +746,7 @@ function hear(text) {
       return;
     }
   }
-  if (!near.length) return;
+  if (!near.length || teachHears(text, near)) return;
   const tools = topic === 'forge' || (topic === 'wares' && /\btools?\b/i.test(text));
   const makerId = topic === 'craft' ? recipeFor(text).maker : tools && 'smith';
   const maker = makerId && near.find((n) => n.look.id === makerId);
@@ -669,6 +800,7 @@ function react(n, { topic: heard, text, reply }) {
   if (topic === 'craft' && askCraft(n, text)) return;
   if ((topic === 'string' || topic === 'cloth' || topic === 'sheep') && spinWool(n)) return;
   if ((topic === 'shop' || topic === 'wares') && tradeTalk(n)) return;
+  if (topic === 'roost' && roostChat(n)) return;
   npcSay(n, npcReply(n.look.id, topic));
   playerSayT = Math.min(playerSayT, 0.01);
   if (n.fixed || n.stays) return;
@@ -759,7 +891,7 @@ function headPos() {
     const d = deckPos();
     return [d.x, shipObj.y - d.lift - 20];
   }
-  if (hop) return [player.x, player.y - 24 - hop.lift0 - (hop.lift1 - hop.lift0) * hop.t - Math.sin(hop.t * Math.PI) * 16];
+  if (hop) return [player.x, player.y - 24 - hop.lift0 - (hop.lift1 - hop.lift0) * hop.t - Math.sin(hop.t * Math.PI) * (hop.arc ?? 16)];
   if (player.swimming && inWater(player.x, player.y)) return [player.x, player.y - 18];
   return [player.x, player.y - 24 - jumpLift(player)];
 }
@@ -786,6 +918,44 @@ function nearDragon() {
   return best;
 }
 
+// A dragon is only ridden with one of the tanner's saddles on: F with the saddle ready straps it on.
+function rideDragon(d) {
+  if (d.saddled) return mount(d);
+  faceToward(player, d.x - player.x, d.y - player.y);
+  muse(has('saddle') ? `I need to get the saddle on ${d.name} first.` : `Bareback? I'd slide right off ${d.name}. The tanner could make me a saddle from 3 hides.`);
+}
+
+function saddleUp() {
+  const d = nearDragon();
+  if (!d) return muse('A saddle. Now I need a grown dragon to put it on.');
+  faceToward(player, d.x - player.x, d.y - player.y);
+  if (d.saddled) return muse(`${d.name} already has a saddle on.`);
+  bag.saddle--;
+  renderInventory();
+  d.saddled = true;
+  d.obj.saddled = true;
+  stats.saddled++;
+  Object.assign(d, { emote: 'heart', emoteT: 1.8 });
+  d.obj.shakeT = 0.25;
+  Sfx.thunk();
+  Sfx.flap(0.5);
+  dust(d.x, d.y);
+  muse(`Buckled on tight! Up you get, ${d.name}... and me with you.`);
+}
+
+function saddleHint() {
+  const d = nearDragon();
+  if (!d) return 'Stand by a grown dragon and press F to put the saddle on';
+  return d.saddled ? `${d.name} already has a saddle on` : `F  Put the saddle on ${d.name}`;
+}
+
+// What SPACE says beside a perched dragon: ride it, or how to get a saddle on it first.
+function mountPrompt(d) {
+  if (d.saddled) return `SPACE  Ride ${d.name}`;
+  if (!has('saddle')) return `${d.name} needs a saddle before you can ride. The tanner makes one from 3 hides`;
+  return primary() === 'saddle' ? `F  Put the saddle on ${d.name}` : `${slotKey('saddle')}  Ready the saddle, then F to put it on ${d.name}`;
+}
+
 // A short jump between the ground and the dragon's back; `lift` is visual height.
 function startHop(tx, ty, lift0, lift1, done) {
   hop = { fx: player.x, fy: player.y, tx, ty, lift0, lift1, t: 0, done };
@@ -795,7 +965,7 @@ function startHop(tx, ty, lift0, lift1, done) {
 }
 
 function updateHop(dt) {
-  hop.t = Math.min(1, hop.t + dt / 0.45);
+  hop.t = Math.min(1, hop.t + dt / (hop.dur || 0.45));
   player.x = hop.fx + (hop.tx - hop.fx) * hop.t;
   player.y = hop.fy + (hop.ty - hop.fy) * hop.t;
   if (hop.t >= 1) {
@@ -807,11 +977,13 @@ function updateHop(dt) {
 
 function mount(dragon) {
   const d = dragon.obj;
+  dragon.roost = null;
+  stats.flown++;
   startHop(d.x + 2, d.y, 0, 14, () => {
     d.hidden = true;
     d.col.off = true;
     flight = {
-      x: d.x, y: d.y, alt: 0, vx: 0, vy: 0, dir: 'down', flap: 0, mode: 'takeoff', land: null,
+      x: d.x, y: d.y, alt: 0, vx: 0, vy: 0, dir: 'down', face: 'down', flap: 0, mode: 'takeoff', land: null,
       loop: -1, fireCd: 0, diveT: 0, splashed: false, dragon,
     };
     PLASMA = DRAGON_SPECIES[dragon.species].breath;
@@ -844,6 +1016,7 @@ function finishLanding() {
   d.x = s.x;
   d.y = s.y;
   d.hidden = false;
+  d.faceRight = FACE_VEC[flight.face || flight.dir][0] > 0;
   d.col.off = false;
   placeCollider(d);
   flight = null;
@@ -859,6 +1032,7 @@ function finishLanding() {
 
 function updateFlight(dt) {
   const f = flight;
+  if (f.warp) return updateWarp(f, dt);
   const [ix, iy] = readInput();
   const boost = boosting() && (ix || iy);
 
@@ -907,7 +1081,10 @@ function updateFlight(dt) {
   }
 
   const speed = Math.hypot(f.vx, f.vy);
-  if (speed > 20) faceToward(f, f.vx, f.vy);
+  if (speed > 20) {
+    faceToward(f, f.vx, f.vy);
+    f.face = octantFace(f.vx, f.vy, f.face);
+  }
   const beat = Math.floor(f.flap / 4);
   f.flap += dt * (f.mode === 'takeoff' ? 13 : boost ? 12 : speed > 20 ? 8 : 6);
   if (Math.floor(f.flap / 4) !== beat) Sfx.flap(f.mode === 'takeoff' ? 1 : 0.6);
@@ -927,7 +1104,8 @@ function updateFlight(dt) {
 
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 // Mouth as [ground x offset, ground y offset, height above the dragon's altitude].
-const MOUTH = { right: [30, 0, 18], left: [-30, 0, 18], down: [0, 8, 0], up: [0, -10, 22] };
+const MOUTH = { right: [30, 0, 18], left: [-30, 0, 18], down: [0, 8, 0], up: [0, -10, 22], se: [20, 6, 6], sw: [-20, 6, 6], ne: [18, -6, 19], nw: [-18, -6, 19] };
+const FACE_VEC = { ...DIR_VEC, se: [0.71, 0.71], sw: [-0.71, 0.71], ne: [0.71, -0.71], nw: [-0.71, -0.71] };
 // Breath colours of the dragon being ridden.
 let PLASMA = DRAGON_SPECIES.nightFury.breath;
 const fireballs = [];
@@ -959,8 +1137,9 @@ function breatheFire() {
   const f = flight;
   if (!f || f.mode !== 'fly' || f.loop >= 0 || f.fireCd > 0) return;
   f.fireCd = 0.35;
-  const [mx, my, mh] = MOUTH[f.dir];
-  const [dx, dy] = DIR_VEC[f.dir];
+  const face = f.face || f.dir;
+  const [mx, my, mh] = MOUTH[face];
+  const [dx, dy] = FACE_VEC[face];
   const x0 = f.x + mx;
   const y0 = f.y + my;
   fireballs.push({
@@ -983,6 +1162,7 @@ function plasmaHit(x, y) {
     return;
   }
   burst(x, y - 3, PLASMA, 36, 90);
+  blastAt(x, y);
   particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, life: 0, max: 0.45 });
   for (let i = 0; i < 5; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 8, y: y - 4, vx: (Math.random() - 0.5) * 10, vy: -14 - Math.random() * 8, life: 0, max: 1.4 });
   for (const n of npcs) {
@@ -1072,19 +1252,19 @@ function drawFireballs(cx, cy) {
 const HATCH_TIME = 6;
 const STORY_LINES = {
   carried: {
-    hermit: 'You found it! Keep it warm by the fire in your village, and it will hatch.',
-    chief: 'A dragon egg! Set it by the plaza fire, {name}.',
-    kid: 'Is that a DRAGON EGG?! Put it by the fire!',
+    hermit: 'You found it! No hearth is hot enough to wake it. Carry it up the fire mountain and drop it into the crater. And wear something fireproof, or the heat will drive you back.',
+    chief: 'A dragon egg! The old way is the crater of the fire mountain, {name}.',
+    kid: 'Is that a DRAGON EGG?! Throw it in the VOLCANO!',
   },
   warming: { kid: 'It\'s hatching! It\'s hatching!' },
   hatched: {
     hermit: 'A dragon of your very own. Young dragons grow strong on fish from the open sea.',
     chief: 'A new dragon in our village! This is a great day.',
     kid: 'Your baby dragon is SO cute!',
-    fisher: 'That little dragon keeps eyeing my fish! Sail over a school, or near the dolphins, put your rod away and give a whistle (F). It\'ll dive right in.',
+    fisher: 'That little dragon keeps eyeing my fish! Take it out in the longship and fish off the side. Whatever you reel in, it\'ll dive right in after.',
   },
   grown: {
-    hermit: 'It has grown into a true dragon. More eggs sleep on the far isles, if you have room for more.',
+    hermit: 'It has grown into a true dragon. Grown dragons want a roost, and two that roost together may lay an egg.',
     chief: 'A full-grown dragon! Our people will ride the skies again.',
     kid: '{dragon} is HUGE now! Can I ride too?!',
     fisher: 'Ha! It ate its fill out there. Mighty beast now!',
@@ -1104,7 +1284,7 @@ const grounded = () => !player.flying && !player.swimming;
 
 function nearEgg() {
   if (carrying() || !grounded()) return null;
-  return eggs.find((e) => e.state === 'wild' && boxDist(e.col) < 14) || null;
+  return eggs.find((e) => e.state === 'wild' && !e.hidden && boxDist(e.col) < 14) || null;
 }
 
 function pickUpEgg(e) {
@@ -1116,6 +1296,17 @@ function pickUpEgg(e) {
   burst(e.x, e.y - 10, ['#ffffff', '#fff27a', DRAGON_SPECIES[e.species].egg.shine], 14, 40);
   Sfx.pickup();
   setStage('carried');
+  if (inCave()) returnToCaveMouth();
+}
+
+// With the egg in hand there's no walking the maze back: a fade, and the player stands just inside the mouth.
+function returnToCaveMouth() {
+  const r = indoors;
+  fadeTo(() => {
+    Object.assign(player, { x: (r.door + 0.5) * TILE, y: r.doorY * TILE - 2, dir: 'down', fishing: null, chop: null, nock: null });
+    bringAlong();
+    setTimeout(() => muse('Back at the mouth of the cave. Now to get this egg somewhere hot... the volcano!'), 700);
+  });
 }
 
 // ---------- stoking a fire ----------
@@ -1124,7 +1315,7 @@ const BLAZE_PER_LOG = 0.34;
 const BLAZE_FADE = 1 / 160;
 
 function fireNear(x, y) {
-  return objects.find((o) => o.key === 'bonfire' && Math.hypot(o.x - x, o.y - 6 - y) < 46) || null;
+  return objects.find((o) => (o.key === 'bonfire' || o.key === 'campfire') && Math.hypot(o.x - x, o.y - 6 - y) < 46) || null;
 }
 
 // The log arcs from the player's hands into the flames, landing in `t` seconds.
@@ -1163,38 +1354,6 @@ function drawBlaze(g, x, y, t, o) {
   }
 }
 
-function nearFire() {
-  return !!carried && grounded() && Math.hypot(player.x - villageFire.x, player.y - villageFire.y) < 48;
-}
-
-// A free spot on a ring around the fire, as close to the player's side as possible.
-function fireSpot() {
-  const f = villageFire;
-  const a0 = Math.atan2(player.y - f.y, player.x - f.x);
-  for (let i = 0; i < 12; i++) {
-    const a = a0 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (Math.PI / 6);
-    const x = Math.round(f.x + Math.cos(a) * 32);
-    const y = Math.round(f.y - 4 + Math.sin(a) * 20);
-    if (!blocked(x - 7, y - 4, x + 7, y, null)) return { x, y };
-  }
-  return null;
-}
-
-function placeEgg() {
-  const spot = fireSpot();
-  if (!spot) return false;
-  const e = carried;
-  Object.assign(e, { x: spot.x, y: spot.y, hidden: false, crack: 0, hatchT: 0, state: 'warming' });
-  e.col.off = false;
-  placeCollider(e);
-  carried = null;
-  faceToward(player, spot.x - player.x, spot.y - player.y);
-  dust(spot.x, spot.y);
-  Sfx.land();
-  setStage('warming');
-  return true;
-}
-
 function updateEggs(dt) {
   for (const e of eggs) {
     if (e.state !== 'warming') continue;
@@ -1225,6 +1384,9 @@ function hatch(e) {
     emote: 'heart', emoteT: 1.8, chirpT: 4, stage: 0, swoop: null, catchT: 0, home: { x, y }, wanderT: 3,
     name: DRAGON_SPECIES[e.species].defaultName,
   };
+  // out of the crater it comes flying, up and over the rim
+  if (e.crater) Object.assign(d, { flying: true, alt: 22, jumpT: -1 });
+  e.crater = false;
   dragons.push(d);
   setFollower(d);
   for (const n of npcs) {
@@ -1242,6 +1404,7 @@ function hatch(e) {
 function setFollower(d) {
   const prev = follower;
   follower = d;
+  if (d) d.roost = null;
   if (prev && prev !== d) settle(prev);
 }
 
@@ -1251,7 +1414,12 @@ function settle(d) {
   d.spot = null;
   d.swoop = null;
   d.settleOnLand = false;
-  if (d.stage === GROWN) return;
+  if (d.stage === GROWN) {
+    // told to stay by the roost, it flies over and takes a free perch there
+    d.roost = roostSlotFor(d);
+    if (d.roost !== null && d.perched) takeOff(d);
+    return;
+  }
   const [x, y] = canStand(d, d.x, d.y) ? [d.x, d.y] : [villageFire.x, villageFire.y + 34];
   d.home = standSpotNear(d, x, y);
   d.target = d.home;
@@ -1293,6 +1461,7 @@ function babyLeader() {
     const [sx, sy] = sternPos();
     return { x: sx, y: sy, alt: 30, air: true };
   }
+  if (player.trek) return { x: player.x + (player.dir === 'left' ? 18 : -18), y: player.y + 4, alt: 30, air: true };
   if (player.flying || player.swimming) {
     const [vx, vy] = DIR_VEC[player.dir];
     return { x: player.x - vx * 16, y: player.y - vy * 12, alt: 16, air: true };
@@ -1301,7 +1470,7 @@ function babyLeader() {
 }
 
 // The follower walks after the player, and flutters along when they leave the ground or it gets stuck
-// or left behind. Out at sea it swoops on nearby fish; every fish makes it grow.
+// or left behind. Out at sea it dives for the fish you reel in; every fish makes it grow.
 function updateBaby(b, dt) {
   if (b.emoteT > 0) b.emoteT -= dt;
   if (b.stage === GROWN) {
@@ -1382,14 +1551,22 @@ function updateDragonFace(b, dt) {
   b.vx = (b.vx || 0) + (mx / dt - (b.vx || 0)) * k;
   b.vy = (b.vy || 0) + (my / dt - (b.vy || 0)) * k;
   if (Math.hypot(b.vx, b.vy) > 14) {
-    const a = Math.atan2(b.vy, b.vx);
-    const i = DRAGON_OCTANTS.indexOf(b.face);
-    const off = i < 0 ? Infinity : Math.abs(Math.atan2(Math.sin(a - i * Math.PI / 4), Math.cos(a - i * Math.PI / 4)));
-    if (off > Math.PI / 8 + 0.2) b.face = DRAGON_OCTANTS[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+    b.face = octantFace(b.vx, b.vy, b.face);
   } else if (b.face !== b.dir && !(DRAGON_FACE_SIDES[b.face] || []).includes(b.dir)) {
     b.face = b.dir;
   }
 }
+
+// The octant a heading of (vx, vy) falls in, keeping `face` until the heading is well past its edge.
+function octantFace(vx, vy, face) {
+  const a = Math.atan2(vy, vx);
+  const i = DRAGON_OCTANTS.indexOf(face);
+  const off = i < 0 ? Infinity : Math.abs(Math.atan2(Math.sin(a - i * Math.PI / 4), Math.cos(a - i * Math.PI / 4)));
+  return off > Math.PI / 8 + 0.2 ? DRAGON_OCTANTS[(Math.round(a / (Math.PI / 4)) + 8) % 8] : face;
+}
+
+// The grown dragon's flying frames, with its saddle on once it has one.
+const flySet = (d) => (d.saddled ? SPR.flyDragonSaddled : SPR.flyDragon)[d.species];
 
 function babyLift(b) {
   if (b.stage === GROWN) return b.alt + Math.sin(time * 3) * 1.5;
@@ -1405,7 +1582,7 @@ function drawBaby(b, cx, cy) {
   const y = Math.round(b.y - babyLift(b)) - cy;
   const face = b.face || b.dir;
   if (b.stage === GROWN) {
-    const fr = SPR.flyDragon[b.species][face][Math.floor(b.flap) % 4];
+    const fr = flySet(b)[face][Math.floor(b.flap) % 4];
     ctx.drawImage(fr.under, x - 36, y - 40);
     if (fr.over) ctx.drawImage(fr.over, x - 36, y - 40);
     return;
@@ -1440,67 +1617,36 @@ function drawBaby(b, cx, cy) {
 // ---------- feeding & growing up ----------
 
 const GROWN = DRAGON_SCALES.length;
-const FISH_RANGE = 90;
+const BIG_FISH = new Set(['cod', 'eel', 'goldenFish']);
 
-// Where the prey is now: a whole school, or one dolphin (a big fish) in a pod.
-const preyAt = (p) => (p.pod ? [p.pod.x + p.m.ox, p.pod.y + p.m.oy] : [p.s.x, p.s.y]);
+// The young follower out at sea, free to take a fish reeled in from the longship.
+const hungryDragon = () => (sail && follower && follower.stage < GROWN && !follower.swoop && follower.catchT <= 0 ? follower : null);
 
-// The nearest school or dolphin; a pod always keeps at least one dolphin.
-function fishNearShip() {
-  let best = null;
-  let bd = FISH_RANGE;
-  const consider = (p) => {
-    const [x, y] = preyAt(p);
-    const d = Math.hypot(x - shipObj.x, y - shipObj.y);
-    if (d < bd) { bd = d; best = p; }
-  };
-  for (const s of seaLife.schools) if (s.fish.length) consider({ s });
-  for (const pod of seaLife.pods) if (pod.members.length > 1) for (const m of pod.members) consider({ pod, m });
-  return best;
+// The fish flips off the hook and the dragon dives to snatch it before it hits the water.
+function feedFromLine(b, id, x, y) {
+  b.swoop = { x, y, big: BIG_FISH.has(id), t: 0 };
+  b.flying = true;
+  Sfx.flap(0.5 * earshot(b.x, b.y));
 }
 
-// Dives at the prey, snatches it off the surface and climbs back to the ship.
+// Dives at the fish, snatches it off the surface and climbs back to the ship.
 function updateSwoop(b, dt) {
   const w = b.swoop;
   w.t += dt;
-  const [px, py] = preyAt(w);
-  const dx = px - b.x;
-  const dy = py - b.y;
+  const dx = w.x - b.x;
+  const dy = w.y - b.y;
   const k = 1 - Math.exp(-dt * 6);
   b.x += dx * k;
   b.y += dy * k;
   b.alt += (-1 - b.alt) * (1 - Math.exp(-dt * 5));
   faceToward(b, dx, dy);
-  if (Math.hypot(dx, dy) < 6 && b.alt < 3) {
-    const big = !!w.pod;
-    if (big) w.pod.members.splice(w.pod.members.indexOf(w.m), 1);
-    else w.s.fish.pop();
-    seaSplash(b.x, b.y, big ? 1.6 : 0.9);
-    Sfx.splash((big ? 0.9 : 0.6) * earshot(b.x, b.y));
-    if (big) Sfx.dolphin(earshot(b.x, b.y));
+  if ((Math.hypot(dx, dy) < 6 && b.alt < 3) || w.t > 2.5) {
+    seaSplash(b.x, b.y, w.big ? 1.6 : 0.9);
+    Sfx.splash((w.big ? 0.9 : 0.6) * earshot(b.x, b.y));
     b.alt = 0;
     b.swoop = null;
-    b.catchT = big ? 1.4 : 0.9;
-    b.catchBig = big;
-  } else if (w.t > 2.5) {
-    b.swoop = null;
-  }
-}
-
-const canFish = (b) => !!b && b.stage < GROWN && sail && b.flying && !b.swoop && b.catchT <= 0;
-
-// F while sailing: the young follower dives for the nearest school, or looks puzzled if there is none.
-function sendFishing() {
-  const b = follower;
-  if (!canFish(b)) return;
-  const prey = fishNearShip();
-  if (prey) {
-    b.swoop = { ...prey, t: 0 };
-    Sfx.flap(0.5 * earshot(b.x, b.y));
-  } else {
-    b.emote = 'question';
-    b.emoteT = 1.2;
-    Sfx.chirp(0.6 * earshot(b.x, b.y));
+    b.catchT = w.big ? 1.4 : 0.9;
+    b.catchBig = w.big;
   }
 }
 
@@ -1549,7 +1695,8 @@ function perchSpot(cx, cy, offsets) {
 
 // A grown dragon that isn't following lands on the nearest open ground, or back in the village from the sea.
 function settleLeader(b) {
-  if (!b.spot || !dragonFits(b.spot.x, b.spot.y)) {
+  if (b.roost !== null && b.roost !== undefined) b.spot = roostSpot(b.roost);
+  else if (!b.spot || !dragonFits(b.spot.x, b.spot.y)) {
     b.spot = perchSpot(b.x, b.y, AROUND) || perchSpot(villageFire.x, villageFire.y + 40, AROUND);
   }
   const near = Math.hypot(b.x - b.spot.x, b.y - b.spot.y) < 40;
@@ -1574,6 +1721,15 @@ function grownLeader(b) {
   return { x: b.spot.x, y: b.spot.y, alt: near ? 0 : 36, land: true };
 }
 
+function takeOff(b) {
+  const d = b.obj;
+  d.hidden = true;
+  d.col.off = true;
+  Object.assign(b, { perched: false, alt: 0, flap: 0, spot: null });
+  dust(d.x, d.y);
+  Sfx.flap(earshot(d.x, d.y));
+}
+
 function updateGrown(b, dt) {
   const d = b.obj;
   if (flight && flight.dragon === b) {
@@ -1589,13 +1745,7 @@ function updateGrown(b, dt) {
     b.y = d.y;
     if (hop || b !== follower) return;
     const p = leadSpot();
-    if (sail || player.swimming || flight || Math.hypot(p.x - d.x, p.y - d.y) > 150) {
-      d.hidden = true;
-      d.col.off = true;
-      Object.assign(b, { perched: false, alt: 0, flap: 0, spot: null });
-      dust(d.x, d.y);
-      Sfx.flap(earshot(d.x, d.y));
-    }
+    if (sail || player.swimming || flight || Math.hypot(p.x - d.x, p.y - d.y) > 150) takeOff(b);
     return;
   }
   if (hop) return;
@@ -1611,7 +1761,8 @@ function updateGrown(b, dt) {
   b.flap += dt * (b.alt < 12 ? 11 : 7);
   if (Math.floor(b.flap / 4) !== beat) Sfx.flap(0.4 * earshot(b.x, b.y));
   if (L.land && Math.hypot(dx, dy) < 3 && b.alt < 1) {
-    Object.assign(d, { x: L.x, y: L.y, hidden: false });
+    // it lands facing the player, or at the roost facing in towards the others
+    Object.assign(d, { x: L.x, y: L.y, hidden: false, faceRight: b.roost != null ? ROOST_SLOTS[b.roost][0] < 0 : player.x > L.x });
     d.col.off = false;
     placeCollider(d);
     Object.assign(b, { x: L.x, y: L.y, alt: 0, perched: true, spot: null });
@@ -1928,7 +2079,7 @@ function shipBlocked(facing, x, y) {
     if (hull && hullsMeet(hull, [x0, y0, x1, y1])) return true;
     for (let ty = Math.floor(y0 / TILE); ty <= Math.floor(y1 / TILE); ty++) {
       for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
-        if (!inBounds(tx, ty) || tileAt(tx, ty) !== T.WATER) return true;
+        if (!inBounds(tx, ty) || tileAt(tx, ty) !== T.WATER || isReef(tx, ty)) return true;
       }
     }
   }
@@ -1940,12 +2091,20 @@ function deckPos() {
   return { x: shipObj.x + d.seat[0] - d.ox, lift: d.oy - d.seat[1] - 5 };
 }
 
-function nearShip() {
-  if (sail || flight || hop) return false;
+function shipDist() {
   const [x0, y0, x1, y1] = shipBox(shipObj.facing, shipObj.x, shipObj.y);
   const dx = Math.max(x0 - player.x, 0, player.x - x1);
   const dy = Math.max(y0 - player.y, 0, player.y - y1);
-  return Math.hypot(dx, dy) < 56;
+  return Math.hypot(dx, dy);
+}
+
+const nearShip = () => !sail && !flight && !hop && shipDist() < 56;
+
+// What SPACE climbs aboard: the ship or a perched dragon, whichever is closer when both are in reach.
+function nearMount() {
+  const d = nearDragon();
+  if (!nearShip()) return d;
+  return d && boxDist(d.obj.col) < shipDist() ? d : 'ship';
 }
 
 function board() {
@@ -2162,6 +2321,7 @@ function nearBackpack() {
 function pickUpBackpack() {
   wearBackpack();
   Sfx.pickup();
+  toast('BACKPACK', 'Number keys pick from the hotbar and F uses it. B opens your bag');
   faceToward(player, backpack.x - player.x, backpack.y - player.y);
   npcSay(mom, 'That\'s it! Off you go then, and be back for supper.');
 }
@@ -2188,17 +2348,32 @@ function maskRoom(cx, cy) {
 }
 
 function action() {
-  if (hop || fade) return;
+  if (hop || fade || player.downT > 0) return;
   if (flight) {
     if (flight.mode !== 'fly') return;
     if (landingSpot()) land();
     else splashDive();
     return;
   }
+  if (player.trek) {
+    if (onSummit() && carried) dropInCrater();
+    return;
+  }
   if (sail) disembark();
-  else if (nearShip()) board();
-  else if (nearDragon()) mount(nearDragon());
+  else if (nearMount() === 'ship') board();
+  else if (roostLeave()) leaveAtRoost(roostLeave());
   else if (nearEgg()) pickUpEgg(nearEgg());
+  else if (nearMount()) rideDragon(nearMount());
+  else if (roostBuildable()) raiseRoost();
+  else if (nearTrailhead()) startTrek();
+  else if (nearRuneStone()) touchStone(nearRuneStone());
+  else if (nearCarving()) readCarving(nearCarving());
+  else if (nearSphinx()) speakToSphinx();
+  else if (nearTreasure()) takeTreasure(nearTreasure());
+  else if (nearLadder()) climbLadder(nearLadder());
+  else if (nearCache()) openCache(nearCache());
+  else if (burnTarget()) lightBrambles(burnTarget());
+  else if (meltTarget()) torchIce(meltTarget());
   else if (nearBackpack()) pickUpBackpack();
   else if (nearBed()) sleep();
   else if (nearChest()) toggleChest(true);
@@ -2207,7 +2382,7 @@ function action() {
   else if (nearDrop()) pickUp(nearDrop());
   else if (dogFirst()) dog.state === 'lost' ? pickUpDog() : petDog();
   else if (doorAhead()) enterBuilding(doorAhead());
-  else if (!(nearFire() && placeEgg()) && !talk() && !petSheep()) jump();
+  else if (!talk() && !petSheep()) jump();
 }
 
 // ---------- camera & zoom ----------
@@ -2237,6 +2412,10 @@ function updateZoom(dt) {
 }
 
 function updateCamera(dt, snap) {
+  if (flight && flight.warp) {
+    Object.assign(cam, flight.warp.cam);
+    return;
+  }
   const mw = MAP_W * TILE;
   const mh = MAP_H * TILE;
   const focusY = flight ? flight.y - flight.alt - 12 : sail ? player.y - 30 : player.y - 10;
@@ -2269,7 +2448,7 @@ function dust(x, y) {
 
 function emitParticles(dt) {
   for (const o of objects) {
-    if (o.key !== 'forge' && o.key !== 'bonfire' && o.key !== 'oven' && o.key !== 'vat') continue;
+    if (o.key !== 'forge' && o.key !== 'bonfire' && o.key !== 'campfire' && o.key !== 'oven' && o.key !== 'vat') continue;
     if (o.blaze) o.blaze = Math.max(0, o.blaze - dt * BLAZE_FADE);
     o.emitT = (o.emitT ?? 0) - dt;
     if (o.emitT > 0) continue;
@@ -2345,6 +2524,7 @@ function update(dt) {
   time += dt;
   if (momNagT > 0) momNagT -= dt;
   if (fade) updateFade(dt);
+  if (started && (hop || sail || flight || fade)) updateStamina(dt, false, false);
   if (hop) updateHop(dt);
   else if (sail) updateSail(dt);
   else if (flight) updateFlight(dt);
@@ -2361,6 +2541,15 @@ function update(dt) {
   updateHens(dt);
   updateMerchant(dt);
   updateCave(dt);
+  updateTorch(dt);
+  if (started && !bagOpen) updateExposure(dt);
+  updateSinged(dt);
+  updateRuin();
+  updateDunes(dt);
+  updateTinker();
+  updateBuild(dt);
+  updateIce(dt);
+  updateRoost(dt);
   updateWildlife(dt);
   updateMap();
   for (const d of dragons) {
@@ -2414,7 +2603,7 @@ function drawLights(cx, cy, visible) {
   for (const o of visible) {
     const l = SPR[o.key].light;
     if (!l) continue;
-    const r = o.blaze ? Math.round((l.r * (1 + o.blaze * 0.7)) / 4) * 4 : l.r;
+    const r = o.blaze ? Math.round((l.r * (1 + o.blaze * 0.7)) / 4) * 4 : o.lit ? l.r * 2 : l.r;
     ctx.globalAlpha = Math.min(1, boost * (0.8 + 0.2 * Math.sin(time * 9 + o.phase) * Math.sin(time * 5.7 + o.phase)));
     ctx.drawImage(glowSprite(r, l.color), Math.round(o.x + l.dx - r - cx), Math.round(o.y + l.dy - (o.blaze || 0) * 10 - r - cy));
   }
@@ -2487,7 +2676,11 @@ function drawObject(o, cx, cy) {
   const shake = o.shakeT > 0 ? Math.sin(o.shakeT * 70) * 1.5 : 0;
   const sx = Math.round(o.x - view.ox - cx + shake);
   const sy = Math.round(o.y - view.oy - cy + dy);
+  // a canopy in front of the player thins out so they can see where they're going
+  const thin = s.fade && o.y > player.y && o.y - player.y < view.oy + 4 && Math.abs(o.x - player.x) < 24;
+  if (thin) ctx.globalAlpha = 0.45;
   ctx.drawImage(img, sx, sy);
+  ctx.globalAlpha = 1;
   if (o.rider) {
     const carry = o === shipObj && carrying();
     if (carry) drawHeldEgg(sx + view.seat[0], sy + view.seat[1] - 15);
@@ -2529,6 +2722,7 @@ function drawStrokeArm(e, x, y, side, u) {
 
 function drawEntity(e, cx, cy, lift = 0) {
   if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
+  if (e.downT > 0) return drawFallen(e, cx, cy);
   const x = Math.round(e.x) - cx;
   const top = Math.round(e.y - lift) - 20 - cy;
   const carry = e === player && carrying();
@@ -2548,9 +2742,19 @@ function drawEntity(e, cx, cy, lift = 0) {
   drawSmithHammer(e, x, top);
 }
 
+// Knocked flat on the ground, head to the side they were facing.
+function drawFallen(e, cx, cy) {
+  const carry = e === player && carrying();
+  ctx.save();
+  ctx.translate(Math.round(e.x) - cx, Math.round(e.y) - cy - 4);
+  ctx.rotate(e.dir === 'left' ? -Math.PI / 2 : Math.PI / 2);
+  ctx.drawImage(charSprite(e.look, 'down', 0, carry, false), -8, -12);
+  ctx.restore();
+}
+
 function drawFlight(cx, cy) {
   const f = flight;
-  const fr = SPR.flyDragon[f.dragon.species][f.dir][Math.floor(f.flap) % 4];
+  const fr = flySet(f.dragon)[f.face || f.dir][Math.floor(f.flap) % 4];
   const [ox, oy, rot] = loopPose(f);
   ctx.save();
   ctx.translate(Math.round(f.x + ox) - cx, Math.round(f.y - f.alt - flightBob(f) + oy) - 11 - cy);
@@ -2558,7 +2762,8 @@ function drawFlight(cx, cy) {
   ctx.drawImage(fr.under, -36, -29);
   const carry = carrying();
   if (carry) ctx.drawImage(heldImg(), fr.seat[0] - 42, fr.seat[1] - 52);
-  const rider = charSprite(player.look, f.dir, 0, carry);
+  // on a diagonal the rider is seen side on
+  const rider = charSprite(player.look, DRAGON_FACE_SIDES[f.face]?.[1] || f.dir, 0, carry);
   ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
   if (fr.over) ctx.drawImage(fr.over, -36, -29);
   ctx.restore();
@@ -2713,6 +2918,7 @@ function render() {
   ctx.fillRect(0, 0, viewW, viewH);
   drawGround(ctx, cx, cy, viewW, viewH);
   drawAnimatedTiles(cx, cy);
+  drawRapids(cx, cy);
   drawParticles(cx, cy, 'water');
   drawSeaUnder(cx, cy);
   drawShootingLine(cx, cy);
@@ -2728,7 +2934,7 @@ function render() {
     const k = jumpLift(e) / JUMP_HEIGHT;
     drawShadow(Math.round(e.x) - cx, Math.round(e.y) - cy, 5 - k * 2, 2 - k * 0.5);
   }
-  if (hop) drawShadow(Math.round(player.x) - cx, Math.round(player.y) - cy, 5, 2);
+  if (hop && !hop.climb) drawShadow(Math.round(player.x) - cx, Math.round(player.y) - cy, 5, 2);
   if (flight) {
     const k = flight.alt / FLY_ALT;
     drawShadow(Math.round(flight.x) - cx, Math.round(flight.y) - cy, 18 - k * 6, 5 - k * 1.5, 0.28 - k * 0.08);
@@ -2749,7 +2955,7 @@ function render() {
   const dropItems = drops.filter((d) => onScreen(d.x, d.y, cx, cy, 20)).map((d) => ({ y: d.y - 2, draw: () => drawDrop(d, cx, cy) }));
   const dogItems = dog.state !== 'carried' && !indoors && onScreen(dog.x, dog.y, cx, cy, 20) ? [{ y: dog.y, draw: () => drawDog(cx, cy) }] : [];
   const henItems = indoors ? [] : hens.filter((h) => onScreen(h.x, h.y, cx, cy, 20)).map((h) => ({ y: h.y, draw: () => drawHen(h, cx, cy) }));
-  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy)).sort((a, b) => a.y - b.y);
+  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy)).sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -2757,10 +2963,12 @@ function render() {
   }
 
   drawParticles(cx, cy, 'world');
+  drawBurning(cx, cy);
+  drawGrapple(cx, cy);
 
   if (hop) {
-    const lift = hop.lift0 + (hop.lift1 - hop.lift0) * hop.t + Math.sin(hop.t * Math.PI) * 16;
-    player.frame = 1;
+    const lift = hop.climb ? 0 : hop.lift0 + (hop.lift1 - hop.lift0) * hop.t + Math.sin(hop.t * Math.PI) * (hop.arc ?? 16);
+    player.frame = hop.climb ? Math.floor(hop.t * 10) % 4 : 1;
     drawEntity(player, cx, cy, lift);
   }
   for (const d of highDragons) drawBaby(d, cx, cy);
@@ -2791,6 +2999,7 @@ function render() {
       drawTalkHint(n, cx, cy);
     }
   }
+  drawSphinxBubble(cx, cy);
   for (const d of dragons) {
     if (d.emoteT <= 0 || (flight && flight.dragon === d)) continue;
     const h = d.stage === GROWN ? (d.perched ? 44 : 52) : SPR.babyDragon[d.species][d.stage].top + 4;
@@ -2807,24 +3016,50 @@ function render() {
   if (flight && flight.mode === 'fly') {
     const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
     setPrompt(`${space}  ·  F  Fireball  ·  R  Loop  ·  SHIFT  Boost`);
+  } else if (player.downT > 0) {
+    setPrompt('Bitten! You can\'t move until the venom wears off...');
+  } else if (player.trek) {
+    setPrompt(peakPrompt());
   } else if (sail && player.fishing) {
     setPrompt(toolHint());
   } else if (sail) {
     const shore = sail.shore ? 'SPACE  Go ashore' : 'Sail close to land to go ashore';
     const rod = toolHint();
-    const casting = primary() === 'rod' && castSpot();
-    const fish = !casting && canFish(follower) && fishNearShip() ? `   ·   F  Send ${follower.name} fishing` : '';
+    const fish = !rod && follower && follower.stage < GROWN && has('rod') ? `   ·   Stop the ship and fish to feed ${follower.name}` : '';
     setPrompt(`${shore}   ·   SHIFT  Full sail${rod ? `   ·   ${rod}` : ''}${fish}`);
   } else if (player.fishing) {
     setPrompt(toolHint());
-  } else if (nearShip()) {
+  } else if (nearMount() === 'ship') {
     setPrompt('SPACE  Board the ship');
-  } else if (nearDragon()) {
-    setPrompt(`SPACE  Ride ${nearDragon().name}`);
+  } else if (roostLeave()) {
+    setPrompt(`SPACE  Leave ${roostLeave().name} at the roost`);
   } else if (nearEgg()) {
     setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
-  } else if (nearFire() && fireSpot()) {
-    setPrompt('SPACE  Set the egg by the fire');
+  } else if (nearMount()) {
+    setPrompt(mountPrompt(nearMount()));
+  } else if (roostSite()) {
+    setPrompt(roostPrompt());
+  } else if (nearTrailhead()) {
+    setPrompt('SPACE  Climb the trail up the volcano');
+  } else if (nearRuneStone()) {
+    setPrompt('SPACE  Touch the rune stone');
+  } else if (nearCarving()) {
+    setPrompt('SPACE  Read the carving');
+  } else if (nearSphinx()) {
+    setPrompt(sphinxPrompt());
+  } else if (nearTreasure()) {
+    setPrompt(treasurePrompt());
+  } else if (nearLadder()) {
+    setPrompt(ladderPrompt(nearLadder()));
+  } else if (nearCache()) {
+    setPrompt('SPACE  Reach into the cairn');
+  } else if (burnTarget()) {
+    setPrompt(`SPACE  Set the brambles alight with your torch${toolHint() ? `   ·   ${toolHint()}` : ''}`);
+  } else if (meltTarget()) {
+    setPrompt('SPACE  Melt the ice with your torch');
+  } else if (iceBlocking()) {
+    const ready = primary() === 'torch' ? 'F' : slotKey('torch');
+    setPrompt(has('torch') ? `Solid ice, far too thick to break   ·   ${ready}  ${ready === 'F' ? 'Light your torch to melt it' : 'Ready your torch, then F to light it'}` : 'Solid ice, far too thick to break. A torch might melt it');
   } else if (nearBackpack()) {
     setPrompt('SPACE  Pick up your backpack');
   } else if (nearBed()) {
@@ -2845,18 +3080,20 @@ function render() {
   } else if (doorAhead()) {
     setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
   } else if (!nearNpc() && fenceHopSpot()) {
-    setPrompt('SPACE  Hop over the fence');
+    const tool = toolHint();
+    setPrompt(!fenceHopSpot().log ? 'SPACE  Hop over the fence'
+      : `${player.running ? 'SPACE  Leap the log!' : 'SHIFT + SPACE  Take a run at it and leap'}${tool ? `   ·   ${tool}` : ''}`);
   } else if (player.fishing) {
     setPrompt(toolHint());
   } else if (!nearNpc() && nearSheep()) {
     const tool = toolHint();
     setPrompt(`${inPen(nearSheep()) ? 'SPACE  Pet the sheep' : 'SPACE  Pet the sheep   ·   Walk at it to shoo it toward the pen'}${tool ? `   ·   ${tool}` : ''}`);
-  } else if (toolHint()) {
-    setPrompt(toolHint());
+  } else if (toolHint() || takeHint()) {
+    setPrompt([toolHint(), takeHint()].filter(Boolean).join('   ·   '));
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
   } else if (carried) {
-    setPrompt('Carry the egg to the fire in the village to hatch it');
+    setPrompt('Carry the egg up the volcano and drop it into the crater to hatch it');
   } else if (dog.state === 'carried') {
     setPrompt(`Carry ${dogName()} home${dog.asked ? ' to the girl in the village' : ''}`);
   } else if (eggs.some((e) => e.state === 'warming' && Math.hypot(player.x - e.x, player.y - e.y) < 70)) {
@@ -2945,8 +3182,8 @@ window.addEventListener('pointerdown', () => Sfx.init());
 
 window.addEventListener('keydown', (e) => {
   Sfx.init();
-  if (!started || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || document.activeElement === chatInput) return;
-  if (invEl.contains(document.activeElement) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
+  if (!started || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || bagOpen || noteOpen || (flight && flight.warp) || document.activeElement === chatInput) return;
+  if (hotbarEl.contains(document.activeElement) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
     chatInput.focus();
@@ -2973,7 +3210,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyH') toggleHints();
     if (e.code === 'KeyM') toggleMap(true);
     if (e.code === 'KeyJ') toggleJournal(true);
+    if (e.code === 'KeyB') toggleBag(true);
     if (e.code === 'KeyL') toggleFishLog(true);
+    if (e.code === 'KeyC') toggleTinker(true);
+    if (e.code === 'KeyG') takeBack();
     if (/^Digit\d$/.test(e.code)) pickTool(+e.code[5] || 10);
     if (e.code === 'KeyX') dropActive();
   }
@@ -3127,7 +3367,6 @@ function beginGame() {
   keys.clear();
   startEl.remove();
   document.body.classList.remove('title');
-  layoutPack();
 }
 
 startForm.addEventListener('submit', (e) => {

@@ -23,7 +23,7 @@ function clearSave() {
 }
 
 const roomId = () => (indoors ? Object.keys(ROOMS).find((k) => ROOMS[k] === indoors) : null);
-const onFirmGround = () => !flight && !sail && !hop && !fade && !player.swimming && !player.flying && player.jumpT < 0;
+const onFirmGround = () => !flight && !sail && !hop && !fade && !player.swimming && !player.flying && player.jumpT < 0 && !player.trek;
 
 // The explored parts of the map, as run lengths of alternating unseen and seen tiles.
 function packSeen() {
@@ -64,20 +64,34 @@ function snapshot() {
     clock, dayCount, weather: weather.want,
     player: { ...spot, dir: player.dir, sail: !!sail, fedT: Math.max(0, player.fedT || 0) },
     ship: { x: shipObj.x, y: shipObj.y, facing: shipObj.facing, dir: shipObj.dir },
-    bag: things, slots: [...slots], activeSlot, activeTool, focus, stats: { ...stats }, journal,
+    bag: things, hotbar: [...hotbar], hand, unpinned: [...unpinned], outfit, stats: { ...stats }, journal,
     npcs: npcs.map((n) => ({ gaveAxe: n.gaveAxe, gaveRod: n.gaveRod, scrapGiven: n.scrapGiven, tipTold: n.tipTold })),
     flock: { asked: flockAsked, done: flockDone },
     dog: { state: dog.state, asked: dog.asked },
     eggStage,
-    eggs: eggs.map((e) => ({ state: e.state, x: e.x, y: e.y, hatchT: e.hatchT })),
+    eggs: eggs.map((e) => ({ state: e.state, x: e.x, y: e.y, hatchT: e.hatchT, crater: !!e.crater })),
     dragons: dragons.map((d) => {
       const at = flight && flight.dragon === d ? spot : d;
-      return { species: d.species, name: d.name, stage: d.stage, x: Math.round(at.x), y: Math.round(at.y), follower: d === follower };
+      return {
+        species: d.species, name: d.name, stage: d.stage, x: Math.round(at.x), y: Math.round(at.y), follower: d === follower,
+        saddled: !!d.saddled, roost: d.roost ?? null,
+      };
     }),
-    map: { seen: packSeen(), learned: POIS.filter((p) => p.learned).map((p) => p.id), seenPois: POIS.filter((p) => p.seen).map((p) => p.id) },
-    drops: drops.filter((d) => d.z <= 0 && !d.fuel && !d.thrown).map((d) => [d.item, Math.round(d.x), Math.round(d.y)]),
-    silver, upgrades: { ...upgrades }, fishLog, chest: { ...chestStore },
+    map: {
+      seen: packSeen(), learned: POIS.filter((p) => p.learned).map((p) => p.id), seenPois: POIS.filter((p) => p.seen).map((p) => p.id),
+      marked: POIS.filter((p) => p.marked).map((p) => p.id),
+    },
+    drops: drops.filter((d) => d.z <= 0 && !d.fuel && !d.thrown).map((d) => (d.mark ? [d.item, Math.round(d.x), Math.round(d.y), d.mark] : [d.item, Math.round(d.x), Math.round(d.y)])),
+    coins, upgrades: { ...upgrades }, fishLog, chest: { ...chestStore },
     archery: { stage: archery.stage, active: archery.active, intro: archery.intro },
+    ruin: { solved: ruin.solved },
+    dunes: saveDunes(),
+    tinker: saveTinker(),
+    build: saveBuild(),
+    ice: saveIce(),
+    torch: { out: flame.out, left: Math.round(flame.left) },
+    stamina: player.stamina,
+    roost: saveRoost(),
   };
 }
 
@@ -105,12 +119,7 @@ function restore(s) {
   Object.assign(stats, s.stats);
   Object.assign(journal.started, s.journal.started);
   Object.assign(journal.done, s.journal.done);
-  slots.length = 0;
-  slots.push(...s.slots.map((id) => (inPack(id) ? id : null)));
-  activeSlot = s.activeSlot;
-  const oldPick = s.slots[s.activeSlot];
-  activeTool = s.activeTool ?? (ITEMS[oldPick]?.tool ? oldPick : null);
-  focus = s.focus || (activeTool ? 'tools' : 'items');
+  restoreHotbar(s);
   s.npcs.forEach((d, i) => { if (npcs[i]) Object.assign(npcs[i], d); });
   if (has('backpack')) wearBackpack();
   if (hasMap()) {
@@ -121,23 +130,71 @@ function restore(s) {
   for (const p of POIS) {
     p.learned ||= s.map.learned.includes(p.id);
     p.seen ||= s.map.seenPois.includes(p.id);
+    p.marked ||= !!s.map.marked?.includes(p.id);
   }
+  if (hasMap()) revealHomeIsle();
 
   restoreFlock(s.flock);
   restoreDog(s.dog);
+  restoreTinker(s.tinker);
+  restoreBuild(s.build);
+  restoreIce(s.ice);
   restorePlayer(s);
+  restoreRoost(s.roost);
   restoreEggs(s);
+  // saves from before the rune stones that already took the egg count the stones as woken
+  ruin.solved = !!s.ruin?.solved || eggs.some((e) => e.species === 'nightFury' && e.state !== 'wild');
+  ruinNight = isNight();
+  syncRuin();
+  restoreDunes(s.dunes);
   restoreDragons(s.dragons);
 
   drops.length = 0;
-  for (const [item, x, y] of s.drops) if (ITEMS[item]) spawnDrop(item, x, y, 0, 0, 0);
+  for (const [item, x, y, mark] of s.drops) {
+    if (!ITEMS[item]) continue;
+    spawnDrop(item, x, y, 0, 0, 0);
+    if (mark) drops[drops.length - 1].mark = mark;
+  }
+  restoreSkerryPapers();
   restoreTrade(s);
+  Object.assign(flame, s.torch);
+  player.stamina = s.stamina ?? 1;
+  restoreOutfit(s);
   renderInventory();
+}
+
+// Saves from before the hotbar put the belt's tools first, then the old backpack slots' usable things; the old pick
+// stays in hand.
+function restoreHotbar(s) {
+  hotbar.fill(null);
+  unpinned.clear();
+  if (s.hotbar) {
+    s.hotbar.slice(0, HOTBAR).forEach((id, i) => { hotbar[i] = ITEMS[id] ? id : null; });
+    for (const id of s.unpinned || []) unpinned.add(id);
+    hand = Math.min(s.hand ?? 0, HOTBAR - 1);
+    return;
+  }
+  const old = [...BELT.filter((id) => has(id) && ITEMS[id].tool), ...(s.slots || []).filter((id) => ITEMS[id] && has(id) && usable(id))];
+  [...new Set(old)].slice(0, HOTBAR).forEach((id, i) => { hotbar[i] = id; });
+  const pick = s.focus === 'tools' ? s.activeTool : s.slots?.[s.activeSlot];
+  hand = Math.max(0, hotbar.indexOf(pick));
+}
+
+// Saves from before clothes keep their way onto the frozen isle and the volcano: whoever has already been into the
+// ice cave has a fur coat, and whoever has worked the volcano a fireproof jacket.
+function restoreOutfit(s) {
+  if (!('outfit' in s)) {
+    if (stats.caves > 0 || iceRing.some((o) => o.hidden)) bag.furCoat = 1;
+    if (eggPast('warming') || stats.ore > 0 || stats.lava > 0) bag.fireJacket = 1;
+    const need = EXPOSE[exposedTo()]?.outfit;
+    outfit = need && has(need) ? need : null;
+  } else outfit = s.outfit && has(s.outfit) ? s.outfit : null;
+  dress();
 }
 
 // Saves from before the merchant, the fish log and the archer's challenges simply start those fresh.
 function restoreTrade(s) {
-  silver = s.silver || 0;
+  coins = s.coins ?? (s.silver || 0) * 10;
   Object.assign(upgrades, s.upgrades);
   Object.assign(chestStore, s.chest);
   if (s.fishLog) {
@@ -180,6 +237,8 @@ function restorePlayer(s) {
   const p = s.player;
   indoors = p.room ? ROOMS[p.room] || null : null;
   Object.assign(player, { x: p.x, y: p.y, dir: p.dir, fedT: p.fedT, swimming: false, flying: false });
+  // a spot saved in an older layout of the cave may now be solid rock
+  if (indoors?.cave && !canStand(player, p.x, p.y)) Object.assign(player, { x: (indoors.door + 0.5) * TILE, y: indoors.doorY * TILE - 2, dir: 'up' });
   if (!p.sail) return;
   const deck = deckPos();
   sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };
@@ -193,9 +252,9 @@ function restoreEggs(s) {
     const e = eggs[i];
     if (!e || d.state === 'wild') return;
     if (d.state === 'warming') {
-      Object.assign(e, { x: d.x, y: d.y, hidden: false, crack: 0, hatchT: d.hatchT, state: 'warming' });
+      Object.assign(e, { x: d.x, y: d.y, hidden: !!d.crater, crater: !!d.crater, crack: 0, hatchT: d.hatchT, state: 'warming' });
       placeCollider(e);
-      e.col.off = false;
+      e.col.off = !!d.crater;
       return;
     }
     Object.assign(e, { hidden: true, state: d.state });
@@ -210,11 +269,16 @@ function restoreDragons(list) {
     const d = {
       species: s.species, x: s.x, y: s.y, alt: 0, dir: 'down', anim: 0, frame: 0, flying: false, stuck: 0, jumpT: 0, jumpDelay: 0,
       emote: null, emoteT: 0, chirpT: 4, stage: s.stage, swoop: null, catchT: 0, home: { x: s.x, y: s.y }, wanderT: 3, name: s.name,
+      // dragons grown before saddles were a thing were already being ridden, so they keep a saddle on
+      saddled: s.saddled ?? s.stage === GROWN, roost: roost.built && !s.follower ? s.roost ?? null : null,
     };
     dragons.push(d);
     if (d.stage === GROWN) {
-      const spot = perchSpot(s.x, s.y, AROUND) || perchSpot(villageFire.x, villageFire.y + 40, AROUND);
-      const o = { key: `dragon_${d.species}`, x: spot.x, y: spot.y, phase: 0, hidden: false, col: { off: false } };
+      const spot = d.roost !== null ? roostSpot(d.roost) : perchSpot(s.x, s.y, AROUND) || perchSpot(villageFire.x, villageFire.y + 40, AROUND);
+      const o = {
+        key: `dragon_${d.species}`, x: spot.x, y: spot.y, phase: 0, hidden: false, saddled: d.saddled, col: { off: false },
+        faceRight: d.roost !== null ? ROOST_SLOTS[d.roost][0] < 0 : hash(spot.x, spot.y, 5) < 0.5,
+      };
       placeCollider(o);
       objects.push(o);
       colliders.push(o.col);

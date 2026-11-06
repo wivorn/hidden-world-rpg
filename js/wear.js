@@ -1,0 +1,127 @@
+// Clothes: one outfit at a time over the tunic. The frozen isle is too cold to stay on without the fur coat, and the
+// volcano too hot without the fireproof jacket: a few seconds ashore and the player has to turn back.
+
+// The worn outfit's item id, or null for the plain tunic.
+let outfit = null;
+const OUTFIT_NOTE = {
+  furCoat: 'Warm enough for the frozen isle and the ice cave.',
+  fireJacket: 'Fire eel skin: the volcano\'s heat can\'t get through it.',
+};
+
+function dress() {
+  player.look = { ...player.look, coat: outfit ? COATS[outfit] : undefined };
+  if (sail) shipObj.rider = player.look;
+}
+
+function wear(id) {
+  if (id && !has(id)) return;
+  outfit = id;
+  dress();
+  renderInventory();
+  Sfx.pickup();
+  dust(player.x, player.y);
+}
+
+// ---------- too cold, too hot ----------
+
+// Seconds ashore before the player has to turn back.
+const EXPOSE_T = 6;
+const EXPOSE = {
+  cold: { outfit: 'furCoat', isle: 'frozen', label: 'FREEZING', back: 'Brrr! Too cold! Back I go to warm up.' },
+  heat: { outfit: 'fireJacket', isle: 'volcano', label: 'SCORCHING', back: 'Too hot! I can\'t breathe in this heat. Back I go!' },
+};
+const exposure = { kind: null, v: 0, warned: false, puffT: 0 };
+const exposureEl = document.getElementById('exposure');
+
+// The islands' coasts wander a little past their ellipses.
+function onIsle(id) {
+  const i = isle(id);
+  return Math.hypot((player.x / TILE - i.x) / (i.rx + 4), (player.y / TILE - i.y) / (i.ry + 4)) < 1;
+}
+
+// Which weather the player is out in on foot, if any.
+function exposedTo() {
+  if (sail || flight || hop || fade || player.swimming || player.flying) return null;
+  if (indoors) return indoors === ROOMS.cave ? 'cold' : null;
+  if (player.trek) return 'heat';
+  if (onIsle('frozen')) return 'cold';
+  if (onIsle('volcano')) return 'heat';
+  return null;
+}
+
+function updateExposure(dt) {
+  const kind = exposedTo();
+  const e = EXPOSE[kind];
+  const bare = e && outfit !== e.outfit;
+  if (bare) {
+    if (exposure.kind !== kind) Object.assign(exposure, { kind, v: 0, warned: false });
+    exposure.v = Math.min(1, exposure.v + dt / EXPOSE_T);
+    if (!exposure.warned) {
+      exposure.warned = true;
+      warnExposure(e);
+    }
+    exposure.puffT -= dt;
+    if (exposure.puffT <= 0) {
+      exposure.puffT = 0.45 - exposure.v * 0.25;
+      puff(kind);
+    }
+    if (exposure.v >= 1) turnBack(e);
+  } else {
+    exposure.v = Math.max(0, exposure.v - dt / 2);
+    if (!e) exposure.warned = false;
+  }
+  showExposure();
+}
+
+function warnExposure(e) {
+  const name = ITEMS[e.outfit].name.toLowerCase();
+  const r = RECIPES.find((x) => x.item === e.outfit);
+  const start = e.outfit === 'furCoat' ? 'Brrr! It\'s bitter cold here.' : 'Phew! The ground\'s hot enough to cook on.';
+  muse(has(e.outfit) ? `${start} My ${name} is in my bag. I should put it on (B)!`
+    : `${start} I need a ${name}. The ${r.maker} could sew one from ${listNeeds(r.needs)}.`);
+}
+
+// Frosty breath and shivers in the cold; sweat and smoke in the heat.
+function puff(kind) {
+  const x = player.x + (player.dir === 'left' ? -4 : player.dir === 'right' ? 4 : 0);
+  if (kind === 'cold') {
+    particles.push({ type: 'steam', x, y: player.y - 17, vx: (Math.random() - 0.5) * 8, vy: -8, life: 0, max: 0.9 });
+  } else {
+    particles.push({ type: 'smoke', x: player.x + (Math.random() - 0.5) * 10, y: player.y - 8 - Math.random() * 10, vx: (Math.random() - 0.5) * 6, vy: -14, life: 0, max: 0.9 });
+    if (Math.random() < 0.5) particles.push({ type: 'spark', x, y: player.y - 18, vx: (Math.random() - 0.5) * 20, vy: 10, c: '#bfe6ff', c2: '#7ab8e0', life: 0, max: 0.4 });
+  }
+}
+
+// Back aboard: onto a saddled dragon waiting close by if there is one, or else the longship.
+function turnBack(e) {
+  if (fade) return;
+  muse(e.back);
+  fadeTo(() => {
+    if (player.trek) endTrek();
+    const out = indoors ? outsideDoor(indoors) : player;
+    indoors = null;
+    Object.assign(player, { x: out.x, y: out.y, fishing: null, chop: null, nock: null, swimming: false });
+    Object.assign(exposure, { v: 0, warned: false });
+    const d = dragons.find((b) => b.stage === GROWN && b.perched && b.saddled && Math.hypot(b.x - player.x, b.y - player.y) < 360);
+    if (d) {
+      Object.assign(player, standSpotNear(player, d.x, d.y + 12));
+      return mount(d);
+    }
+    const deck = deckPos();
+    sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };
+    shipObj.rider = player.look;
+    Object.assign(player, { x: deck.x, y: shipObj.y, flying: true });
+  });
+}
+
+function showExposure() {
+  const v = exposure.v;
+  exposureEl.hidden = v <= 0;
+  document.body.classList.toggle('cold', v > 0 && exposure.kind === 'cold');
+  document.body.classList.toggle('hot', v > 0 && exposure.kind === 'heat');
+  document.body.style.setProperty('--exposure', v.toFixed(3));
+  if (v <= 0) return;
+  exposureEl.querySelector('span').textContent = EXPOSE[exposure.kind].label;
+  exposureEl.setAttribute('aria-label', EXPOSE[exposure.kind].label.toLowerCase());
+  exposureEl.setAttribute('aria-valuenow', Math.round(v * 100));
+}

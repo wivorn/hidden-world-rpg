@@ -34,6 +34,7 @@ const QUESTS = [
     id: 'iron', title: 'Iron from the Fire Mountain', start: () => dog.state === 'home' || has('iron') || has('pickaxe'),
     steps: [
       { id: 'pickaxe', text: 'Ask the smith for a pickaxe (2 wood, 1 iron)', done: () => has('pickaxe') },
+      { id: 'ironJacket', text: 'Ask the seamstress for a fireproof jacket (2 fire eels, 2 wool). The volcano is too hot without one', done: () => has('fireJacket') || stats.ore > 0 },
       { id: 'ore', text: 'Mine iron ore on the volcano isle', done: () => stats.ore > 0 },
     ],
   },
@@ -47,9 +48,30 @@ const QUESTS = [
   {
     id: 'egg', title: 'The Dragon Egg', start: () => eggPast('carried') || POIS.find((p) => p.id === 'ruin').learned,
     steps: [
-      { id: 'egg', text: 'Find the dragon egg at the ancient ruin', done: () => eggPast('carried') },
-      { id: 'hatch', text: 'Keep it warm by the village fire until it hatches', done: () => eggPast('hatched') },
-      { id: 'grow', text: 'Feed your dragon three fish from the open sea', done: () => eggPast('grown') },
+      { id: 'reach', text: 'Find a way through the reefs to the ancient ruin', done: () => eggPast('carried') || stats.ruinLanded > 0 },
+      { id: 'stones', text: () => `At night, touch all nine rune stones in order. The walls show the start; the sailor's note in a skerry chest has the rest${ruinEgg && ruin.step && !ruin.solved ? ` (${ruin.step}/${RUIN_ORDER.length})` : ''}`, done: () => eggPast('carried') || ruin.solved },
+      { id: 'egg', text: 'Take the dragon egg', done: () => eggPast('carried') },
+      { id: 'eggJacket', text: 'Get a fireproof jacket from the seamstress (2 fire eels, 2 wool) and put it on', done: () => outfit === 'fireJacket' || eggPast('warming') },
+      { id: 'hatch', text: 'Climb the volcano and drop the egg into its crater to hatch it', done: () => eggPast('hatched') },
+      { id: 'grow', text: 'Fish from the longship: your dragon eats every catch until it\'s grown', done: () => eggPast('grown') },
+    ],
+  },
+  {
+    id: 'saddle', title: 'Saddle Up', start: () => eggPast('grown'),
+    steps: [
+      { id: 'made', text: 'Bring the tanner 3 hides and ask for a saddle', done: () => has('saddle') || dragons.some((d) => d.saddled) },
+      { id: 'on', text: 'Ready the saddle and press F by your grown dragon to strap it on', done: () => dragons.some((d) => d.saddled) },
+      { id: 'fly', text: 'Climb on with SPACE and take to the skies', done: () => stats.flown > 0 },
+    ],
+  },
+  {
+    id: 'roost', title: 'A Roost for Dragons', start: () => roost.asked,
+    steps: [
+      { id: 'clear', text: () => `Fell the pines between the hermit's stakes (${siteTrees.length - treesLeft()}/${siteTrees.length})`, done: () => roost.built || !treesLeft() },
+      { id: 'build', text: `Bring ${ROOST_WOOD} wood and build the roost between the stakes`, done: () => roost.built },
+      { id: 'leave', text: 'Bring two grown dragons and tell them to stay at the roost', done: () => roost.laid.length > 0 || roosting().length >= 2 },
+      { id: 'laid', text: 'Wait for the pair to lay an egg', done: () => roost.laid.length > 0 },
+      { id: 'newKind', text: 'Hatch it in the volcano: a kind of dragon never seen before', done: () => dragons.some((d) => d.species.startsWith('bred')) },
     ],
   },
   {
@@ -75,7 +97,7 @@ const QUESTS = [
     id: 'trade', title: 'The Travelling Merchant', start: () => merchant.state !== 'away' || stats.sold > 0,
     steps: [
       { id: 'sold', text: () => `Sell something to Ottar${merchantHere() ? ', on the beach by his ship' : ' (his ship docks every third day)'}`, done: () => stats.sold > 0 },
-      { id: 'bought', text: 'Buy something with your silver', done: () => stats.bought > 0 },
+      { id: 'bought', text: 'Buy something with your coins', done: () => stats.bought > 0 },
     ],
   },
   {
@@ -94,9 +116,34 @@ const QUESTS = [
   {
     id: 'cave', title: 'The Ice Cave', start: () => POIS.find((p) => p.id === 'cave').learned || stats.caves > 0,
     steps: [
-      { id: 'caveFound', text: 'Find the ice cave on the frozen isle', done: () => stats.caves > 0 },
-      { id: 'torch', text: 'Get a torch: the smith makes one from 1 wood and 1 wool', done: () => has('torch') },
+      { id: 'coat', text: 'Get a thick fur coat from the seamstress (4 hides, 2 wool). The frozen isle is too cold without one', done: () => has('furCoat') || stats.caves > 0 },
+      { id: 'torch', text: 'Get a torch: the smith makes one from 1 wood and 1 wool. Ready it and press F to light it', done: () => has('torch') || stats.caves > 0 },
+      { id: 'iceMelted', text: 'Melt a way through the ring of ice round the cave mouth', done: () => iceRing.some((o) => o.hidden) || stats.caves > 0 },
+      { id: 'caveFound', text: 'Go inside the ice cave on the frozen isle', done: () => stats.caves > 0 },
       { id: 'caveEnd', text: 'Find what waits at the far end of the cave', done: () => eggs.find((e) => e.species === 'lightFury').state !== 'wild' },
+    ],
+  },
+  {
+    id: 'sphinx', title: 'The Sphinx\'s Riddles', start: () => POIS.find((p) => p.id === 'speck').learned || sphinx.met,
+    steps: [
+      { id: 'sphinxMet', text: 'Find the sphinx on the dune isle, far to the south', done: () => sphinx.met },
+      { id: 'riddles', text: () => `Answer its three riddles. Press ENTER to speak (${sphinx.step}/3)`, done: () => sphinx.solved },
+      { id: 'sandEgg', text: 'Find the dragon egg in the sand cave', done: () => eggs.find((e) => e.species === 'terribleTerror').state !== 'wild' },
+    ],
+  },
+  {
+    id: 'tinker', title: 'Tinkering', start: () => tinker.told || tinker.known.size > 0,
+    steps: [
+      { id: 'tinkerFirst', text: 'Press C and put things together to discover something new', done: () => tinker.known.size > 0 },
+      { id: 'tinkerAll', text: () => `Discover everything there is to make (${tinker.known.size}/${TINKER.length}). Ask villagers how`, done: () => tinker.known.size >= TINKER.length },
+    ],
+  },
+  {
+    id: 'hawk', title: 'Old Bjorn\'s Cache', start: () => POIS.find((p) => p.id === 'hawk').learned || stats.hawkTop > 0,
+    steps: [
+      { id: 'hawkTop', text: 'Get up the cliffs of Hawk Rock, out to the west', done: () => stats.hawkTop > 0 },
+      { id: 'hawkAcross', text: 'Find a way across the rapids', done: () => stats.hawkAcross > 0 },
+      { id: 'hawkCache', text: 'Get through to the cairn and open Old Bjorn\'s cache', done: () => hawk.opened },
     ],
   },
 ];

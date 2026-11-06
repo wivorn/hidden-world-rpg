@@ -13,20 +13,23 @@
   <div class="vignette"></div>
   <div id="bubbles"></div>
   <div id="prompt"></div>
-  <div id="pack">
-    <ul id="belt" aria-label="Tool belt. Number keys pick a tool; E or Tab steps forward and Q back through the tools and then the backpack" hidden></ul>
-    <ul id="inventory" aria-label="Backpack" aria-live="polite"></ul>
+  <div id="hotbar" hidden>
+    <ul id="hotbar-slots" aria-label="Hotbar. F uses the selected slot; number keys pick a slot, E or Tab steps forward and Q back"></ul>
   </div>
   <div id="clock" role="img"><img alt="" /><span aria-hidden="true"></span></div>
-  <div id="purse" role="status" hidden><img alt="" /><span></span></div>
+  <div id="purse" role="status" hidden></div>
   <div id="toggles">
-    <button id="hints" class="toggle" type="button" aria-pressed="false" aria-label="Hints" title="Hints (H)"><img alt="" /></button>
-    <button id="sound" class="toggle" type="button" aria-pressed="true" aria-label="Sound" title="Sound (N)"><img alt="" /></button>
-    <button id="journal-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Quest journal" title="Quest journal (J)" hidden><img alt="" /></button>
-    <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="World map" title="World map (M)" hidden><img alt="" /></button>
-    <button id="fishlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Fish log" title="Fish log (L)" hidden><img alt="" /></button>
+    <button id="hints" class="toggle" type="button" aria-pressed="false" aria-label="Hints" title="Hints (H)" data-key="H"><img alt="" /></button>
+    <button id="sound" class="toggle" type="button" aria-pressed="true" aria-label="Sound" title="Sound (N)" data-key="N"><img alt="" /></button>
+    <button id="bag-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="Bag (B)" data-key="B" hidden><img alt="" /><span></span></button>
+    <button id="journal-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Quest journal" title="Quest journal (J)" data-key="J" hidden><img alt="" /></button>
+    <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="World map" title="World map (M)" data-key="M" hidden><img alt="" /></button>
+    <button id="fishlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Fish log" title="Fish log (L)" data-key="L" hidden><img alt="" /></button>
+    <button id="tinker-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Tinker" title="Tinker (C)" data-key="C" hidden><img alt="" /></button>
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
+  <div id="stamina" class="full" role="meter" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i></div>
+  <div id="exposure" role="meter" aria-label="Freezing" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span aria-hidden="true">FREEZING</span><i></i></div>
   <form id="chat" autocomplete="off">
     <label for="chat-input">SAY</label>
     <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
@@ -45,6 +48,7 @@
       <h2 id="worldmap-title">MAP OF THE HIDDEN WORLD</h2>
       <canvas id="worldmap-canvas" role="img" aria-label="World map"></canvas>
       <button id="worldmap-close" type="button">CLOSE</button>
+      <p id="worldmap-tip" aria-live="polite"></p>
     </div>
   </div>
   <div id="journal" class="overlay" role="dialog" aria-modal="true" aria-labelledby="journal-title" hidden>
@@ -97,6 +101,66 @@
       <button id="chest-close" type="button">CLOSE</button>
     </div>
   </div>
+  <div id="tinker" class="overlay" role="dialog" aria-modal="true" aria-labelledby="tinker-title" hidden>
+    <div class="panel trade-panel">
+      <h2 id="tinker-title">TINKER</h2>
+      <p id="tinker-help">Put up to four things together and see what comes of it.</p>
+      <ul id="tinker-slots" aria-label="Things to put together"></ul>
+      <div class="tinker-actions">
+        <button id="tinker-try" type="button">TRY IT</button>
+        <button id="tinker-clear" type="button">CLEAR</button>
+      </div>
+      <p id="tinker-say" role="status" aria-live="polite"></p>
+      <div class="trade-cols">
+        <section aria-labelledby="tinker-bag-title">
+          <h3 id="tinker-bag-title">YOUR THINGS</h3>
+          <ul id="tinker-bag"></ul>
+        </section>
+        <section aria-labelledby="tinker-known-title">
+          <h3 id="tinker-known-title">DISCOVERIES</h3>
+          <ul id="tinker-known"></ul>
+        </section>
+      </div>
+      <button id="tinker-close" type="button">CLOSE</button>
+    </div>
+  </div>
+  <div id="note" class="overlay" role="dialog" aria-modal="true" aria-labelledby="note-title" hidden>
+    <div class="panel note-panel">
+      <h2 id="note-title">A SAILOR'S NOTE</h2>
+      <p>Nine stones ring the egg on the old ruin isle. Touch every one by night, in this order, and it rises:</p>
+      <canvas id="note-runes" role="img"></canvas>
+      <p class="note-sign">Any wrong stone and they all go dark. Start again from the first.</p>
+      <button id="note-close" type="button">CLOSE</button>
+    </div>
+  </div>
+  <div id="bag" class="overlay" role="dialog" aria-modal="true" aria-labelledby="bag-title" hidden>
+    <div class="panel bag-panel">
+      <h2 id="bag-title">YOUR BAG</h2>
+      <div class="bag-cols">
+        <section aria-labelledby="bag-wear-title">
+          <h3 id="bag-wear-title">WEARING</h3>
+          <canvas id="bag-hero" width="16" height="24" aria-hidden="true"></canvas>
+          <h4 id="bag-outfits-title">OUTFIT</h4>
+          <ul id="bag-outfits" class="bag-grid" aria-labelledby="bag-outfits-title"></ul>
+          <h4 id="bag-gear-title">GEAR</h4>
+          <ul id="bag-gear" class="bag-grid" aria-labelledby="bag-gear-title"></ul>
+        </section>
+        <section aria-labelledby="bag-tools-title">
+          <h3 id="bag-tools-title">TOOLS</h3>
+          <ul id="bag-tools" class="bag-grid"></ul>
+        </section>
+        <section aria-labelledby="bag-items-title">
+          <h3 id="bag-items-title">BACKPACK <span id="bag-room"></span></h3>
+          <div id="bag-items"></div>
+        </section>
+      </div>
+      <div class="bag-detail">
+        <p id="bag-what" role="status" aria-live="polite"></p>
+        <div id="bag-actions"></div>
+      </div>
+      <button id="bag-close" type="button">CLOSE</button>
+    </div>
+  </div>
   <div id="start" class="overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
     <form id="start-form" class="panel" autocomplete="off">
       <h1 id="start-title"><small>WELCOME TO</small> HIDDEN WORLD</h1>
@@ -124,6 +188,7 @@
   <script src="js/sprites.js"></script>
   <script src="js/world.js"></script>
   <script src="js/craft.js"></script>
+  <script src="js/bag.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sea.js"></script>
@@ -134,6 +199,14 @@
   <script src="js/chest.js"></script>
   <script src="js/archery.js"></script>
   <script src="js/cave.js"></script>
+  <script src="js/ruin.js"></script>
+  <script src="js/dunes.js"></script>
+  <script src="js/tinker.js"></script>
+  <script src="js/build.js"></script>
+  <script src="js/ice.js"></script>
+  <script src="js/peak.js"></script>
+  <script src="js/roost.js"></script>
+  <script src="js/wear.js"></script>
   <script src="js/wildlife.js"></script>
   <script src="js/journal.js"></script>
   <script src="js/title.js"></script>

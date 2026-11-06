@@ -61,7 +61,7 @@ body {
 #prompt {
   position: fixed;
   left: 50%;
-  bottom: 120px;
+  bottom: 76px;
   transform: translateX(-50%);
   padding: 10px 14px;
   background: rgba(20, 24, 40, 0.85);
@@ -76,6 +76,44 @@ body {
 
 #prompt.show {
   opacity: 1;
+}
+
+/* Top left: how much sprint the player has left, a bare bar. */
+#stamina {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+
+#stamina i {
+  position: relative;
+  display: block;
+  width: 120px;
+  height: 10px;
+  background: rgba(26, 18, 10, 0.75);
+  box-shadow: 0 0 0 2px rgba(26, 18, 10, 0.5);
+}
+
+#stamina i::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--stamina, 1) * 100%);
+  background: linear-gradient(#fff0a0, #f2c230);
+}
+
+#stamina.full {
+  opacity: 0.55;
+}
+
+#stamina.winded i::after {
+  background: linear-gradient(#ff9a6a, #d6421a);
+}
+
+body.title #stamina {
+  display: none;
 }
 
 #toggles {
@@ -113,13 +151,37 @@ body.title #toggles {
   padding: 6px 10px 6px 8px;
   background: rgba(40, 24, 12, 0.8);
   border: 3px solid #8f9098;
-  font: 11px/1 'Press Start 2P', monospace;
+  font: 14px/1 'Press Start 2P', monospace;
   color: #e8eaf0;
   pointer-events: none;
 }
 
 #purse[hidden] {
   display: none;
+}
+
+.coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  vertical-align: middle;
+}
+
+.coins b {
+  font-weight: normal;
+  margin-right: 8px;
+}
+
+.coins b:last-child {
+  margin-right: 0;
+}
+
+.coins.small {
+  gap: 3px;
+}
+
+.coins.small b {
+  margin-right: 5px;
 }
 
 #clock {
@@ -150,6 +212,7 @@ body.title #clock {
 }
 
 #purse img,
+.coins img,
 #trade img,
 #fishlog img {
   image-rendering: pixelated;
@@ -313,6 +376,77 @@ body.title #clock {
   cursor: not-allowed;
 }
 
+#tinker img {
+  image-rendering: pixelated;
+}
+
+#tinker-help,
+#tinker-say {
+  margin: -6px 0 0;
+  font-size: 8px;
+  line-height: 1.6;
+  color: #c8b48a;
+  text-align: center;
+}
+
+#tinker-say {
+  min-height: 2.6em;
+  margin: 0;
+  color: #f6e7c1;
+}
+
+#tinker-slots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#tinker-slots li {
+  display: flex;
+  width: 54px;
+  height: 54px;
+  background: rgba(20, 24, 40, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.75);
+}
+
+#tinker-slots li.empty {
+  border-style: dashed;
+  border-color: rgba(225, 160, 60, 0.3);
+}
+
+.panel #tinker-slots button {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.tinker-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.panel .tinker-actions button {
+  margin: 0;
+}
+
+.panel .tinker-actions button:disabled {
+  background: #6a5a44;
+  color: #3a2414;
+  cursor: not-allowed;
+}
+
+#tinker-close {
+  align-self: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   #map.bump,
   #journal-btn.bump { animation: none; }
@@ -349,11 +483,6 @@ body.title #toast {
   display: none;
 }
 
-/* Below this width the clock would run into the inventory, so it drops a row and the toast with it. */
-@media (max-width: 960px) {
-  #clock { top: 76px; }
-  #toast { top: 128px; }
-}
 .journal-panel {
   width: min(560px, calc(100vw - 48px));
   max-height: calc(100vh - 80px);
@@ -454,6 +583,7 @@ body.title #toast {
 }
 
 .map-panel {
+  position: relative;
   padding: 18px 22px;
   background: #4a2f18;
 }
@@ -471,6 +601,7 @@ body.title #toast {
 }
 
 .toggle {
+  position: relative;
   display: grid;
   place-items: center;
   width: 44px;
@@ -483,6 +614,20 @@ body.title #toast {
 
 .toggle img {
   image-rendering: pixelated;
+}
+
+/* The shortcut key, tagged on the top left corner. */
+.toggle[data-key]::before {
+  content: attr(data-key);
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  padding: 2px 3px;
+  font: 6px/1 'Press Start 2P', monospace;
+  color: #3a2414;
+  background: #ffd36b;
+  border: 2px solid #3a2414;
+  pointer-events: none;
 }
 
 .toggle:hover {
@@ -508,9 +653,10 @@ body.title #toast {
   border-top-color: #1d3263;
 }
 
+/* Centred, unless that would run it into the hotbar at the bottom left (14px + 6 slots + gaps, a gap, half the bar). */
 #chat {
   position: fixed;
-  left: 50%;
+  left: max(50%, 562px);
   bottom: 16px;
   transform: translateX(-50%);
   display: flex;
@@ -549,121 +695,169 @@ body.title #toast {
   color: rgba(232, 244, 255, 0.5);
 }
 
-/* Top left: the tool belt, with the backpack beside it on the same row. */
-#pack {
+/* Bottom left: six slots for what F uses. */
+#hotbar {
   position: fixed;
-  top: 14px;
   left: 14px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  pointer-events: none;
+  bottom: 16px;
+  --slot: 52px;
 }
 
-#inventory {
-  display: grid;
-  grid-template-columns: repeat(var(--cols, 6), auto);
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  pointer-events: none;
-}
-
-#inventory li {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  background: rgba(40, 24, 12, 0.8);
-  border: 3px solid #e1a03c;
-  pointer-events: auto;
-}
-
-#inventory[hidden] {
+#hotbar[hidden] {
   display: none;
 }
 
-#inventory li.empty {
-  background: rgba(40, 24, 12, 0.5);
-  border-color: #8a6534;
+/* While the bag is open the hotbar sits above it, to drag things onto. */
+body.bag-open #hotbar {
+  z-index: 1;
 }
-/* Only the one thing F works from is lit, and it wears a little F. */
-#inventory li.primary,
-#belt li.primary {
+
+#hotbar-slots {
+  display: flex;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#hotbar-slots li,
+.bag-grid li {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--slot, 52px);
+  height: var(--slot, 52px);
+  background: rgba(40, 24, 12, 0.8);
+  border: 3px solid #e1a03c;
+}
+
+#hotbar-slots li.empty {
+  background: rgba(40, 24, 12, 0.45);
+  border-color: rgba(138, 101, 52, 0.7);
+}
+
+/* The slot F works from is lit and wears a little F. */
+#hotbar-slots li.primary {
   border-color: #fff0a0;
-  background: rgba(92, 56, 18, 0.9);
+  background: rgba(92, 56, 18, 0.92);
   box-shadow: 0 0 0 2px #3a2414, 0 0 10px 2px rgba(255, 211, 107, 0.55);
 }
 
-#inventory li.primary.empty {
-  border-color: #c99a4a;
-  background: rgba(60, 36, 14, 0.7);
-}
-
-#inventory li b,
-#belt li b {
+#hotbar-slots li.primary::after {
+  content: 'F';
   position: absolute;
-  top: 2px;
-  left: 3px;
-  z-index: 1;
-  font: 8px/1 'Press Start 2P', monospace;
-  color: #c99a4a;
-  pointer-events: none;
-}
-
-#inventory li i,
-#belt li i {
-  position: absolute;
-  top: -9px;
+  top: -10px;
   right: -9px;
   z-index: 2;
   padding: 3px 4px;
   font: 8px/1 'Press Start 2P', monospace;
-  font-style: normal;
   color: #3a2414;
   background: #ffd36b;
   border: 2px solid #3a2414;
   pointer-events: none;
 }
 
-#inventory button {
+#hotbar-slots li.primary.empty::after {
+  content: none;
+}
+
+#hotbar-slots li > b,
+#bag .bag-grid button b {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  z-index: 1;
+  font: 7px/1 'Press Start 2P', monospace;
+  color: #c99a4a;
+  pointer-events: none;
+}
+
+#hotbar-slots button,
+#bag .bag-grid button {
+  position: relative;
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
-  pointer-events: auto;
 }
 
-#inventory button:hover {
+#hotbar-slots button:hover,
+#bag .bag-grid button:hover {
   background: rgba(255, 211, 107, 0.15);
 }
 
-#inventory button:focus-visible {
+#hotbar-slots button:focus-visible,
+#bag .bag-grid button:focus-visible {
   outline: 2px solid #ffd36b;
   outline-offset: 2px;
 }
 
-#inventory img {
+#hotbar img,
+.bag-grid img,
+#bag-hero {
   image-rendering: pixelated;
 }
 
-#inventory span {
+#hotbar-slots span,
+.bag-grid span {
   position: absolute;
   right: 2px;
   bottom: 2px;
-  font: 10px/1 'Press Start 2P', monospace;
+  font: 9px/1 'Press Start 2P', monospace;
   color: #f6e7c1;
   text-shadow: 2px 2px 0 #3a2414;
 }
 
-#inventory .bump {
+#hotbar .bump {
   animation: bump 0.35s ease-out;
+}
+
+/* What's left of the torch, along the bottom of its slot. */
+#hotbar .burn {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  width: 26px;
+  height: 4px;
+  background: #3a2414;
+  pointer-events: none;
+}
+
+#hotbar .burn::after {
+  content: '';
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  width: calc(var(--burn, 1) * 24px);
+  background: #ffb040;
+}
+
+#hotbar .burn.lit::after {
+  background: #ffe27a;
+}
+
+/* The bag button: the backpack, and how full it is in a tag at the bottom right. */
+#bag-btn span {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  padding: 2px 3px;
+  font: 6px/1 'Press Start 2P', monospace;
+  color: #f6e7c1;
+  background: #3a2414;
+  border: 2px solid rgba(232, 244, 255, 0.45);
+  pointer-events: none;
+}
+
+#bag-btn.full span {
+  color: #ff9a6a;
+}
+
+#bag-btn.bump {
+  animation: bump 0.35s ease-out 2;
 }
 
 @keyframes bump {
@@ -671,77 +865,202 @@ body.title #toast {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #inventory .bump { animation: none; }
+  #hotbar .bump,
+  #bag-btn.bump { animation: none; }
 }
 
-#belt {
-  display: grid;
-  grid-template-columns: repeat(var(--cols, 6), auto);
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+@media (max-width: 760px) {
+  #chat { left: 50%; }
+  #hotbar { --slot: 42px; bottom: 66px; }
+  #hotbar-slots { gap: 3px; }
+  #hotbar img { transform: scale(0.8); }
 }
 
-#belt[hidden] {
+/* Below the stamina bar: how long before the cold or heat drives the player back. */
+#exposure {
+  position: fixed;
+  top: 38px;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px 9px 8px;
+  background: rgba(20, 24, 40, 0.85);
+  border: 3px solid #9ad4ff;
+  font: 8px/1 'Press Start 2P', monospace;
+  color: #e8f4ff;
+  pointer-events: none;
+}
+
+#exposure[hidden] {
   display: none;
 }
 
-#belt li {
+#exposure i {
   position: relative;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  background: rgba(20, 24, 40, 0.6);
-  border: 3px solid rgba(232, 244, 255, 0.3);
-  transition: border-color 0.15s, background 0.15s;
-  pointer-events: auto;
+  display: block;
+  width: 120px;
+  height: 10px;
+  background: #0e1428;
 }
 
-#belt button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-#belt button:hover {
-  background: rgba(255, 211, 107, 0.15);
-}
-
-#belt button:focus-visible {
-  outline: 2px solid #ffd36b;
-  outline-offset: 2px;
-}
-
-#belt img {
-  image-rendering: pixelated;
-}
-
-#belt span {
+#exposure i::after {
+  content: '';
   position: absolute;
-  right: 2px;
-  bottom: 2px;
-  font: 10px/1 'Press Start 2P', monospace;
-  color: #f6e7c1;
-  text-shadow: 2px 2px 0 #3a2414;
+  inset: 0 auto 0 0;
+  width: calc(var(--exposure, 0) * 100%);
+  background: linear-gradient(#e6f6ff, #7ab8e0);
 }
 
-#belt .bump {
-  animation: bump 0.35s ease-out;
+body.hot #exposure {
+  background: rgba(40, 16, 8, 0.85);
+  border-color: #ff8a2a;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #belt .bump { animation: none; }
+body.hot #exposure i::after {
+  background: linear-gradient(#ffd36b, #e0542a);
 }
 
-body.title #pack,
+body.cold .vignette {
+  box-shadow: inset 0 0 calc(var(--exposure) * 200px) calc(var(--exposure) * 50px) rgba(200, 230, 255, 0.8);
+}
+
+body.hot .vignette {
+  box-shadow: inset 0 0 calc(var(--exposure) * 200px) calc(var(--exposure) * 50px) rgba(255, 120, 40, 0.6);
+}
+
+/* The bag: what's worn, the tools, and the backpack grouped by kind. */
+.bag-panel {
+  width: min(880px, calc(100vw - 48px));
+  max-height: calc(100vh - 60px);
+  box-sizing: border-box;
+  overflow-y: auto;
+  align-items: stretch;
+}
+
+.bag-cols {
+  display: grid;
+  grid-template-columns: 190px 1fr 1.5fr;
+  gap: 16px;
+}
+
+.bag-cols section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  background: rgba(20, 12, 6, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.35);
+}
+
+.bag-cols h3 {
+  margin: 0;
+  font: 10px/1.4 'Press Start 2P', monospace;
+  color: #ffd36b;
+}
+
+#bag-room {
+  color: #c8b48a;
+}
+
+#bag-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#bag-items h4,
+.bag-cols section > h4 {
+  margin: 4px 0 0;
+  font: 8px/1 'Press Start 2P', monospace;
+  color: #c8b48a;
+}
+
+#bag-hero {
+  align-self: center;
+  width: 64px;
+  height: 96px;
+}
+
+.bag-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  --slot: 50px;
+}
+
+.bag-grid li.none,
+#bag-items .none {
+  width: auto;
+  height: auto;
+  margin: 0;
+  background: none;
+  border: 0;
+  font-size: 8px;
+  color: #a8946c;
+}
+
+.bag-grid li:has(button[aria-pressed='true']) {
+  border-color: #fff0a0;
+  box-shadow: 0 0 0 2px #3a2414, 0 0 10px 2px rgba(255, 211, 107, 0.55);
+}
+
+.bag-grid li.worn {
+  border-color: #7cf05a;
+}
+
+.bag-grid li.locked {
+  border-style: dashed;
+  border-color: rgba(225, 160, 60, 0.45);
+}
+
+.bag-grid li.locked img {
+  filter: grayscale(1) brightness(0.6);
+  opacity: 0.45;
+}
+
+.bag-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: rgba(20, 24, 40, 0.5);
+}
+
+#bag-what {
+  flex: 1;
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+#bag-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#bag-actions button {
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.bag-panel > #bag-close {
+  align-self: center;
+}
+
+@media (max-width: 760px) {
+  .bag-cols { grid-template-columns: 1fr; }
+  .bag-detail { flex-direction: column; align-items: stretch; }
+}
+
+body.title #hotbar,
+body.title #exposure,
 body.title #purse,
 body.title #chat,
 body.title #prompt {
@@ -889,4 +1208,48 @@ body.title #prompt {
 
 .panel button:hover {
   background: #ffd36b;
+}
+
+/* The sailor's note: runes inked on a scrap of parchment. */
+.note-panel {
+  width: min(520px, calc(100vw - 48px));
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.note-panel p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+#note-runes {
+  max-width: 100%;
+  padding: 10px 12px;
+  background: #e8d7a8;
+  border: 3px solid #8a5a3a;
+  image-rendering: pixelated;
+}
+
+.note-sign {
+  font-size: 8px;
+  color: #c8b48a;
+}
+
+#worldmap-canvas.fly {
+  cursor: pointer;
+}
+
+/* Bottom right of the panel, below the map and level with the close button. */
+#worldmap-tip {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  margin: 0;
+  font-size: 8px;
+  color: #ffffff;
+  text-align: right;
+  white-space: pre;
+  line-height: 2;
+  text-shadow: 2px 2px 0 #0e1428;
+  pointer-events: none;
 }

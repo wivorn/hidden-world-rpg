@@ -257,6 +257,7 @@ function drawWeather(cx, cy) {
     ctx.fillRect(0, 0, viewW, viewH);
     drawDrifting(cx, cy, blob(90, '236,240,244'), 9, 7, 0.4 * fog, 2);
   }
+  drawRuinMist(cx, cy);
 }
 
 // ---------- night ----------
@@ -284,11 +285,11 @@ function nightLights(cx, cy, visible) {
   const out = [];
   for (const o of visible) {
     const l = SPR[o.key].light;
-    if (l) out.push({ x: o.x + l.dx, y: o.y + l.dy, r: Math.round(l.r * (1.6 + (o.blaze || 0) * 0.8)), k: 1 });
+    if (l) out.push({ x: o.x + l.dx, y: o.y + l.dy, r: Math.round(l.r * (1.6 + (o.blaze || 0) * 0.8 + (o.lit ? 1.4 : 0))), k: 1 });
     if (o === merchant.ship) out.push({ x: o.x, y: o.y - 40, r: 56, k: 0.9, glow: 16 });
   }
   for (const b of buildings) {
-    if (b.room === 'cave' || !onScreen(b.x, b.y, cx, cy, 120)) continue;
+    if (ROOMS[b.room].cave || !onScreen(b.x, b.y, cx, cy, 120)) continue;
     out.push({ x: doorX(b), y: b.y - 8, r: 30, k: 0.85, glow: 22 });
   }
   const [px0, py0] = flight ? [flight.x, flight.y - flight.alt - 10] : [player.x, player.y - 10];
@@ -325,7 +326,7 @@ function drawNight(cx, cy, visible) {
     const g = nightLayer.getContext('2d');
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, viewW, viewH);
-    g.fillStyle = cave ? 'rgba(2,4,10,0.96)' : `rgba(6,10,36,${0.7 * n})`;
+    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : 'rgba(2,4,10,0.96)') : `rgba(6,10,36,${0.7 * n})`;
     g.fillRect(0, 0, viewW, viewH);
     g.globalCompositeOperation = 'destination-out';
     const lights = nightLights(cx, cy, visible);

@@ -239,6 +239,7 @@ function placeSeaLions(rng) {
       if (solidAt(lx - 8, ly - 4, lx + 8, ly)) continue;
       members.push({
         tx: mx, ty: my, lx, ly, x: lx, y: ly, wx: lx + dir[0] * 26, wy: ly + dir[1] * 26,
+        kind: 'sealion', hp: WILD.sealion.hp, hurtT: 0,
         state: 'lounge', t: rng() * 6, face: dir[0] ? dir[0] : rng() < 0.5 ? 1 : -1, phase: rng() * 9, barkT: 3 + rng() * 10,
       });
     }
@@ -508,11 +509,26 @@ function updateSpyHop(p, near, dt) {
 }
 
 // A sea lion lounges and barks on the shore, flops into the sea when someone comes close,
-// swims about a while and hauls itself back out once they've gone.
+// swims about a while and hauls itself back out once they've gone. One brought down on land is gone till it respawns.
+const lionAlive = (s) => s.state !== 'down' && s.state !== 'gone';
 const lionStartled = (s) => (!flight && !player.swimming && !sail && Math.hypot(player.x - s.lx, player.y - s.ly) < 52) || shipNear(s.lx, s.ly, 70);
 
 function updateLion(s, scared, dt) {
   s.t += dt;
+  if (s.hurtT > 0) s.hurtT -= dt;
+  if (s.state === 'down') {
+    if (s.t >= DOWN_TIME) {
+      Object.assign(s, { x: s.lx - (s.wx - s.lx) * 0.3, y: s.ly - (s.wy - s.ly) * 0.3 });
+      dropMeat(s);
+    }
+    return;
+  }
+  if (s.state === 'gone') {
+    if ((s.respawnT -= dt) <= 0 && Math.hypot(player.x - s.lx, player.y - s.ly) > 320) {
+      Object.assign(s, { state: 'swim', t: 0, x: s.wx, y: s.wy, hp: WILD.sealion.hp });
+    }
+    return;
+  }
   const go = (tx, ty, speed) => {
     const dx = tx - s.x;
     const dy = ty - s.y;
@@ -594,7 +610,7 @@ function updateSea(dt) {
   for (const m of seaLife.mantas) updateManta(m, dt);
   for (const p of seaLife.orcas) updateOrcas(p, dt);
   for (const c of seaLife.lions) {
-    const scared = c.members.some(lionStartled);
+    const scared = c.members.some((s) => lionAlive(s) && lionStartled(s));
     for (const s of c.members) updateLion(s, scared, dt);
   }
   updateWaves(dt);
@@ -859,8 +875,16 @@ function drawSpyHop(p, m, cx, cy) {
 }
 
 function drawLion(s, cx, cy) {
+  if (s.state === 'gone' || (s.hurtT > 0 && Math.floor(s.hurtT * 20) % 2)) return;
   const x = Math.round(s.x - cx);
   const y = Math.round(s.y - cy);
+  if (s.state === 'down') {
+    ctx.globalAlpha = Math.max(0, 1 - s.t / DOWN_TIME);
+    drawShadow(x, y, 9, 2);
+    ctx.drawImage((s.face > 0 ? SEA_ART.lion : SEA_ART.lionL)[0], x - 11, y - 15);
+    ctx.globalAlpha = 1;
+    return;
+  }
   if (depthAt(s.x, s.y) > 0) {
     const img = s.face > 0 ? SEA_ART.lionHead : SEA_ART.lionHeadL;
     const by = y + Math.round(Math.sin(time * 2.6 + s.phase) * 0.8);

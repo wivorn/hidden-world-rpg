@@ -224,6 +224,16 @@ const Sfx = (() => {
       [1, 1.25, 1.5, 2].forEach((m, i) => tone({ type: 'triangle', f0: base * m, dur: 0.2, vol: 0.07, delay: 0.1 + i * 0.08 }));
       noise({ dur: 0.4, vol: 0.08, f0: 3000, f1: 6000, type: 'highpass', attack: 0.1 });
     },
+    rune(step) {
+      // up a major scale, one note per stone woken
+      const f = 392 * 2 ** ([0, 2, 4, 5, 7, 9, 11, 12, 14][(step - 1) % 9] / 12);
+      tone({ type: 'triangle', f0: f, dur: 0.9, vol: 0.08, attack: 0.02 });
+      tone({ f0: f * 2, dur: 1.2, vol: 0.03, attack: 0.05, delay: 0.05 });
+    },
+    rumble() {
+      noise({ dur: 2.2, vol: 0.25, f0: 160, f1: 50, attack: 0.3 });
+      tone({ type: 'sawtooth', f0: 55, f1: 40, dur: 1.8, vol: 0.06, attack: 0.3 });
+    },
     baa(k = 1) {
       const f = rand(380, 460);
       for (let i = 0; i < 6; i++) {

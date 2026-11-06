@@ -23,14 +23,30 @@ const POIS = [
   { id: 'frozen', name: 'Frozen Isle', icon: 'frozen', x: 70, y: 60, r: 14, words: /\bfrozen isle\b/i },
   { id: 'cave', name: 'Ice Cave', icon: 'cave', x: 64, y: 58.4, words: /\b(ice cave|caves?)\b/i },
   { id: 'jungle', name: 'Jungle Isle', icon: 'jungle', x: 410, y: 280, r: 14, words: /\bjungle( isle)?\b/i },
-  { id: 'speck', name: 'Speck of Sand', icon: 'isle', x: 262, y: 326, words: /\b(speck of sand|far isles)\b/i },
+  { id: 'speck', name: 'Dune Isle', icon: 'isle', x: 262, y: 324, words: /\b(dune isle|sphinx|speck of sand|far isles)\b/i },
+  { id: 'hawk', name: 'Hawk Rock', icon: 'mountain', x: 60, y: 178, r: 12, words: /\b(hawk rock|bjorn)\b/i },
+  ...[['isletNorth', 'Frost Skerry'], ['isletEast', 'Pine Skerry'], ['isletWest', 'Oak Skerry'], ['isletSouth', 'Palm Skerry'], ['isletFar', 'Far Skerry']].map(([id, name]) => {
+    const i = isle(id);
+    return { id, name, icon: 'isle', x: i.x, y: i.y, words: /\bskerr(y|ies)\b/i };
+  }),
 ];
 for (const p of POIS) {
   const isle = ISLANDS.some((i) => Math.hypot((p.x - i.x) / (i.rx + 2), (p.y - i.y) / (i.ry + 2)) < 1);
   Object.assign(p, { learned: !!p.known, seen: !!p.known, isle });
 }
-// Places across the sea stay off the map until the player has been out there to see them.
-const onMap = (p) => p.seen || (p.learned && !p.isle);
+// Places across the sea stay off the map until the player has been out there to see them, or a map piece marks them.
+const onMap = (p) => p.seen || p.marked || (p.learned && !p.isle);
+// The places the skerry chests' map pieces mark with an X: where the dragon eggs lie.
+const EGG_MARKS = ['ruin', 'cave', 'jungle', 'speck'];
+
+// A map piece puts its X on the map: the place `id`, or the next egg not yet marked.
+function markEgg(id) {
+  const p = POIS.find((q) => q.id === (EGG_MARKS.includes(id) ? id : EGG_MARKS.find((k) => !POIS.find((q) => q.id === k).marked)));
+  if (!p || p.marked) return;
+  Object.assign(p, { marked: true, learned: true });
+  toast('MAP PIECE', `An X on your map marks a dragon egg: ${p.name}`);
+  flashMapButton();
+}
 
 const seen = new Uint8Array(MAP_W * MAP_H);
 const VISIT = 5;
@@ -90,10 +106,44 @@ function nearWallMap() {
 function takeMap() {
   wallMap().hidden = true;
   bag.map = 1;
+  revealHomeIsle();
   Sfx.pickup();
   faceToward(player, 0, -1);
   mapBtn.hidden = false;
   flashMapButton();
+}
+
+// The chief's map already charts the whole village island: its land and lakes, a strip of the sea round
+// its shore, and every place on it, named.
+const COAST = 4;
+function revealHomeIsle() {
+  const home = POIS.find((p) => p.id === 'home');
+  const open = (x, y) => x >= OX - 8 && y >= OY - 8 && x < OX + 144 && y < OY + 120 && x < MAP_W && y < MAP_H;
+  const isle = (i) => map[i] !== T.WATER || inland[i];
+  const start = Math.floor(home.y) * MAP_W + Math.floor(home.x);
+  const land = new Set([start]);
+  for (const q = [start]; q.length;) {
+    const i = q.pop();
+    const x = i % MAP_W;
+    const y = Math.floor(i / MAP_W);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const n = i + dy * MAP_W + dx;
+      if (open(x + dx, y + dy) && !land.has(n) && isle(n)) { land.add(n); q.push(n); }
+    }
+  }
+  for (const i of land) {
+    const x = i % MAP_W;
+    const y = Math.floor(i / MAP_W);
+    for (let j = -COAST; j <= COAST; j++) {
+      for (let k = -COAST; k <= COAST; k++) if (k * k + j * j <= COAST * COAST && open(x + k, y + j)) seen[(y + j) * MAP_W + x + k] = 1;
+    }
+  }
+  fogDirty = true;
+  for (const p of POIS) {
+    if (!open(Math.floor(p.x), Math.floor(p.y)) || !seen[Math.floor(p.y) * MAP_W + Math.floor(p.x)]) continue;
+    p.seen = true;
+    p.learned = true;
+  }
 }
 
 // ---------- the map screen ----------
@@ -102,6 +152,7 @@ const mapBtn = document.getElementById('map');
 const mapEl = document.getElementById('worldmap');
 const mapCanvas = document.getElementById('worldmap-canvas');
 const mapClose = document.getElementById('worldmap-close');
+const mapTip = document.getElementById('worldmap-tip');
 let mapOpen = false;
 // Zoom over the fitted map, and the tile at the middle of the view.
 const mapView = { z: 1, x: MAP_W / 2, y: MAP_H / 2 };
@@ -156,7 +207,7 @@ function buildMapBase() {
     for (let k = 0; k < 3; k++) img.data[i * 4 + k] = v[k];
     img.data[i * 4 + 3] = 255;
   };
-  for (let i = 0; i < MAP_W * MAP_H; i++) put(i, tileColor(map[i], i));
+  for (let i = 0; i < MAP_W * MAP_H; i++) put(i, reef[i] ? (i % 3 ? '#5c6670' : '#8fb4c4') : tileColor(map[i], i));
   for (const o of objects) {
     const c = MAP_TREES[o.key];
     const x = Math.floor(o.x / TILE);
@@ -264,6 +315,7 @@ function drawMap() {
   g.textBaseline = 'top';
   const placed = [];
   const labels = [];
+  mapHits.length = 0;
   for (const p of POIS) {
     if (!onMap(p)) continue;
     const x = Math.round((p.x - ox) * S);
@@ -272,6 +324,8 @@ function drawMap() {
     g.globalAlpha = p.seen ? 1 : 0.55;
     g.drawImage(mapIcons[p.icon], x - iconPx / 2, y - iconPx / 2, iconPx, iconPx);
     g.globalAlpha = 1;
+    if (p.marked) drawX(g, x + iconPx / 2, y - iconPx / 2, Math.round(iconPx * 0.35));
+    mapHits.push({ p, x, y, r: iconPx * 0.75 });
     if (!p.learned) continue;
     const text = p.seen ? p.name : `${p.name}?`;
     const w = g.measureText(text).width + 4;
@@ -301,18 +355,131 @@ function drawMap() {
   g.beginPath();
   g.arc(mx, my, r - 1, 0, Math.PI * 2);
   g.fill();
-  if (mapView.z === 1) {
-    g.font = `8px 'Press Start 2P', monospace`;
-    g.textAlign = 'right';
-    g.textBaseline = 'bottom';
-    g.lineWidth = 3;
-    g.strokeStyle = '#f4e6c0';
-    g.fillStyle = MAP_INK;
-    g.strokeText('SCROLL OR +/- TO ZOOM', W - 6, H - 6);
-    g.fillText('SCROLL OR +/- TO ZOOM', W - 6, H - 6);
-  }
+  const tip = [canFlyTo() ? 'CLICK A PLACE TO FLY THERE' : '', 'SCROLL OR +/- TO ZOOM', 'ESC TO CLOSE'].filter(Boolean).join('\n');
+  if (mapTip.textContent !== tip) mapTip.textContent = tip;
+  mapCanvas.classList.toggle('fly', canFlyTo() && !!flyHit);
 
   mapCanvas.setAttribute('aria-label', `World map. Known places: ${POIS.filter((p) => p.learned && onMap(p)).map((p) => p.name).join(', ')}.`);
+}
+
+// A red X, `r` from its middle to each arm's end, outlined in ink.
+function drawX(g, x, y, r) {
+  g.lineCap = 'round';
+  for (const [w, c] of [[Math.max(3, r * 0.7), MAP_INK], [Math.max(1.5, r * 0.4), '#d8342a']]) {
+    g.lineWidth = w;
+    g.strokeStyle = c;
+    g.beginPath();
+    g.moveTo(x - r, y - r);
+    g.lineTo(x + r, y + r);
+    g.moveTo(x + r, y - r);
+    g.lineTo(x - r, y + r);
+    g.stroke();
+  }
+}
+
+// ---------- flying straight to a place ----------
+
+// Where the icons were last drawn, for clicks.
+const mapHits = [];
+let flyHit = null;
+const canFlyTo = () => !!flight && flight.mode === 'fly';
+
+function hitAt(e) {
+  const b = mapCanvas.getBoundingClientRect();
+  const x = e.clientX - b.left;
+  const y = e.clientY - b.top;
+  let best = null;
+  let bd = Infinity;
+  for (const h of mapHits) {
+    const d = Math.hypot(h.x - x, h.y - y);
+    if (d < h.r && d < bd) { bd = d; best = h.p; }
+  }
+  return best;
+}
+
+// On dragonback, a place picked on the map: the dragon climbs and shoots off the screen toward it, and after a quick
+// fade comes sweeping in over the place and settles back to cruising height. The camera holds still for both.
+const WARP_OUT = 1.1;
+const WARP_IN = 1.4;
+const WARP_RISE = 70;
+
+function flyTo(p) {
+  toggleMap(false);
+  const f = flight;
+  const dx = p.x * TILE;
+  const dy = p.y * TILE + 8;
+  const d = Math.hypot(dx - f.x, dy - f.y) || 1;
+  const ux = (dx - f.x) / d;
+  const uy = (dy - f.y) / d;
+  f.mode = 'warp';
+  f.warp = { phase: 'out', t: 0, p, dx, dy, ux, uy, cam: { x: cam.x, y: cam.y } };
+  faceToward(f, ux, uy);
+  f.face = octantFace(ux, uy, f.face);
+  Sfx.whoosh();
+}
+
+function updateWarp(f, dt) {
+  const w = f.warp;
+  w.t += dt;
+  let speed;
+  if (w.phase === 'out') {
+    speed = 90 + 1400 * w.t * w.t;
+    f.x += w.ux * speed * dt;
+    f.y += w.uy * speed * dt;
+    f.alt = Math.min(FLY_ALT + WARP_RISE, f.alt + dt * 70);
+    if (w.t >= WARP_OUT && !fade) fade = { t: 0, act: () => warpIn(f), len: 0.3 };
+  } else {
+    const k = Math.min(1, w.t / WARP_IN);
+    const e = 1 - (1 - k) ** 3;
+    speed = (3 * (1 - k) ** 2 * w.dist) / WARP_IN;
+    f.x = w.dx - w.ux * w.dist * (1 - e);
+    f.y = w.dy - w.uy * w.dist * (1 - e);
+    f.alt = FLY_ALT + WARP_RISE * (1 - e);
+    if (k >= 1) arriveWarp(f);
+  }
+  f.vx = w.ux * speed;
+  f.vy = w.uy * speed;
+  const beat = Math.floor(f.flap / 4);
+  f.flap += dt * (speed > 200 ? 14 : 9);
+  if (Math.floor(f.flap / 4) !== beat) Sfx.flap(0.7);
+  player.x = f.x;
+  player.y = f.y;
+  player.dir = f.dir;
+  if (speed > 150 && Math.random() < dt * 60) {
+    particles.push({
+      type: 'wind', layer: 'sky', x: cam.x + Math.random() * viewW, y: cam.y + Math.random() * viewH,
+      dx: w.ux, dy: w.uy, vx: 0, vy: 0, life: 0, max: 0.35,
+    });
+  }
+}
+
+// Behind the fade: the dragon waits just off the screen from the place, on the side it was flying from.
+function warpIn(f) {
+  const w = f.warp;
+  const mw = MAP_W * TILE;
+  const mh = MAP_H * TILE;
+  w.cam = {
+    x: Math.max(0, Math.min(mw - viewW, w.dx - viewW / 2)),
+    y: Math.max(0, Math.min(mh - viewH, w.dy - FLY_ALT - 12 - viewH / 2)),
+  };
+  w.dist = Math.hypot(viewW, viewH) * 0.6 + 40;
+  Object.assign(w, { phase: 'in', t: 0 });
+  Object.assign(f, { x: w.dx - w.ux * w.dist, y: w.dy - w.uy * w.dist, alt: FLY_ALT + WARP_RISE });
+  player.x = f.x;
+  player.y = f.y;
+  lastReveal = '';
+  Sfx.whoosh();
+}
+
+function arriveWarp(f) {
+  const { p, ux, uy } = f.warp;
+  Object.assign(f, { warp: null, mode: 'fly', alt: FLY_ALT, vx: ux * 30, vy: uy * 30 });
+  const b = follower;
+  if (b && b !== f.dragon && b.stage < GROWN && !b.swoop) {
+    const l = babyLeader();
+    Object.assign(b, { x: l.x, y: l.y, alt: l.alt, flying: true, stuck: 0 });
+  }
+  muse(`${p.name}! ${f.dragon.name} got us here in no time.`);
 }
 
 function toggleMap(open = !mapOpen) {
@@ -333,15 +500,17 @@ function toggleMap(open = !mapOpen) {
 
 mapBtn.addEventListener('click', () => toggleMap());
 mapClose.addEventListener('click', () => toggleMap(false));
-mapEl.addEventListener('keydown', (e) => {
+// On the window, so the keys still work once a click on the map has taken focus off the close button.
+window.addEventListener('keydown', (e) => {
+  if (!mapOpen) return;
   if (e.key === 'Escape' || e.code === 'KeyM') {
     e.preventDefault();
-    e.stopPropagation();
+    e.stopImmediatePropagation();
     toggleMap(false);
-  } else if (e.key === '+' || e.key === '=' || e.key === '-') {
+  } else if (['+', '=', '-', '_'].includes(e.key)) {
     e.preventDefault();
     const [hx, hy] = mapHere();
-    zoomMap(e.key === '-' ? 0.5 : 2, hx / TILE, hy / TILE);
+    zoomMap(e.key === '-' || e.key === '_' ? 0.5 : 2, hx / TILE, hy / TILE);
   }
 });
 
@@ -367,15 +536,22 @@ mapCanvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 let mapDrag = null;
 mapCanvas.addEventListener('pointerdown', (e) => {
-  mapDrag = { x: e.clientX, y: e.clientY };
+  mapDrag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY };
   mapCanvas.setPointerCapture(e.pointerId);
 });
 mapCanvas.addEventListener('pointermove', (e) => {
+  flyHit = canFlyTo() ? hitAt(e) : null;
   if (!mapDrag) return;
   const b = mapCanvas.getBoundingClientRect();
   mapView.x -= ((e.clientX - mapDrag.x) / b.width) * (MAP_W / mapView.z);
   mapView.y -= ((e.clientY - mapDrag.y) / b.height) * (MAP_H / mapView.z);
-  mapDrag = { x: e.clientX, y: e.clientY };
+  mapDrag = { ...mapDrag, x: e.clientX, y: e.clientY };
 });
-mapCanvas.addEventListener('pointerup', () => { mapDrag = null; });
+// A click that didn't drag the map flies to the place under it.
+mapCanvas.addEventListener('pointerup', (e) => {
+  const click = mapDrag && Math.hypot(e.clientX - mapDrag.x0, e.clientY - mapDrag.y0) < 5;
+  mapDrag = null;
+  const p = click && canFlyTo() && hitAt(e);
+  if (p) flyTo(p);
+});
 mapEl.addEventListener('pointerdown', (e) => { if (e.target === mapEl) toggleMap(false); });

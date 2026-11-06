@@ -89,7 +89,7 @@ let cheerT = 0;
 
 const archerNpc = () => npcBy('archer');
 
-// `reward` is arrows and silver; `progress` is for the journal.
+// `reward` is arrows and coins (in copper); `progress` is for the journal.
 const CHALLENGES = [
   {
     title: 'Hit a target three times',
@@ -106,7 +106,7 @@ const CHALLENGES = [
   {
     title: 'Hit both targets within six seconds',
     set: 'Second challenge: hit both targets, one after the other, within six seconds. Be quick!',
-    reward: { silver: 5 },
+    reward: { coins: 50 },
     hit(o) {
       if (archery.first && archery.first !== o && time - archery.firstT <= BOTH_TIME) return true;
       if (archery.first && archery.first !== o) archerCall('Too slow! That one counts as your first. Again!');
@@ -131,7 +131,7 @@ const CHALLENGES = [
     title: 'Five hits in a row without a miss',
     set: 'Last challenge: five hits in a row. Miss once and you start again.',
     progress: () => ` (${archery.streak}/${STREAK})`,
-    reward: { silver: 15, arrows: 10 },
+    reward: { coins: 150, arrows: 10 },
     hit() {
       archery.streak++;
       if (archery.streak >= STREAK) return true;
@@ -194,16 +194,15 @@ function arrowMiss(a) {
 
 function finishChallenge() {
   const c = CHALLENGES[archery.stage];
-  const { arrows: n = 0, silver: s = 0 } = c.reward;
+  const { arrows: n = 0, coins: s = 0 } = c.reward;
   archery.stage++;
   archery.active = false;
   for (const a of arrows) a.pinned = null;
   const archer = archerNpc();
-  const paid = [n && `${n} arrows`, s && `${s} silver`].filter(Boolean).join(' and ');
+  const paid = [n && `${n} arrows`, s && coinWords(s)].filter(Boolean).join(' and ');
   if (n) give('arrow', n);
   if (s) {
-    silver += s;
-    renderPurse();
+    pay(s);
     Sfx.coin();
   }
   popIcon(n ? 'arrow' : 'silver', player.x, player.y - 30);

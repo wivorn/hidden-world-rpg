@@ -5,7 +5,7 @@ const FISH = {
   fish: { zone: 'shallows', size: [18, 32], where: 'Shallow sea, close to shore', hint: 'Cast off any beach or jetty.' },
   cod: { zone: 'deep', size: [40, 95], where: 'Deep open sea', hint: 'Lives far out, where the water turns dark.' },
   trout: { zone: 'lake', size: [24, 52], where: 'Lakes and rivers', hint: 'Prefers fresh water to salt.' },
-  eel: { zone: 'volcano', size: [50, 130], where: 'Hot sea round the fire mountain', hint: 'Likes its water warm. Very warm.' },
+  eel: { zone: 'volcano', size: [50, 130], where: 'Hot sea round the fire mountain, and the hot spring', hint: 'Likes its water warm. Very warm.' },
   cavefish: { zone: 'cave', size: [10, 22], where: 'The pool deep in the ice cave', hint: 'Has never once seen the sun.' },
   goldenFish: { zone: 'any', size: [30, 48], where: 'Anywhere at all, once in a long while', hint: 'A legend. They say a golden lure helps.' },
 };
@@ -20,20 +20,21 @@ function fishZone(x, y) {
   if (inCave()) return 'cave';
   const tx = Math.floor(x / TILE);
   const ty = Math.floor(y / TILE);
+  if (tileAt(tx, ty) === T.SPRING) return 'volcano';
   if (inland[ty * MAP_W + tx]) return 'lake';
   const v = ISLANDS.find((i) => i.id === 'volcano');
   if (Math.hypot((tx - v.x) / (v.rx + 16), (ty - v.y) / (v.ry + 14)) < 1) return 'volcano';
   return seaDist[ty * MAP_W + tx] >= 7 ? 'deep' : 'shallows';
 }
 
-// Lands a fish from the bobber's water and logs it; returns which kind.
-function catchFish(f) {
+// Lands a fish from the bobber's water and logs it (into the pack unless `keep` is false); returns which kind.
+function catchFish(f, keep = true) {
   const golden = Math.random() < (upgrades.lure ? LURE_GOLDEN_CHANCE : GOLDEN_CHANCE);
   const zone = fishZone(f.x, f.y);
   const id = golden ? 'goldenFish' : FISH_IDS.find((k) => FISH[k].zone === zone);
   const [a, b] = FISH[id].size;
   const size = Math.round(a + (b - a) * Math.random() ** 1.6);
-  give(id);
+  if (keep) give(id);
   const log = fishLog.caught[id];
   if (!log) {
     fishLog.caught[id] = { n: 1, best: size };

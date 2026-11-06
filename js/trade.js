@@ -1,17 +1,24 @@
-// The travelling merchant: every third day his ship ties up in the bay and he buys what you've gathered for silver.
+// The travelling merchant: every third day his ship ties up in the bay and he buys what you've gathered for coin.
 
-let silver = 0;
+// All money is counted in copper: ten copper to the silver, ten silver to the gold.
+let coins = 0;
 const upgrades = { lure: false, sail: false };
 const purseEl = document.getElementById('purse');
+const COIN_KINDS = [['goldCoin', 'gold', 100], ['silver', 'silver', 10], ['copper', 'copper', 1]];
+const coinParts = (c) => COIN_KINDS.map(([icon, name, v]) => ({ icon, name, n: v === 100 ? Math.floor(c / v) : Math.floor(c / v) % 10 }));
+function coinWords(c) {
+  const words = coinParts(c).filter((p) => p.n).map((p) => `${p.n} ${p.name}`);
+  return words.length ? words.join(', ').replace(/, ([^,]*)$/, ' and $1') : 'no money';
+}
 
-// What Ottar pays for one of each.
-const PRICES = { fish: 1, trout: 2, cod: 3, cavefish: 4, eel: 5, goldenFish: 25, wool: 2, iron: 4, gold: 10, mushroom: 3, meat: 3, hide: 4 };
+// What Ottar pays for one of each, in copper.
+const PRICES = { fish: 8, trout: 15, cod: 30, cavefish: 40, eel: 50, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600 };
 const WARES = [
-  { id: 'torch', price: 4, text: 'Burns for days. For caves and dark nights.', owned: () => has('torch') },
-  { id: 'arrow', n: 10, price: 6, text: 'A bundle of ten arrows.' },
-  { id: 'satchel', price: 25, text: 'Straps to your pack. Room for two more things.', owned: () => has('satchel') },
-  { id: 'lure', price: 20, text: 'Fish bite sooner, and golden fish come more often.', owned: () => upgrades.lure },
-  { id: 'sail', price: 30, text: 'A silk sail. The longship runs a third faster.', owned: () => upgrades.sail },
+  { id: 'torch', price: 35, text: 'Burns six hours once lit. For caves and dark nights.' },
+  { id: 'arrow', n: 10, price: 60, text: 'A bundle of ten arrows.' },
+  { id: 'satchel', price: 250, text: 'Straps to your pack. Room for two more things.', owned: () => has('satchel') },
+  { id: 'lure', price: 200, text: 'Fish bite sooner, and golden fish come more often.', owned: () => upgrades.lure },
+  { id: 'sail', price: 300, text: 'A silk sail. The longship runs a third faster.', owned: () => upgrades.sail },
 ];
 const WARE_NAMES = { lure: 'Golden lure', sail: 'Silk sail' };
 const wareName = (w) => (w.n ? `${w.n} ${ITEMS[w.id].plural}` : WARE_NAMES[w.id] || ITEMS[w.id].name);
@@ -94,25 +101,36 @@ const hullsMeet = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > 
 
 // When he'll next be in, for the villagers to mention.
 function merchantNews() {
-  if (merchantHere()) return 'Ottar\'s ship is in! He\'s on the beach past the longship, buying fish, wool and ore for silver.';
+  if (merchantHere()) return 'Ottar\'s ship is in! He\'s on the beach past the longship, buying fish, wool and ore for good coin.';
   const left = (2 - (dayCount % 3) + 3) % 3;
-  if (left === 0 && clock < 0.3) return 'Ottar the merchant docks this morning. Bring him fish and wool, he pays in silver!';
-  if (left <= 1) return 'Ottar the merchant docks tomorrow morning. Bring him fish and wool, he pays in silver!';
+  if (left === 0 && clock < 0.3) return 'Ottar the merchant docks this morning. Bring him fish and wool, he pays in coin!';
+  if (left <= 1) return 'Ottar the merchant docks tomorrow morning. Bring him fish and wool, he pays in coin!';
   return `Ottar the merchant sails in every third day. Next time in ${left} days. Save up some fish for him!`;
 }
 
-// ---------- silver ----------
+// ---------- coins ----------
+
+// A gold, silver and copper coin, each with its count; `small` for prices in the trade panel.
+function coinsEl(c, small = false) {
+  const el = Object.assign(document.createElement('span'), { className: small ? 'coins small' : 'coins' });
+  const parts = coinParts(c);
+  for (const p of small ? parts.filter((q, i) => q.n || (!c && i === 2)) : parts) {
+    const img = icon(p.icon);
+    img.style.width = `${SPR.icon[p.icon].width * 2}px`;
+    el.append(img, Object.assign(document.createElement('b'), { textContent: p.n }));
+  }
+  return el;
+}
 
 function renderPurse() {
-  const img = purseEl.querySelector('img');
-  if (!img.src) {
-    img.src = iconUrls.silver ||= SPR.icon.silver.toDataURL();
-    img.style.width = `${SPR.icon.silver.width * 3}px`;
-  }
-  purseEl.hidden = !silver && !stats.sold;
-  purseEl.querySelector('span').textContent = silver;
-  purseEl.setAttribute('aria-label', `${silver} silver`);
-  layoutPack();
+  purseEl.hidden = !coins && !stats.sold;
+  purseEl.replaceChildren(coinsEl(coins));
+  purseEl.setAttribute('aria-label', coinWords(coins));
+}
+
+function pay(c) {
+  coins += c;
+  renderPurse();
 }
 
 function applySail() {
@@ -133,7 +151,7 @@ let tradeOpen = false;
 function tradeTalk(n) {
   if (n.look.id !== 'merchant') return false;
   const goods = Object.keys(PRICES).some(has);
-  npcSay(n, goods ? 'Ahh, a customer with goods! Let\'s see what you\'ve got.' : 'Welcome aboard! Fish, wool, iron, gold, I buy it all. Have a look at my wares.');
+  npcSay(n, goods ? 'Ahh, a customer with goods! Let\'s see what you\'ve got.' : 'Welcome aboard! Fish, wool, iron, gold, I buy it all. Ten copper to the silver, ten silver to the gold. Have a look at my wares.');
   faceToward(n, player.x - n.x, player.y - n.y);
   toggleTrade(true);
   return true;
@@ -157,17 +175,23 @@ function tradeButton(label, aria, key, on, fn) {
 
 function renderTrade() {
   const focused = document.activeElement?.dataset?.key;
-  tradePurse.replaceChildren(icon('silver'), document.createTextNode(` ${silver} SILVER`));
+  tradePurse.replaceChildren(document.createTextNode('YOUR PURSE '), coinsEl(coins));
+  const priceEl = (c, each) => {
+    const el = Object.assign(document.createElement('span'), { className: 'price' });
+    el.append(coinsEl(c, true));
+    if (each) el.append(' EACH');
+    return el;
+  };
   const sell = Object.keys(PRICES).filter(has).map((id) => {
     const li = document.createElement('li');
     const k = bag[id];
     const name = ITEMS[id].name;
-    li.append(icon(id), Object.assign(document.createElement('span'), { className: 'what', textContent: `${name} ×${k}` }), Object.assign(document.createElement('span'), { className: 'price', textContent: `${PRICES[id]} EACH` }));
-    li.append(tradeButton('SELL 1', `Sell one ${name.toLowerCase()} for ${PRICES[id]} silver`, `sell1-${id}`, true, () => sellItem(id, 1)));
-    if (k > 1) li.append(tradeButton('ALL', `Sell all ${k} for ${PRICES[id] * k} silver`, `sellAll-${id}`, true, () => sellItem(id, k)));
+    li.append(icon(id), Object.assign(document.createElement('span'), { className: 'what', textContent: `${name} ×${k}` }), priceEl(PRICES[id], true));
+    li.append(tradeButton('SELL 1', `Sell one ${name.toLowerCase()} for ${coinWords(PRICES[id])}`, `sell1-${id}`, true, () => sellItem(id, 1)));
+    if (k > 1) li.append(tradeButton('ALL', `Sell all ${k} for ${coinWords(PRICES[id] * k)}`, `sellAll-${id}`, true, () => sellItem(id, k)));
     return li;
   });
-  if (!sell.length) sell.push(Object.assign(document.createElement('li'), { className: 'none', textContent: 'Nothing he wants. He buys fish, meat, hides, wool, iron, gold and glowcaps.' }));
+  if (!sell.length) sell.push(Object.assign(document.createElement('li'), { className: 'none', textContent: 'Nothing he wants. He buys fish, meat, hides, wool, iron, gold, glowcaps and treasure.' }));
   tradeSell.replaceChildren(...sell);
   tradeBuy.replaceChildren(...WARES.map((w) => {
     const li = document.createElement('li');
@@ -175,9 +199,9 @@ function renderTrade() {
     const name = wareName(w);
     const what = Object.assign(document.createElement('span'), { className: 'what' });
     what.append(Object.assign(document.createElement('b'), { textContent: name }), Object.assign(document.createElement('small'), { textContent: w.text }));
-    li.append(icon(w.id), what, Object.assign(document.createElement('span'), { className: 'price', textContent: owned ? 'OWNED' : `${w.price} SILVER` }));
+    li.append(icon(w.id), what, owned ? Object.assign(document.createElement('span'), { className: 'price', textContent: 'OWNED' }) : priceEl(w.price));
     const room = w.n ? has(w.id) || !bagFull(w.id) : true;
-    if (!owned) li.append(tradeButton('BUY', `Buy ${name.toLowerCase()} for ${w.price} silver`, `buy-${w.id}`, silver >= w.price && room, () => buyWare(w)));
+    if (!owned) li.append(tradeButton('BUY', `Buy ${name.toLowerCase()} for ${coinWords(w.price)}`, `buy-${w.id}`, coins >= w.price && room, () => buyWare(w)));
     return li;
   }));
   const again = focused && tradeEl.querySelector(`[data-key="${focused}"]:not(:disabled)`);
@@ -187,18 +211,17 @@ function renderTrade() {
 function sellItem(id, k) {
   if ((bag[id] || 0) < k) return;
   bag[id] -= k;
-  silver += PRICES[id] * k;
   stats.sold += k;
+  pay(PRICES[id] * k);
   renderInventory();
-  renderPurse();
   Sfx.coin();
   if (id === 'goldenFish') npcSay(merchant.npc, 'A golden fish! By the gods, I\'ll hang it over my bunk!');
   renderTrade();
 }
 
 function buyWare(w) {
-  if (silver < w.price || w.owned?.()) return;
-  silver -= w.price;
+  if (coins < w.price || w.owned?.()) return;
+  coins -= w.price;
   stats.bought++;
   if (w.id === 'lure' || w.id === 'sail') {
     upgrades[w.id] = true;

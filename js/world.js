@@ -9,7 +9,7 @@ const T = {
 };
 // Building interiors live in a strip of rows below the outdoor map; the ice cave is the tallest.
 const ROOM_Y = MAP_H + 2;
-const ROWS = MAP_H + 38;
+const ROWS = MAP_H + 68;
 
 const map = new Uint8Array(MAP_W * ROWS);
 const woodNS = new Uint8Array(MAP_W * ROWS);
@@ -123,14 +123,45 @@ const wetA = (x, y) => {
 };
 
 const ISLANDS = [
-  { id: 'hermit', x: 396, y: 70, rx: 17, ry: 12, ground: T.GRASS, beach: 1, seed: 11 },
+  { id: 'hermit', x: 396, y: 70, rx: 28, ry: 18, ground: T.GRASS, beach: 1, seed: 11 },
   { id: 'jungle', x: 410, y: 280, rx: 22, ry: 15, ground: T.JUNGLE, beach: 2, seed: 12 },
   { id: 'ruin', x: 52, y: 292, rx: 20, ry: 15, ground: T.GRASS, beach: 1, seed: 13 },
   { id: 'frozen', x: 70, y: 60, rx: 20, ry: 14, ground: T.SNOW, beach: 0, seed: 14 },
-  { id: 'speck', x: 262, y: 326, rx: 5, ry: 4, ground: T.SAND, beach: 0, seed: 15 },
+  { id: 'speck', x: 262, y: 324, rx: 22, ry: 14, ground: T.SAND, beach: 0, seed: 15 },
   { id: 'volcano', x: 250, y: 50, rx: 24, ry: 17, ground: T.ASH, beach: 0, seed: 16 },
+  { id: 'hawk', x: 60, y: 180, rx: 24, ry: 16, ground: T.GRASS, beach: 0, seed: 17 },
+  // little islets scattered across the open sea, each with a chest of something to find: four hold a piece of a
+  // map that marks where a dragon egg lies (`mark`, a place on the world map), and one the sailor's rune note
+  { id: 'isletNorth', x: 160, y: 38, rx: 7, ry: 5, ground: T.SNOW, beach: 2, seed: 18, islet: { trees: 'snowPine', loot: ['iron', 'iron', 'emerald'], mark: 'cave' } },
+  { id: 'isletEast', x: 346, y: 150, rx: 7, ry: 5, ground: T.GRASS, beach: 2, seed: 19, islet: { trees: 'pine2', loot: ['ruby', 'gold', 'goblet'], mark: 'ruin' } },
+  { id: 'isletWest', x: 140, y: 246, rx: 6, ry: 5, ground: T.GRASS, beach: 2, seed: 20, islet: { trees: 'oak', loot: ['gold', 'gold', 'emerald'], note: true } },
+  { id: 'isletSouth', x: 340, y: 322, rx: 7, ry: 5, ground: T.SAND, beach: 0, seed: 21, islet: { trees: 'palm', loot: ['ruby', 'emerald', 'goblet'], mark: 'speck' } },
+  { id: 'isletFar', x: 446, y: 172, rx: 6, ry: 5, ground: T.JUNGLE, beach: 2, seed: 22, islet: { trees: 'palm', loot: ['crown', 'gold'], mark: 'jungle' } },
 ];
 const isle = (id) => ISLANDS.find((i) => i.id === id);
+
+// The dragon roost's ground point on the hermit's isle, and the box of tiles cleared around it.
+const ROOST_AT = { x: isle('hermit').x + 14, y: isle('hermit').y - 1 };
+const inRoostSite = (x, y) => Math.abs(x - ROOST_AT.x) < 7 && y > ROOST_AT.y - 3.5 && y < ROOST_AT.y + 6.5;
+
+// The rune stones that wake the ruin's egg, in order; each broken wall carves one of them.
+// All nine stones wake in this order. The ruin's broken walls only remember the first four; a sailor's note in a
+// skerry chest has the whole of it.
+const RUIN_ORDER = [6, 1, 8, 3, 0, 5, 2, 7, 4];
+// Two rings of reef round the ruin isle, each with a single gap: in from the east, round by the north, in from the west.
+const REEF_RINGS = [
+  { grow: [8, 7], gap: Math.PI },
+  { grow: [17, 15], gap: 0 },
+];
+const REEF_GAP = 3.5;
+const reef = new Uint8Array(MAP_W * MAP_H);
+const isReef = (tx, ty) => inBounds(tx, ty) && ty < MAP_H && reef[ty * MAP_W + tx] === 1;
+// Hawk Rock, in rows and columns from the isle's middle: the plateau above row `strip` (two rows lower over the `low`
+// columns) is ringed by cliff; the bluff runs down to row `bluff`; the rapids cross the plateau along the `stream` rows,
+// pouring off its east rim; a rock spur splits the lowland at the `spur` columns, but for a gap at the `gap` rows.
+const HAWK = { strip: 3, bluff: 7, low: [-14, -10], stream: [-1, 1], spur: [-5, -4], gap: [11, 12], cache: [2, -8] };
+const rapids = new Uint8Array(MAP_W * MAP_H);
+const isRapids = (tx, ty) => inBounds(tx, ty) && ty < MAP_H && rapids[ty * MAP_W + tx] === 1;
 // The volcano's cone stands on the black-rock tiles of its foot; x, y is the middle of its base.
 const VOLCANO = { x: 250, y: 53 };
 
@@ -156,6 +187,30 @@ function computeSeaDist() {
         if (!inBounds(x + dx, y + dy)) continue;
         const j = i + dy * MAP_W + dx;
         if (seaDist[j] > seaDist[i] + 1) { seaDist[j] = seaDist[i] + 1; q.push(j); }
+      }
+    }
+  }
+}
+
+// Rock bands two tiles thick in open water; the rings wobble together so the channel between them keeps its width.
+function markReefs() {
+  const r = isle('ruin');
+  for (let y = r.y - 40; y <= r.y + 40; y++) {
+    for (let x = r.x - 48; x <= r.x + 48; x++) {
+      if (!inBounds(x, y) || y >= MAP_H) continue;
+      const i = y * MAP_W + x;
+      if (map[i] !== T.WATER || inland[i] || seaDist[i] < 2) continue;
+      const dx = x + 0.5 - r.x;
+      const dy = y + 0.5 - r.y;
+      for (const ring of REEF_RINGS) {
+        const rx = r.rx + ring.grow[0];
+        const ry = r.ry + ring.grow[1];
+        const a = Math.atan2(dy / ry, dx / rx);
+        const reach = Math.hypot(rx * Math.cos(a), ry * Math.sin(a));
+        const wobble = 0.8 * Math.sin(a * 3 + 1) + 0.6 * Math.sin(a * 5 + 2);
+        const off = Math.hypot(dx, dy) - reach - wobble;
+        const gapAt = Math.abs(Math.atan2(Math.sin(a - ring.gap), Math.cos(a - ring.gap))) * reach;
+        if (Math.abs(off) < 1 && gapAt > REEF_GAP) reef[i] = 1;
       }
     }
   }
@@ -249,6 +304,7 @@ function generateMap() {
   villageGround();
   buildRooms();
   computeSeaDist();
+  markReefs();
   computeElev();
   for (let i = 0; i < MAP_W * MAP_H; i++) {
     if (map[i] === T.SPRING) springTiles.push(i);
@@ -340,11 +396,6 @@ function islandTerrain() {
   fillA(h.x + 3, h.y + 1, h.x + 6, h.y + 3, T.FIELD, [T.GRASS]);
   inBlob(h.x - 2, h.y + 1.5, 3.5, 1.6, 30, 0.5, (x, y) => { if (tileAt(x, y) === T.GRASS) setTile(x, y, T.DIRT); });
 
-  const j = isle('jungle');
-  inBlob(j.x - 7, j.y + 2, 5.5, 3.4, 31, 0.6, wetA);
-  inBlob(j.x + 10, j.y - 3, 4.6, 3, 32, 0.6, wetA);
-  inBlob(j.x - 7, j.y + 2, 7.5, 5, 39, 0.5, (x, y) => { if (tileAt(x, y) === T.JUNGLE) setTile(x, y, T.SAND); });
-
   // old paving round the ring of standing stones, and its avenue to the north beach
   const r = isle('ruin');
   const pave = (x, y) => {
@@ -353,6 +404,13 @@ function islandTerrain() {
   };
   inBlob(r.x, r.y + 0.5, 7, 5, 35, 0.3, pave);
   for (let y = r.y - 16; y < r.y - 4; y++) for (let x = r.x - 1; x <= r.x + 1; x++) pave(x, y);
+
+  // an oasis among the dunes: a spring-fed pool in a ring of grass
+  const d = isle('speck');
+  inBlob(d.x + 11, d.y + 5, 5, 3.4, 40, 0.5, (x, y) => { if (tileAt(x, y) === T.SAND) setTile(x, y, T.GRASS); });
+  inBlob(d.x + 11, d.y + 5, 2.8, 1.7, 41, 0.4, wetA);
+
+  hawkTerrain();
 
   const f = isle('frozen');
   inBlob(f.x + 3, f.y - 1, 6, 3.5, 36, 0.5, (x, y) => { if (tileAt(x, y) === T.SNOW) setTile(x, y, T.ICE); });
@@ -370,9 +428,51 @@ function islandTerrain() {
     }
   }
   const lava = (x, y) => { if (tileAt(x, y) === T.ASH) setTile(x, y, T.LAVA); };
-  alongLine([[VOLCANO.x - 0.5, VOLCANO.y], [VOLCANO.x - 1.5, VOLCANO.y + 4], [VOLCANO.x, VOLCANO.y + 8], [VOLCANO.x - 1, VOLCANO.y + 12], [VOLCANO.x, VOLCANO.y + 18]], 0.9, lava);
+  alongLine([[VOLCANO.x + 0.7, VOLCANO.y], [VOLCANO.x - 0.3, VOLCANO.y + 4], [VOLCANO.x + 1.2, VOLCANO.y + 8], [VOLCANO.x + 0.2, VOLCANO.y + 12], [VOLCANO.x + 1.2, VOLCANO.y + 18]], 0.9, lava);
   alongLine([[VOLCANO.x + 1.5, VOLCANO.y], [VOLCANO.x + 4, VOLCANO.y + 3], [VOLCANO.x + 6.5, VOLCANO.y + 5.5]], 0.8, lava);
   inBlob(VOLCANO.x + 7, VOLCANO.y + 6, 1.8, 1.2, 38, 0.4, lava);
+}
+
+function hawkTerrain() {
+  const k = isle('hawk');
+  const x0 = k.x - k.rx - 3;
+  const x1 = k.x + k.rx + 3;
+  const y0 = k.y - k.ry - 3;
+  const y1 = k.y + k.ry + 3;
+  const land = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1 && tileAt(x, y) !== T.WATER;
+  const coast = (x, y) => [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]].some(([a, b]) => !land(x + a, y + b));
+  const inside = (v, [a, b], o) => v >= o + a && v <= o + b;
+  const plan = [];
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (!land(x, y)) continue;
+      const dy = y - k.y;
+      const low = inside(x, HAWK.low, k.x);
+      let t = T.GRASS;
+      if (dy <= HAWK.strip + (low ? 2 : 0)) {
+        const stream = inside(y, HAWK.stream, k.y);
+        if (coast(x, y)) t = stream && x > k.x ? T.FALL : T.CLIFF;
+        else if (stream) t = T.WATER;
+      } else if (dy <= HAWK.bluff) {
+        t = T.CLIFF;
+      } else if (inside(x, HAWK.spur, k.x) && !inside(y, HAWK.gap, k.y)) {
+        t = T.CLIFF;
+      } else if (coast(x, y)) {
+        t = T.SAND;
+      } else if (low && dy <= HAWK.bluff + 2 && hash(x, y, 171) < 0.8) {
+        t = T.ROCK;
+      }
+      plan.push([x, y, t]);
+    }
+  }
+  for (const [x, y, t] of plan) {
+    if (t === T.WATER) {
+      wetA(x, y);
+      rapids[y * MAP_W + x] = 1;
+    } else {
+      setTile(x, y, t);
+    }
+  }
 }
 
 // ---------- interiors ----------
@@ -415,8 +515,15 @@ const ROOMS = {
     furniture: [['bed', 0.9, 2.1], ['hearth', 3.5, 0.2], ['stool', 4.7, 2.7], ['chest', 5.4, 1]],
   },
   // Carved out of rock by carveCave rather than walled; its spots are in tiles from the top-left.
-  cave: { name: 'the ice cave', cave: true, w: 46, h: 34, wall: [], rugs: [], furniture: [] },
+  cave: { name: 'the ice cave', cave: true, w: 70, h: 64, wall: [], rugs: [], furniture: [] },
+  sandCave: { name: 'the sand cave', cave: true, sand: true, w: 44, h: 34, wall: [], rugs: [], furniture: [] },
 };
+
+// The ice cave is a maze of cells `pitch` tiles apart; the mouth opens under the `entry` cell of the bottom row,
+// and the strip above the top row hides the egg's chamber.
+const MAZE = { cols: 11, rows: 8, pitch: 6, x0: 5.5, y0: 15.5, entry: 5, seed: 4417 };
+const mazeX = (c) => MAZE.x0 + c * MAZE.pitch;
+const mazeY = (r) => MAZE.y0 + r * MAZE.pitch;
 
 // Lay the rooms out left to right: walls take one column each side, two rows on top, one below.
 {
@@ -425,7 +532,7 @@ const ROOMS = {
     r.rx = x;
     r.ry = ROOM_Y;
     if (r.cave) {
-      r.door = r.rx + 23;
+      r.door = r.rx + Math.floor(r.sand ? r.w / 2 : mazeX(MAZE.entry));
       r.doorY = r.ry + r.h - 1;
       r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w) * TILE, y1: (r.ry + r.h) * TILE };
     } else {
@@ -438,21 +545,119 @@ const ROOMS = {
 }
 const inCave = () => !!indoors?.cave;
 const caveSpot = (x, y) => [ROOMS.cave.rx + x, ROOMS.cave.ry + y];
+const sandSpot = (x, y) => [ROOMS.sandCave.rx + x, ROOMS.sandCave.ry + y];
 
-// Tunnels from the mouth: west to a grotto with a pool, east to a gold seam, north to the egg chamber.
+// The sand cave behind the sphinx: a pillared hall, a vault off each back corner and the sanctum at the far end.
+function carveSandCave(r) {
+  const floor = (x, y) => { if (x > 0 && y > 0 && x < r.w - 1 && y < r.h - 1) setTile(r.rx + x, r.ry + y, T.CAVE); };
+  const mid = r.door - r.rx + 0.5;
+  alongLine([[mid, r.h - 1], [mid, r.h - 9]], 1.6, floor);
+  inBlob(mid, 18, 15, 7.5, 4501, 0.25, floor);
+  inBlob(6, 9, 4, 3, 4502, 0.3, floor);
+  alongLine([[10, 15], [6.5, 10]], 1.3, floor);
+  inBlob(39, 9, 4, 3, 4503, 0.3, floor);
+  alongLine([[35, 15], [38.5, 10]], 1.3, floor);
+  inBlob(mid, 5, 6, 3, 4504, 0.25, floor);
+  alongLine([[mid, 11], [mid, 6]], 1.4, floor);
+  setTile(r.door, r.doorY, T.DOOR);
+}
+
+// A winding maze, the same every game: one way between any two cells, and plenty of dead ends. A grotto pool,
+// gold seams and crystal grottoes sit at the ends of some; from the dead end farthest along the top row a
+// one-tile crack climbs to the egg's chamber, which no other tunnel comes near. Where things go is kept in
+// `r.spots`, in tiles from the cave's top-left, for placeIslands.
 function carveCave(r) {
   const at = (x, y, t) => { if (x > 0 && y > 0 && x < r.w - 1 && y < r.h - 1) setTile(r.rx + x, r.ry + y, t); };
   const floor = (x, y) => at(x, y, T.CAVE);
-  alongLine([[23, 33], [23, 27]], 1.6, floor);
-  inBlob(23, 27, 5, 3.5, 51, 0.5, floor);
-  alongLine([[20, 27], [14, 23], [9, 19]], 1.5, floor);
-  inBlob(9, 15, 6.5, 5, 52, 0.5, floor);
-  inBlob(6, 12.5, 3, 2, 53, 0.3, (x, y) => at(x, y, T.WATER));
-  alongLine([[23, 25], [25, 19], [21, 14], [23, 9]], 1.5, floor);
-  inBlob(23, 6, 7, 4, 54, 0.4, floor);
-  alongLine([[26, 26], [32, 22], [37, 18]], 1.4, floor);
-  inBlob(38, 15, 5.5, 4.5, 55, 0.5, floor);
+  const { cols, rows, entry, seed } = MAZE;
+  const rng = mulberry32(seed);
+  const id = (c, w) => w * cols + c;
+  const cells = Array.from({ length: cols * rows }, (_, i) => ({ c: i % cols, w: Math.floor(i / cols), links: [] }));
+  const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  // depth-first from the mouth, picking a random unvisited neighbour each step
+  const start = cells[id(entry, rows - 1)];
+  const seen = new Set([start]);
+  const stack = [start];
+  while (stack.length) {
+    const cell = stack[stack.length - 1];
+    const next = STEPS.filter(([dc]) => cell.c + dc >= 0 && cell.c + dc < cols)
+      .map(([dc, dw]) => cells[id(cell.c + dc, cell.w + dw)])
+      .filter((n) => n && !seen.has(n));
+    if (!next.length) {
+      stack.pop();
+      continue;
+    }
+    const n = next[Math.floor(rng() * next.length)];
+    cell.links.push(n);
+    n.links.push(cell);
+    seen.add(n);
+    stack.push(n);
+  }
+
+  const cx = (cell) => mazeX(cell.c);
+  const cy = (cell) => mazeY(cell.w);
+  for (const cell of cells) {
+    inBlob(cx(cell), cy(cell), 1.7 + rng() * 0.6, 1.5 + rng() * 0.5, seed + id(cell.c, cell.w), 0.4, floor);
+    for (const n of cell.links) {
+      if (id(n.c, n.w) < id(cell.c, cell.w)) continue;
+      const bend = (rng() - 0.5) * 1.6;
+      const mx = (cx(cell) + cx(n)) / 2 + (n.w !== cell.w ? bend : 0);
+      const my = (cy(cell) + cy(n)) / 2 + (n.c !== cell.c ? bend : 0);
+      alongLine([[cx(cell), cy(cell)], [mx, my], [cx(n), cy(n)]], 1.2 + rng() * 0.3, floor);
+    }
+  }
+  const mouthX = mazeX(entry);
+  alongLine([[mouthX, r.h - 1], [mouthX, cy(start)]], 1.5, floor);
+  inBlob(mouthX, r.h - 3.5, 2.6, 1.8, seed - 1, 0.3, floor);
   setTile(r.door, r.doorY, T.DOOR);
+
+  // how far each cell is from the mouth, walking
+  const dist = new Map([[start, 0]]);
+  for (const q = [start]; q.length;) {
+    const cell = q.shift();
+    for (const n of cell.links) if (!dist.has(n)) { dist.set(n, dist.get(cell) + 1); q.push(n); }
+  }
+  const farthest = (list) => list.reduce((a, b) => (dist.get(b) > dist.get(a) ? b : a));
+  const ends = cells.filter((cell) => cell.links.length === 1 && cell !== start);
+  // a spot in the cell pushed back against a wall with no tunnel through it
+  const nook = (cell, k = 1.1) => {
+    const open = STEPS.filter(([dc, dw]) => !cell.links.some((n) => n.c - cell.c === dc && n.w - cell.w === dw));
+    const [dc, dw] = open[Math.floor(rng() * open.length)] || [0, 0];
+    return [cx(cell) + dc * k, cy(cell) + dw * k];
+  };
+
+  const top = ends.filter((cell) => cell.w === 0);
+  const eggEnd = farthest(top.length ? top : cells.filter((cell) => cell.w === 0));
+  const ex = Math.max(7, Math.min(r.w - 8, cx(eggEnd) + (eggEnd.c < cols / 2 ? 3 : -3)));
+  const side = Math.sign(ex - cx(eggEnd));
+  alongLine([[cx(eggEnd), cy(eggEnd) - 1], [cx(eggEnd), 11.5], [cx(eggEnd) + side, 10], [ex, 7.5]], 1, floor);
+  inBlob(ex, 5.5, 4.5, 2.6, seed + 999, 0.4, floor);
+
+  const taken = new Set([eggEnd, start, ...eggEnd.links]);
+  const pick = (list) => {
+    const free = list.filter((cell) => !taken.has(cell));
+    if (!free.length) return null;
+    const cell = farthest(free);
+    taken.add(cell);
+    return cell;
+  };
+  const pool = pick(ends.filter((cell) => cell.c < cols / 2));
+  const poolAt = nook(pool, 1.2);
+  inBlob(cx(pool), cy(pool), 2.5, 2.1, seed + 7, 0.3, floor);
+  inBlob(...poolAt, 1.3, 1, seed + 8, 0.3, (x, y) => at(x, y, T.WATER));
+  const goldEnds = [1, 2, 3, 4].map(() => pick(ends.filter((cell) => cell.c >= cols / 2))).filter(Boolean);
+  const crystalEnds = [1, 2].map(() => pick(ends)).filter(Boolean);
+  const rest = cells.filter((cell) => !taken.has(cell));
+  const shuffled = rest.map((cell) => [rng(), cell]).sort((a, b) => a[0] - b[0]).map(([, cell]) => cell);
+  r.spots = {
+    egg: [ex, 6.2],
+    eggCrystals: [[ex - 3, 5], [ex + 3.2, 6.6]],
+    glowcaps: [...shuffled.slice(0, 14).map((cell) => nook(cell)), [cx(pool) - (poolAt[0] - cx(pool)), cy(pool) + 0.8]],
+    gold: goldEnds.map((cell) => nook(cell, 1.3)),
+    crystals: crystalEnds.map((cell) => nook(cell, 1.2)),
+    stalagmites: shuffled.slice(14, 26).map((cell) => nook(cell, 1.3)),
+  };
 }
 
 // Absolute tile coordinates of a spot given in a room's floor tiles.
@@ -463,7 +668,8 @@ function buildRooms() {
   for (const r of Object.values(ROOMS)) {
     if (r.cave) {
       for (let y = r.ry; y < r.ry + r.h; y++) for (let x = r.rx; x < r.rx + r.w; x++) setTile(x, y, T.WALL);
-      carveCave(r);
+      if (r.sand) carveSandCave(r);
+      else carveCave(r);
       continue;
     }
     for (let y = r.ry; y <= r.ry + r.h + 2; y++) {
@@ -606,7 +812,75 @@ function caveTile(g, x, y) {
   }
 }
 
+// Swept sandstone underfoot; carved faces above, now and then cut with old signs.
+function sandCaveTile(g, x, y) {
+  const X = x * TILE;
+  const Y = y * TILE;
+  const t = tileAt(x, y);
+  if (t === T.CAVE) {
+    speckle(g, x, y, X, Y, '#b08850', '#c49a5e', '#94703e', 12);
+    if (hash(x, y, 81) < 0.25) rect(g, X + Math.floor(hash(x, y, 82) * 10), Y + 2 + Math.floor(hash(x, y, 83) * 12), 4 + Math.floor(hash(x, y, 84) * 4), 1, '#8a6436');
+    if (!caveOpen(tileAt(x, y - 1))) {
+      g.fillStyle = 'rgba(30,14,0,0.4)';
+      g.fillRect(X, Y, 16, 4);
+    }
+  } else if (t === T.DOOR) {
+    rect(g, X, Y, 16, 16, '#e4cd8a');
+    rect(g, X + 2, Y, 12, 16, '#f1dfa6');
+  } else if (caveOpen(tileAt(x, y + 1))) {
+    rect(g, X, Y, 16, 16, '#9a6a36');
+    rect(g, X, Y, 16, 4, '#2a1808');
+    rect(g, X, Y + 4, 16, 1, '#b8844a');
+    rect(g, X, Y + 13, 16, 3, '#7a4e26');
+    if (hash(x, y, 85) < 0.35) {
+      const sign = Math.floor(hash(x, y, 86) * 4);
+      const gx = X + 5;
+      const gy = Y + 6;
+      const c = '#5e3a1a';
+      if (sign === 0) { rect(g, gx + 2, gy, 2, 2, c); rect(g, gx + 2, gy + 3, 2, 4, c); rect(g, gx, gy + 3, 6, 1, c); }
+      else if (sign === 1) { rect(g, gx, gy + 2, 6, 2, c); px(g, gx + 3, gy + 3, '#e8c070'); rect(g, gx + 1, gy + 5, 1, 2, c); }
+      else if (sign === 2) { line(g, gx, gy + 6, gx + 3, gy, c); line(g, gx + 3, gy, gx + 6, gy + 6, c); }
+      else { rect(g, gx, gy + 1, 1, 6, c); rect(g, gx + 2, gy + 3, 1, 4, c); rect(g, gx + 4, gy, 1, 7, c); }
+    }
+  } else {
+    let edge = false;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]) if (caveOpen(tileAt(x + dx, y + dy))) edge = true;
+    rect(g, X, Y, 16, 16, edge ? '#2a1808' : '#0c0602');
+  }
+}
+
 // ---------- ground tiles ----------
+
+// Long wind ridges across the dune isle: a lit windward face, a shaded lee and a pale crest between them.
+function onDunes(x, y) {
+  const s = isle('speck');
+  return ((x + 0.5 - s.x) / (s.rx + 4)) ** 2 + ((y + 0.5 - s.y) / (s.ry + 4)) ** 2 < 1;
+}
+
+function duneTile(g, x, y, X, Y) {
+  for (let j = 0; j < 16; j++) {
+    const wy = Y + j;
+    let run = 0;
+    let runC = null;
+    for (let i = 0; i <= 16; i++) {
+      let c = null;
+      if (i < 16) {
+        const wx = X + i;
+        const p = wy * 0.09 + Math.sin(wx * 0.021) * 2.6 + Math.sin(wx * 0.006 + 1.3) * 5;
+        const s = Math.sin(p);
+        const lee = Math.cos(p) < 0;
+        c = s > 0.93 ? '#f8ecc0' : lee && s > 0.1 ? PAL.sandDark : s < -0.6 ? '#d8bd78' : PAL.sand;
+      }
+      if (c !== runC) {
+        if (runC) rect(g, X + i - run, wy, run, 1, runC);
+        runC = c;
+        run = 0;
+      }
+      run++;
+    }
+  }
+  for (let i = 0; i < 6; i++) px(g, X + Math.floor(hash(x, y, 400 + i) * 16), Y + Math.floor(hash(x, y, 500 + i) * 16), hash(x, y, 600 + i) < 0.5 ? PAL.sandLight : PAL.sandDark);
+}
 
 const SCREE = ['#8f897f', '#aaa499', '#716b63'];
 
@@ -707,6 +981,11 @@ function waterTile(g, x, y, X, Y) {
     if (hash(x, y, 50 + i) < 0.5) {
       rect(g, X + Math.floor(hash(x, y, 60 + i) * 12), Y + Math.floor(hash(x, y, 70 + i) * 15), 3 + (i === 0 ? 1 : 0), 1, near ? '#55a2ea' : deep ? '#2a66bb' : '#3a84d8');
     }
+  }
+  if (isReef(x, y)) {
+    rect(g, X, Y, 16, 16, '#3f8fb0');
+    g.fillStyle = '#5aa8b8';
+    for (let yy = 0; yy < 16; yy++) for (let xx = yy % 2; xx < 16; xx += 2) if (hash(X + xx, Y + yy, 17) < 0.35) g.fillRect(X + xx, Y + yy, 1, 1);
   }
   const n = tileAt(x, y - 1);
   if (!open(n)) {
@@ -1017,7 +1296,8 @@ function groundTile(g, x, y) {
       }
       break;
     case T.SAND:
-      speckle(g, x, y, X, Y, PAL.sand, PAL.sandLight, PAL.sandDark, 12);
+      if (onDunes(x, y)) duneTile(g, x, y, X, Y);
+      else speckle(g, x, y, X, Y, PAL.sand, PAL.sandLight, PAL.sandDark, 12);
       if (hash(x, y, 820) < 0.12) px(g, X + 3 + Math.floor(hash(x, y, 821) * 10), Y + 3 + Math.floor(hash(x, y, 822) * 10), '#f7e3e0');
       blendGrass(g, x, y, X, Y);
       blendInto(g, x, y, X, Y, T.JUNGLE, PAL.jungle);
@@ -1071,7 +1351,7 @@ function paintChunk(c, ci, cj) {
       if (!(r.px.x1 > x0 * TILE && r.px.x0 < (x0 + CHUNK) * TILE && r.px.y1 > top * TILE && r.px.y0 < (y0 + CHUNK) * TILE)) continue;
       if (r.cave) {
         for (let y = Math.max(top, r.ry); y < Math.min(y0 + CHUNK, r.ry + r.h); y++) {
-          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) caveTile(g, x, y);
+          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) (r.sand ? sandCaveTile : caveTile)(g, x, y);
         }
       } else {
         drawRoom(g, r);
@@ -1331,7 +1611,7 @@ const VILLAGE_NPCS = [
   },
   {
     look: 'fisher', x: 80, y: 99.5, roam: 2,
-    lines: ['She\'s yours to sail. Fair winds!', () => merchantNews(), 'Hold Shift for full sail!', 'The deep water is where the big fish hide.', 'Sail north-east and you\'ll find an old hermit.', () => merchantNews(), 'Due north a volcano smokes day and night. Far to the north-west lies a frozen isle.', 'South-east, a long way out, there\'s a jungle isle with palms as tall as masts.'],
+    lines: ['She\'s yours to sail. Fair winds!', () => merchantNews(), 'Hold Shift for full sail!', 'The deep water is where the big fish hide.', 'Sail north-east and you\'ll find an old hermit.', () => merchantNews(), 'Due north a volcano smokes day and night. Far to the north-west lies a frozen isle.', 'South-east, a long way out, there\'s a jungle isle with palms as tall as masts.', 'Little skerries dot the open sea. Old sailors stashed their loot on them, so the story goes.'],
     nightLines: ['A calm night on the water. Just you and the stars.', () => merchantNews(), 'Sailing in the dark? Keep the village fires behind you and you\'ll find your way home.', 'Fish don\'t mind the dark. Cast away, if you\'ve the patience.'],
   },
 ];
@@ -1343,8 +1623,8 @@ const NPCS = [
   })),
   {
     look: 'hermit', x: HERMIT.x - 1, y: HERMIT.y + 1.4, roam: 2.5,
-    lines: ['Sail south-west to the ancient ruin. A dragon egg sleeps among its stones.', 'Few sail this far out...', 'The stone towers remember the dragons.', 'I have seen them all: the fire mountain, the frozen isle, the jungle isle. Each keeps its secrets.'],
-    nightLines: ['Few sail this far out... and fewer still by night.', 'The stars were old when the dragons were young.', 'I watch the sea at night. Sometimes something watches back.', 'Sail south-west to the ancient ruin. A dragon egg sleeps among its stones.'],
+    lines: ['Sail south-west to the ancient ruin. A dragon egg sleeps beneath its stones.', 'The egg rises only at night, when the rune stones wake.', 'The broken walls of the ruin remember the order of the stones.', 'Reefs ring the ruin. In from the east, round by the north.', 'A dragon egg hatches only in the fire mountain\'s crater. Climb the trail from the cairn.'],
+    nightLines: ['Few sail this far out... and fewer still by night.', 'The rune stones of the ruin are waking now. Can you feel it?', 'Touch all nine stones in order. The walls remember the start; a sailor\'s note on the skerries has the rest.', 'Reefs ring the ruin. In from the east, round by the north.', 'A dragon egg hatches only in the fire mountain\'s crater. Climb the trail from the cairn.'],
   },
   {
     look: 'mom', ...xy(roomSpot(ROOMS.home, 5.8, 2.4)), roam: 1.2, stays: true,
@@ -1517,6 +1797,85 @@ function placeObjects() {
   for (const r of Object.values(ROOMS)) for (const [k, x, y] of r.furniture) addAbs(k, ...roomSpot(r, x, y));
 }
 
+// The heart of the jungle isle is a maze walled with vine trees: cells `pitch` tiles apart inside an oval, carved
+// by a seeded walk out from the clearing in the middle, where the thunderdrum nests. One way in from the west, one
+// from the east.
+const JUNGLE_MAZE = { cols: 11, rows: 7, pitch: 3, seed: 77 };
+
+function jungleMaze(j) {
+  const { cols, rows, pitch } = JUNGLE_MAZE;
+  const x0 = Math.round(j.x - (cols * pitch) / 2);
+  const y0 = Math.round(j.y - (rows * pitch) / 2);
+  const inside = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows && Math.hypot((c + 0.5 - cols / 2) / (cols / 2), (r + 0.5 - rows / 2) / (rows / 2)) < 1.08;
+  const mc = Math.floor(cols / 2);
+  const mr = Math.floor(rows / 2);
+  const room = (c, r) => Math.abs(c - mc) <= 1 && Math.abs(r - mr) <= 1;
+  // top[r][c] closes the north side of cell (c, r); left[r][c] its west side
+  const top = Array.from({ length: rows + 1 }, () => Array(cols).fill(true));
+  const left = Array.from({ length: rows }, () => Array(cols + 1).fill(true));
+  const open = (c, r, dc, dr) => {
+    if (dc) left[r][c + Math.max(dc, 0)] = false;
+    else top[r + Math.max(dr, 0)][c] = false;
+  };
+  const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const seen = new Set();
+  const stack = [];
+  for (let r = mr - 1; r <= mr + 1; r++) {
+    for (let c = mc - 1; c <= mc + 1; c++) {
+      seen.add(r * cols + c);
+      stack.push([c, r]);
+      for (const [dc, dr] of STEPS) if (room(c + dc, r + dr)) open(c, r, dc, dr);
+    }
+  }
+  const rng = mulberry32(JUNGLE_MAZE.seed);
+  while (stack.length) {
+    const [c, r] = stack[stack.length - 1];
+    const next = STEPS.filter(([dc, dr]) => inside(c + dc, r + dr) && !seen.has((r + dr) * cols + c + dc));
+    if (!next.length) {
+      stack.pop();
+      continue;
+    }
+    const [dc, dr] = next[Math.floor(rng() * next.length)];
+    open(c, r, dc, dr);
+    seen.add((r + dr) * cols + c + dc);
+    stack.push([c + dc, r + dr]);
+  }
+  left[mr][0] = false;
+  left[mr][cols] = false;
+
+  const walls = new Set();
+  const wall = (tx, ty) => walls.add(`${tx},${ty}`);
+  for (let r = 0; r <= rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!top[r][c] || !(inside(c, r) || inside(c, r - 1))) continue;
+      for (let k = 0; k <= pitch; k++) wall(x0 + c * pitch + k, y0 + r * pitch);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c <= cols; c++) {
+      if (!left[r][c] || !(inside(c, r) || inside(c - 1, r))) continue;
+      for (let k = 0; k <= pitch; k++) wall(x0 + c * pitch, y0 + r * pitch + k);
+    }
+  }
+  for (const k of walls) {
+    const [tx, ty] = k.split(',').map(Number);
+    if (tileAt(tx, ty) === T.SAND) setTile(tx, ty, T.JUNGLE);
+    addAbs('vineTree', tx + 0.5, ty + 1).variant = Math.floor(hash(tx, ty, 78) * 3);
+  }
+  return { x: x0 + (cols * pitch) / 2, y: y0 + (rows * pitch) / 2, rx: (cols * pitch) / 2 + 1.5, ry: (rows * pitch) / 2 + 1.5 };
+}
+
+// Points round an oval of tiles, `gap` pixels apart, starting due east.
+function ovalRing(cx, cy, rx, ry, gap) {
+  const ring = [];
+  for (let i = 0; i < 400; i++) {
+    const a = (i / 400) * Math.PI * 2;
+    const p = [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry];
+    if (!ring.length || Math.hypot((p[0] - ring[ring.length - 1][0]) * TILE, (p[1] - ring[ring.length - 1][1]) * TILE) >= gap) ring.push(p);
+  }
+  return ring;
+}
+
 function placeIslands() {
   // the hermit's isle: his hut, his garden and his fire
   const h = isle('hermit');
@@ -1525,58 +1884,133 @@ function placeIslands() {
   addAbs('bonfire', h.x - 3.5, h.y + 1.8);
   addAbs('scarecrow', h.x + 4.5, h.y + 1.2);
   addAbs('cairn', h.x - 9, h.y - 4);
-  woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 2, 1400, 0.55, mixed);
-  woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 4, 1401, 0.45, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'));
 
-  // the jungle isle: palms on the beach, broad trees and ferns inland, and a thunderdrum's nest
+  // east of the hut, the hermit's stakes mark where the dragon roost goes: first its stand of pines must be felled
+  const site = ROOST_AT;
+  const clear = (x, y) => !inRoostSite(x + OX, y + OY);
+  addAbs('roost', site.x, site.y).hidden = true;
+  addAbs('nest', site.x, site.y + 30 / TILE - 0.05).roostNest = true;
+  for (const [x, y] of [[-6.2, -2.6], [6.2, -2.6], [-6.2, 5.6], [6.2, 5.6]]) addAbs('stake', site.x + x, site.y + y);
+  // once it's built, fences run stake to stake round the roost, with a gap at the front to walk in through
+  const fence = (key, x, y) => { addAbs(key, site.x + x, site.y + y).roostFence = true; };
+  for (let i = 0; i < 12; i++) {
+    const x = -6.2 + ((i + 0.5) * 12.4) / 12;
+    fence('fenceH', x, -2.6);
+    if (Math.abs(x) > 1.6) fence('fenceH', x, 5.6);
+  }
+  for (let i = 0; i < 8; i++) for (const x of [-6.2, 6.2]) fence('fenceV', x, -2.6 + ((i + 1) * 8.2) / 8);
+  [[-4.5, -1.2], [-1.6, -1.6], [1.4, -1], [4.3, -1.5], [-3.2, 1.6], [0, 2], [3.1, 1.4], [-4.6, 4.4], [-1.5, 4.8], [1.8, 4.2], [4.6, 4.8]]
+    .forEach(([x, y], i) => { addAbs(i % 3 ? 'pine' : 'pine2', site.x + x, site.y + y).site = true; });
+  woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 2, 1400, 0.55, mixed, clear);
+  woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 4, 1401, 0.45, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'), clear);
+
+  // the jungle isle: palms on the beach, broad trees and ferns round a maze of vine trees, and a thunderdrum's
+  // nest in the clearing at its heart
   const j = isle('jungle');
   const nest = (species, x, y) => {
     addAbs('nest', x, y - 0.05);
     addAbs(`egg_${species}`, x, y).species = species;
   };
-  nest('thunderdrum', j.x + 4, j.y - 3);
-  for (const [x, y] of [[j.x + 2.5, j.y - 4.6], [j.x + 6, j.y - 1.4], [j.x - 15, j.y + 3]]) addAbs('fern', x, y);
-  woods(j.x - j.rx - 2, j.y - j.ry - 2, j.x + j.rx + 2, j.y + j.ry + 2, 1.7, 1402, 0.8, (r, x, y) => (tileAt(Math.floor(x), Math.floor(y - 0.01)) === T.SAND ? 'palm' : r < 0.55 ? 'jungleTree' : 'palm'));
-  woods(j.x - j.rx, j.y - j.ry, j.x + j.rx, j.y + j.ry, 1.6, 1403, 0.6, () => 'fern');
+  const maze = jungleMaze(j);
+  nest('thunderdrum', maze.x, maze.y + 0.5);
+  for (const [x, y] of [[maze.x - 3, maze.y - 2], [maze.x + 3.2, maze.y + 3], [maze.x + 2.8, maze.y - 2.2], [maze.x - 2.6, maze.y + 3.2]]) addAbs('fern', x, y);
+  const wild = (x, y) => Math.hypot((x + OX - maze.x) / maze.rx, (y + OY - maze.y) / maze.ry) > 1;
+  woods(j.x - j.rx - 2, j.y - j.ry - 2, j.x + j.rx + 2, j.y + j.ry + 2, 1.7, 1402, 0.8, (r, x, y) => (tileAt(Math.floor(x), Math.floor(y - 0.01)) === T.SAND ? 'palm' : r < 0.55 ? 'jungleTree' : 'palm'), wild);
+  woods(j.x - j.rx, j.y - j.ry, j.x + j.rx, j.y + j.ry, 1.6, 1403, 0.6, () => 'fern', wild);
 
-  // the ancient ruin: a ring of standing stones round the night fury's egg
+  // the ancient ruin: a ring of rune stones round the slab that seals the night fury's egg
   const r = isle('ruin');
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2 - Math.PI / 2;
-    addAbs('menhir', r.x + Math.cos(a) * 4.6, r.y + 0.8 + Math.sin(a) * 3.4);
+    addAbs('menhir', r.x + Math.cos(a) * 4.6, r.y + 0.8 + Math.sin(a) * 3.4).rune = i;
   }
+  addAbs('altar', r.x, r.y + 0.95);
   addAbs('egg_nightFury', r.x, r.y + 1).species = 'nightFury';
   for (const y of [r.y - 13, r.y - 9.5, r.y - 6]) {
     addAbs('column', r.x - 2.4, y);
     addAbs('column', r.x + 2.6, y);
   }
-  for (const [x, y] of [[r.x - 9.5, r.y - 1], [r.x + 9, r.y + 2.5], [r.x - 6.5, r.y + 7], [r.x + 6, r.y - 5]]) addAbs('ruinWall', x, y);
+  [[r.x - 9.5, r.y - 1], [r.x + 9, r.y + 2.5], [r.x - 6.5, r.y + 7], [r.x + 6, r.y - 5]].forEach(([x, y], i) => {
+    Object.assign(addAbs('ruinWall', x, y), { rune: RUIN_ORDER[i], notches: i + 1 });
+  });
+  for (let y = r.y - 40; y <= r.y + 40; y++) {
+    for (let x = r.x - 48; x <= r.x + 48; x++) {
+      if (isReef(x, y) && hash(x, y, 1405) < 0.7) addAbs(`reef-${Math.floor(hash(x, y, 1406) * 3)}`, x + 0.2 + hash(x, y, 1407) * 0.6, y + 0.4 + hash(x, y, 1408) * 0.5);
+    }
+  }
   addAbs('stone', r.x + 4, r.y + 9);
   woods(r.x - r.rx, r.y - r.ry, r.x + r.rx, r.y + r.ry, 2.2, 1404, 0.5, mixed, (x, y) => Math.hypot((x + OX - r.x) / 9, (y + OY - r.y) / 7) > 1 && Math.abs(x + OX - r.x) > 4);
 
   // the frozen isle: snow, a frozen lake, ice crystals, and an ice cave with a light fury's nest at the end
   const f = isle('frozen');
-  nest('lightFury', ...caveSpot(23, 6.5));
-  addAbs('caveMouth', f.x - 6, f.y - 1.6).room = 'cave';
-  for (const [x, y] of [[4, 17.5], [12.5, 18.5], [13.5, 12.5], [8, 10.5], [16, 23.6], [24.6, 20], [31, 23.4], [18.5, 7], [28, 7.5], [21.5, 14.5]]) addAbs('glowcaps', ...caveSpot(x, y));
-  for (const [x, y] of [[36, 13.5], [41, 15.5], [38.5, 18.6], [34.6, 16]]) addAbs('goldOre', ...caveSpot(x, y));
-  [[19.5, 26.2], [27.5, 28.6], [10.5, 12], [26.5, 4.6], [41.5, 12.6], [5, 19]].forEach(([x, y], i) => addAbs(`stalagmite-${i % 3}`, ...caveSpot(x, y)));
-  for (const [x, y] of [[19.5, 4.6], [27.6, 5.6]]) addAbs('iceCrystal', ...caveSpot(x, y));
-  for (const [x, y] of [[f.x - 2.4, f.y - 3.2], [f.x + 9.6, f.y - 2], [f.x + 4, f.y + 3.4], [f.x - 4, f.y + 1.6], [f.x + 1, f.y - 5.4], [f.x - 10, f.y + 8.4]]) addAbs('iceCrystal', x, y);
+  const cave = ROOMS.cave.spots;
+  nest('lightFury', ...caveSpot(...cave.egg));
+  const mouth = [f.x - 6, f.y - 1.6];
+  addAbs('caveMouth', ...mouth).room = 'cave';
+  // a ring of glacier ice round the mouth that only a torch, or a dragon's fire, will melt
+  const rim = [mouth[0], mouth[1] - 0.3, 4.6, 3.4];
+  for (const [x, y] of ovalRing(...rim, 10)) addAbs('iceWall', x, y);
+  for (const [x, y] of cave.glowcaps) addAbs('glowcaps', ...caveSpot(x, y));
+  for (const [x, y] of cave.gold) addAbs('goldOre', ...caveSpot(x, y));
+  cave.stalagmites.forEach(([x, y], i) => addAbs(`stalagmite-${i % 3}`, ...caveSpot(x, y)));
+  for (const [x, y] of [...cave.eggCrystals, ...cave.crystals]) addAbs('iceCrystal', ...caveSpot(x, y));
+  for (const [x, y] of [[f.x - 2.4, f.y - 3.2], [f.x + 9.6, f.y - 2], [f.x + 4, f.y + 3.4], [f.x - 1, f.y + 3.6], [f.x + 1, f.y - 5.4], [f.x - 10, f.y + 8.4]]) addAbs('iceCrystal', x, y);
   for (const [x, y] of [[f.x - 12, f.y - 2], [f.x + 13, f.y + 4], [f.x + 6, f.y + 8], [f.x - 5, f.y + 9.5], [f.x + 15, f.y - 6]]) addAbs('boulderSnow', x, y);
   addAbs('cairn', f.x - 8.6, f.y - 6.2);
-  woods(f.x - f.rx, f.y - f.ry, f.x + f.rx, f.y + f.ry, 1.8, 1405, 0.62, () => 'snowPine');
+  woods(f.x - f.rx, f.y - f.ry, f.x + f.rx, f.y + f.ry, 1.8, 1405, 0.62, () => 'snowPine', (x, y) => Math.hypot((x + OX - rim[0]) / (rim[2] + 1.5), (y + OY - rim[1]) / (rim[3] + 1.2)) > 1);
 
-  // the speck of sand, with a terrible terror's egg under its one palm
+  // the dune isle: a sphinx lies across the door of a sandstone bluff, and behind it the sand cave's hoard,
+  // with a terrible terror's egg on the dais at the very back
   const s = isle('speck');
-  addAbs('palm', s.x + 0.5, s.y + 0.8);
-  nest('terribleTerror', s.x - 1.4, s.y - 0.3);
-  addAbs('stone', s.x + 2.4, s.y - 0.6);
+  addAbs('sandCave', s.x, s.y - 3).room = 'sandCave';
+  addAbs('sphinx', s.x, s.y - 3 + 17 / TILE);
+  addAbs('dais', ...sandSpot(22.5, 5.3));
+  nest('terribleTerror', ...sandSpot(22.5, 5.4));
+  for (const x of [12.5, 17.5, 27.5, 32.5]) for (const y of [14.5, 22.5]) addAbs('sandPillar', ...sandSpot(x, y));
+  for (const [x, y] of [[9.5, 18], [35.5, 18], [19.5, 24.5], [25.5, 24.5], [8.5, 7.5], [36.5, 7.5], [27.5, 6.8]]) addAbs('brazier', ...sandSpot(x, y));
+  [[9.5, 15.5], [35.5, 15.5], [10, 21], [35, 21], [4, 10], [41, 10]].forEach(([x, y], i) => addAbs(`urn-${i % 2}`, ...sandSpot(x, y)));
+  for (const [x, y] of [[18.5, 4.8], [26.5, 4.8]]) addAbs('goldStatue', ...sandSpot(x, y));
+  for (const [x, y] of [[15, 18.5], [30, 18.5], [22.5, 13.5], [20, 21.5], [25, 21.5], [5, 11.2], [40, 11.2]]) addAbs('coinPile', ...sandSpot(x, y));
+  for (const [x, y] of [[6.5, 11], [38.5, 11]]) addAbs('goldHeap', ...sandSpot(x, y));
+  for (const [x, y, loot] of [[4.5, 8, ['ruby', 'ruby', 'goblet']], [40.5, 8, ['emerald', 'emerald', 'goblet']], [17.5, 6.8, ['crown', 'ruby', 'emerald']]]) {
+    addAbs('hoardChest', ...sandSpot(x, y)).loot = loot;
+  }
+  for (const [x, y] of [[s.x + 8, s.y + 2.5], [s.x + 14.5, s.y + 3.5], [s.x + 9, s.y + 8], [s.x + 14, s.y + 7.6], [s.x + 6.5, s.y + 6]]) addAbs('palm', x, y);
+  for (const [x, y] of [[s.x - 12, s.y + 2], [s.x - 9.5, s.y + 6.5], [s.x - 15, s.y - 2]]) addAbs('column', x, y);
+  for (const [x, y] of [[s.x - 6, s.y + 9], [s.x + 17, s.y - 5], [s.x - 17, s.y + 7]]) addAbs('boulder', x, y);
+  addAbs('stone', s.x + 3.4, s.y + 6.6);
 
-  // the fire mountain
+  // Hawk Rock: Old Bjorn's cache in a thicket of brambles on the plateau, its mouth stopped with a boulder;
+  // a fallen trunk across the gap in the spur below
+  const k = isle('hawk');
+  const cx = k.x + HAWK.cache[0];
+  const cy = k.y + HAWK.cache[1];
+  addAbs('stoneCache', cx, cy - 0.4);
+  addAbs('looseRock', cx, cy - 0.4 + 8 / TILE);
+  for (const [x, y] of ovalRing(cx, cy + 0.2, 4.4, 3.1, 9)) addAbs('bramble', x, y);
+  addAbs('fallenLog', k.x + HAWK.spur[0] + 1, k.y + HAWK.gap[1] + 1 + 2 / TILE);
+  for (const [x, y, key] of [
+    [k.x + 6, k.y + 10, 'pine'], [k.x + 10, k.y + 12.5, 'oak'], [k.x + 15, k.y + 9.5, 'pine2'], [k.x + 3, k.y + 13.5, 'pine'],
+    [k.x - 9, k.y + 13, 'pine2'], [k.x - 17, k.y + 11, 'oak'],
+    [k.x - 12, k.y - 6, 'pine'], [k.x - 8, k.y - 11, 'pine2'], [k.x + 12, k.y - 7, 'oak'], [k.x + 15, k.y - 3.5, 'pine'], [k.x - 16, k.y + 2.6, 'pine2'],
+  ]) addAbs(key, x, y);
+  for (const [x, y] of [[k.x + 14, k.y + 10.5], [k.x - 13, k.y - 3], [k.x + 9, k.y - 12]]) addAbs('boulder', x, y);
+  addAbs('cairn', k.x - 12, k.y + 9.3);
+
+  // the fire mountain, with a cairn at the foot of the trail up its west face
   addAbs('volcano', VOLCANO.x, VOLCANO.y + 0.4);
+  addAbs('cairn', VOLCANO.x - 5.9, VOLCANO.y + 1.3);
   const v = isle('volcano');
   woods(v.x - v.rx, v.y - v.ry, v.x + v.rx, v.y + v.ry, 3, 1406, 0.5, (q) => (q < 0.55 ? 'deadTree' : 'boulderDark'));
+
+  // the islets: a chest half-hidden among a few trees, open to the south
+  for (const i of ISLANDS.filter((n) => n.islet)) {
+    Object.assign(addAbs('hoardChest', i.x + 0.5, i.y + 0.6), { loot: i.islet.loot, mark: i.islet.mark, note: i.islet.note });
+    addAbs('stone', i.x - 2.5, i.y + 1.8);
+    for (const [dx, dy] of [[-3.2, -1], [3.4, -0.6], [-0.8, -2.2], [2.2, -2.6], [-3.8, 1.8], [3.6, 2.2]]) {
+      if (isLand(tileAt(Math.floor(i.x + dx), Math.floor(i.y + dy - 0.01)))) addAbs(i.islet.trees, i.x + dx, i.y + dy);
+    }
+  }
 }
 
 // Fills the mountain mass with peaks, biggest first, wherever a whole silhouette fits on mountain tiles.

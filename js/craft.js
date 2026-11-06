@@ -2,13 +2,17 @@
 
 // `worn` things are carried about the person and take no backpack slot. `tool`s are the ones F swings, shoots or casts.
 // Everything on the BELT rides in the backpack until the tanner makes a tool belt to hang it on.
-// `slots` are the extra backpack room a worn upgrade adds.
+// `slots` are the extra backpack room a worn upgrade adds. An `outfit` is worn instead of the tunic, one at a time.
 const ITEMS = {
+  furCoat: { name: 'Thick fur coat', worn: true, outfit: true },
+  fireJacket: { name: 'Fireproof jacket', worn: true, outfit: true },
   backpack: { name: 'Backpack', worn: true },
   toolBelt: { name: 'Tool belt', worn: true },
   satchel: { name: 'Travel satchel', worn: true, slots: 2 },
   pouch: { name: 'Hunter\'s pouch', worn: true, slots: 2, plural: 'hunter\'s pouches' },
   map: { name: 'Map', worn: true },
+  mapPiece: { name: 'Map piece', worn: true, stack: true, plural: 'map pieces' },
+  runeNote: { name: 'Sailor\'s note', worn: true },
   axe: { name: 'Axe', tool: true },
   wood: { name: 'Wood', stack: true },
   apple: { name: 'Apple', stack: true },
@@ -28,35 +32,46 @@ const ITEMS = {
   fish: { name: 'Herring', stack: true },
   cod: { name: 'Cod', stack: true },
   trout: { name: 'Trout', stack: true },
-  eel: { name: 'Fire eel', stack: true },
+  eel: { name: 'Fire eel', stack: true, plural: 'fire eels' },
   cavefish: { name: 'Cave fish', stack: true },
   goldenFish: { name: 'Golden fish', stack: true },
   pickaxe: { name: 'Pickaxe', tool: true },
   iron: { name: 'Iron', stack: true },
   gold: { name: 'Gold nugget', stack: true, plural: 'gold nuggets' },
+  ruby: { name: 'Ruby', stack: true, plural: 'rubies' },
+  emerald: { name: 'Emerald', stack: true, plural: 'emeralds' },
+  goblet: { name: 'Golden goblet', stack: true, plural: 'golden goblets' },
+  crown: { name: 'Golden crown', stack: true, plural: 'golden crowns' },
   string: { name: 'String', stack: true },
   feather: { name: 'Feather', stack: true, plural: 'feathers' },
   arrow: { name: 'Arrow', stack: true, plural: 'arrows', worn: true },
-  torch: { name: 'Torch' },
+  torch: { name: 'Torch', stack: true, plural: 'torches' },
+  saddle: { name: 'Saddle', stack: true, plural: 'saddles' },
   mushroom: { name: 'Glowcap', stack: true, plural: 'glowcaps' },
   grilledFish: { name: 'Grilled fish', stack: true },
   bakedApple: { name: 'Baked apple', stack: true },
   meat: { name: 'Raw meat', stack: true },
   roast: { name: 'Roast meat', stack: true },
   hide: { name: 'Hide', stack: true, plural: 'hides' },
+  plank: { name: 'Plank', stack: true, plural: 'planks' },
+  rope: { name: 'Rope', stack: true, plural: 'ropes' },
+  ladder: { name: 'Ladder', stack: true, plural: 'ladders' },
+  bridge: { name: 'Bridge kit', stack: true, plural: 'bridge kits' },
+  campfire: { name: 'Campfire kit', stack: true, plural: 'campfire kits' },
+  grapple: { name: 'Grappling hook', tool: true },
 };
-// The belt, in the order it hangs: tools, then the shield and torch. Arrows show as a count on the bow.
-const BELT = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'shield', 'torch'];
+// The belt, in the order it hangs: tools, then the shield. Arrows show as a count on the bow.
+const BELT = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'shield'];
 const onBelt = (id) => BELT.includes(id) && has('toolBelt');
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !onBelt(id);
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, roasted: 0, gored: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
   {
-    item: 'axe', maker: 'smith', words: /\b(axes?|hatchet)\b/, time: 1.8,
+    item: 'axe', maker: 'smith', words: /(?<!pick[ -]?)\b(axes?|hatchet)\b/, time: 1.8,
     start: 'An axe? Give me a moment...',
     done: 'There you go! Mind the edge, {lad}.',
   },
@@ -65,7 +80,7 @@ const RECIPES = [
     done: 'A fine bow! The archer will be jealous.',
   },
   {
-    item: 'pickaxe', maker: 'smith', words: /\b(pick ?axes?|mattocks?)\b/, time: 2.2, needs: { wood: 2, iron: 1 },
+    item: 'pickaxe', maker: 'smith', words: /\b(pick[ -]?axes?|mattocks?)\b/, time: 2.2, needs: { wood: 2, iron: 1 },
     done: 'A good pickaxe. Ore and boulders won\'t stand a chance.',
   },
   {
@@ -82,7 +97,7 @@ const RECIPES = [
   },
   {
     item: 'torch', maker: 'smith', words: /\btorch(es)?\b/, time: 1.6, needs: { wood: 1, wool: 1 },
-    done: 'Wool soaked in pitch, wrapped round good wood. It\'ll burn for days. Mind your eyebrows!',
+    done: 'Wool soaked in pitch, wrapped round good wood. Press F to light it, and it\'ll burn six hours. Keep it out of the water!',
   },
   // the archer fletches at his post rather than at the anvil
   {
@@ -99,6 +114,21 @@ const RECIPES = [
     item: 'pouch', maker: 'tanner', words: /\b(pouch(es)?|bags?|satchels?)\b/, time: 2.4, needs: { hide: 2 },
     start: 'Two good hides! A bit of scraping, a bit of stitching...',
     done: 'A hunter\'s pouch. Strap it to your pack and you\'ve room for two more things.',
+  },
+  {
+    item: 'furCoat', maker: 'seamstress', words: /\b(fur ?coats?|coats?|furs?|parkas?|cloaks?)\b/, time: 3, needs: { hide: 4, wool: 2 },
+    start: 'A fur coat for the frozen isle? Four hides and a wool lining. Hold still while I measure you...',
+    done: 'Warm as a bear! Put it on before you land on the ice. B opens your bag, or ready it and press F.',
+  },
+  {
+    item: 'fireJacket', maker: 'seamstress', words: /\b(fire[ -]?proof|jackets?)\b/, time: 3, needs: { eel: 2, wool: 2 },
+    start: 'Fire eel skin! Nothing burns it. Wool underneath so it doesn\'t scald you. Let me stitch...',
+    done: 'There, fireproof from collar to hem. Wear it on the volcano and the heat won\'t touch you.',
+  },
+  {
+    item: 'saddle', maker: 'tanner', words: /\bsaddles?\b/, time: 2.8, needs: { hide: 3 },
+    start: 'A dragon saddle? Three hides, double stitched. Nobody falls off one of mine...',
+    done: 'There! Ready it and press F by your dragon to strap it on. Then up you get.',
   },
 ];
 
@@ -118,8 +148,8 @@ function ironHint(n) {
 const bag = {};
 const has = (item) => (bag[item] || 0) > 0;
 const recipeFor = (text) => RECIPES.find((r) => r.words.test(text.toLowerCase()));
-const held = () => (syncSlots(), slots.filter(Boolean));
-const primary = () => (syncSlots(), toolsFocused() ? activeTool : slots[activeSlot]);
+// What's in the backpack itself: one slot for each kind of thing, however many of it.
+const held = () => Object.keys(ITEMS).filter((id) => has(id) && inPack(id));
 const packSize = () => 6 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
 const bagFull = (item) => inPack(item) && !has(item) && held().length >= packSize();
 
@@ -135,269 +165,6 @@ function give(item, n = 1) {
 
 const listNeeds = (needs) => Object.entries(needs).map(([id, n]) => `${n} ${(n > 1 && ITEMS[id].plural) || ITEMS[id].name.toLowerCase()}`).join(' and ');
 
-// ---------- inventory panel ----------
-
-const packEl = document.getElementById('pack');
-const invEl = document.getElementById('inventory');
-const iconUrls = {};
-
-const slots = [];
-// The belt and the backpack each keep their own pick, and `focus` says which one F works from ('tools' or 'items').
-// E or Tab and Q step through the tools and then the items, and the number keys go straight to a tool.
-// `activeSlot` is -1 while the bag is empty; X drops it.
-let activeSlot = -1;
-let activeTool = null;
-let focus = 'items';
-const beltList = () => BELT.filter((id) => has(id) && onBelt(id) && ITEMS[id].tool);
-const toolsFocused = () => focus === 'tools' && !!activeTool && has(activeTool) && onBelt(activeTool);
-
-// Used-up items leave their slot; new ones take the first free one.
-function syncSlots() {
-  while (slots.length < packSize()) slots.push(null);
-  for (let i = 0; i < slots.length; i++) {
-    const id = slots[i];
-    if (!id || (has(id) && inPack(id))) continue;
-    // a tool picked in the pack stays picked when it moves onto the new belt
-    if (i === activeSlot && focus === 'items' && onBelt(id) && ITEMS[id].tool) {
-      activeTool = id;
-      focus = 'tools';
-    }
-    slots[i] = null;
-  }
-  for (const id of Object.keys(ITEMS)) {
-    if (!has(id) || !inPack(id) || slots.includes(id)) continue;
-    const i = slots.indexOf(null);
-    if (i >= 0) slots[i] = id;
-    else slots.push(id);
-  }
-  // the highlight only rests on a slot with something in it
-  if (!slots[activeSlot]) activeSlot = slots.findIndex((id, i) => id && i < packSize());
-}
-
-function swapSlots(a, b) {
-  if (a === b || !has('backpack') || !slots[a] && !slots[b]) return;
-  [slots[a], slots[b]] = [slots[b], slots[a]];
-  if (activeSlot === a) activeSlot = b;
-  else if (activeSlot === b) activeSlot = a;
-  renderInventory(slots[b]);
-  Sfx.drop();
-}
-
-function selectSlot(i) {
-  if ((i === activeSlot && focus === 'items') || !has('backpack') || !slots[i] || i >= packSize()) return;
-  activeSlot = i;
-  focus = 'items';
-  renderInventory();
-  Sfx.drop();
-}
-
-function selectTool(id) {
-  if ((id === activeTool && focus === 'tools') || !has('backpack') || !has(id) || !onBelt(id)) return;
-  activeTool = id;
-  focus = 'tools';
-  renderInventory();
-  Sfx.drop();
-}
-
-// Every tool owned, numbered for the number keys: 1 is the first, 0 the tenth. Ones in the backpack count too.
-const numberedTools = () => BELT.filter((id) => has(id) && ITEMS[id].tool && (onBelt(id) || (slots.includes(id) && slots.indexOf(id) < packSize())));
-const toolNumber = (id) => (numberedTools().indexOf(id) + 1) % 10;
-
-function pickTool(n) {
-  const id = numberedTools()[n - 1];
-  if (!id) return;
-  if (onBelt(id)) selectTool(id);
-  else selectSlot(slots.indexOf(id));
-}
-
-// E and Tab step forward (`step` 1), Q back (-1), along the belt's tools and on through the filled backpack
-// slots, wrapping round.
-function cycleSelection(step) {
-  const picks = [
-    ...beltList().map((id) => ({ tool: id })),
-    ...slots.map((id, slot) => ({ id, slot })).filter((p) => p.id && p.slot < packSize()),
-  ];
-  if (!picks.length) return;
-  const at = picks.findIndex((p) => (toolsFocused() ? p.tool === activeTool : p.slot === activeSlot));
-  const next = picks[at < 0 ? 0 : (at + step + picks.length) % picks.length];
-  if (next.tool) selectTool(next.tool);
-  else selectSlot(next.slot);
-}
-
-function dropActive() {
-  if (!toolsFocused() && slots[activeSlot]) dropItem(slots[activeSlot]);
-}
-
-// The bar only appears once there's a backpack to keep things in.
-function renderInventory(changed) {
-  invEl.hidden = !has('backpack');
-  syncSlots();
-  // the belt always has a pick once it has tools, just like the backpack
-  if (!(activeTool && has(activeTool) && onBelt(activeTool))) activeTool = beltList()[0] || null;
-  if (!activeTool) focus = 'items';
-  packEl.dataset.focus = focus;
-  const size = packSize();
-  renderBelt(changed);
-  invEl.replaceChildren(...Array.from({ length: size }, (_, i) => {
-    const li = document.createElement('li');
-    const id = slots[i];
-    const live = i === activeSlot && focus === 'items';
-    markSlot(li, live, id && ITEMS[id].tool ? toolNumber(id) : null);
-    if (!id) {
-      li.classList.add('empty');
-      li.setAttribute('aria-label', `Slot ${i + 1}, empty${live ? ', selected' : ''}`);
-      return li;
-    }
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.draggable = true;
-    btn.dataset.item = id;
-    // the bow carries the arrow count wherever it is
-    const n = ITEMS[id].stack ? bag[id] : id === 'bow' ? bag.arrow || 0 : null;
-    const label = `${ITEMS[id].name}${n === null ? '' : id === 'bow' ? `, ${n} ${n === 1 ? 'arrow' : 'arrows'}` : ` (${n})`}`;
-    btn.setAttribute('aria-label', live ? `Slot ${i + 1}, selected, used with F. Drop ${label}` : `Slot ${i + 1}. Select ${label}`);
-    const img = document.createElement('img');
-    img.src = iconUrls[id] ||= SPR.icon[id].toDataURL();
-    img.alt = '';
-    img.style.width = `${SPR.icon[id].width * 3}px`;
-    btn.append(img);
-    if (n !== null) {
-      const count = document.createElement('span');
-      count.textContent = n;
-      btn.append(count);
-    }
-    li.append(btn);
-    if (id === changed || (id === 'bow' && changed === 'arrow')) li.classList.add('bump');
-    return li;
-  }));
-  layoutPack();
-}
-
-// The belt and the backpack share one row along the top. It folds into more rows only when it would reach
-// the purse and menu buttons; if it runs under the clock, the clock and the toast below it step down out of the way.
-const SLOT_W = 54;
-const SLOT_GAP = 6;
-const GROUP_GAP = 12;
-const togglesEl = document.getElementById('toggles');
-function layoutPack() {
-  if (document.body.classList.contains('title')) return;
-  clockEl.style.top = '';
-  toastEl.style.top = '';
-  if (invEl.hidden) return;
-  const groups = [beltEl.hidden ? 0 : beltEl.children.length, packSize()].filter(Boolean);
-  const cols = (n, rows) => Math.ceil(n / rows);
-  const width = (rows) => groups.reduce((w, n) => w + cols(n, rows) * SLOT_W + (cols(n, rows) - 1) * SLOT_GAP, 0) + GROUP_GAP * (groups.length - 1);
-  const left = packEl.getBoundingClientRect().left;
-  const room = Math.min(...[document.getElementById('purse'), togglesEl].filter((el) => !el.hidden).map((el) => el.getBoundingClientRect().left)) - GROUP_GAP - left;
-  let rows = 1;
-  while (rows < 3 && width(rows) > room) rows++;
-  beltEl.style.setProperty('--cols', cols(beltEl.children.length || 1, rows));
-  invEl.style.setProperty('--cols', cols(packSize(), rows));
-  const pack = packEl.getBoundingClientRect();
-  const clock = clockEl.getBoundingClientRect();
-  if (clock.left < pack.right + GROUP_GAP && clock.top < pack.bottom + 8) {
-    clockEl.style.top = `${Math.round(pack.bottom + 10)}px`;
-    toastEl.style.top = `${Math.round(clockEl.getBoundingClientRect().bottom + 12)}px`;
-  }
-}
-window.addEventListener('resize', layoutPack);
-
-// ---------- the belt ----------
-
-const beltEl = document.getElementById('belt');
-
-// Only the pick F works from is lit, with a little F; the other row's pick waits unmarked.
-// Tools show their number key.
-function markSlot(li, live, number) {
-  if (number !== null) {
-    const key = document.createElement('b');
-    key.textContent = number;
-    key.setAttribute('aria-hidden', 'true');
-    li.append(key);
-  }
-  if (live) {
-    li.classList.add('primary');
-    const f = document.createElement('i');
-    f.textContent = 'F';
-    f.setAttribute('aria-hidden', 'true');
-    li.append(f);
-  }
-}
-
-// Tools are buttons that pick them for F; the torch just hangs there and lights the way.
-function renderBelt(changed) {
-  const worn = BELT.filter((id) => has(id) && onBelt(id));
-  beltEl.hidden = !has('backpack') || !worn.length;
-  beltEl.replaceChildren(...worn.map((id) => {
-    const li = document.createElement('li');
-    const live = id === activeTool && focus === 'tools';
-    const holder = ITEMS[id].tool ? document.createElement('button') : li;
-    const img = document.createElement('img');
-    img.src = iconUrls[id] ||= SPR.icon[id].toDataURL();
-    img.alt = '';
-    img.style.width = `${SPR.icon[id].width * 3}px`;
-    holder.append(img);
-    let label = ITEMS[id].name;
-    if (id === 'bow') {
-      const count = document.createElement('span');
-      count.textContent = bag.arrow || 0;
-      holder.append(count);
-      label += `, ${bag.arrow || 0} ${bag.arrow === 1 ? 'arrow' : 'arrows'}`;
-    }
-    if (holder !== li) {
-      holder.type = 'button';
-      holder.dataset.item = id;
-      holder.setAttribute('aria-pressed', live);
-      holder.title = `${ITEMS[id].name} (${toolNumber(id)})`;
-      li.append(holder);
-      markSlot(li, live, toolNumber(id));
-    }
-    holder.setAttribute('aria-label', live ? `${label}, selected, used with F` : label);
-    if (id === changed || (id === 'bow' && changed === 'arrow')) li.classList.add('bump');
-    return li;
-  }));
-}
-
-renderInventory();
-
-// Clicking a tool picks it and points F at the belt.
-beltEl.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  selectTool(btn.dataset.item);
-  btn.blur();
-});
-
-// Clicking a slot selects it; clicking the one F already works from drops its item.
-invEl.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  const i = slotIndex(btn);
-  if (i === activeSlot && focus === 'items') dropItem(btn.dataset.item);
-  else selectSlot(i);
-});
-
-// Drag an item onto another slot to swap them.
-let dragFrom = -1;
-const slotIndex = (el) => [...invEl.children].indexOf(el && el.closest('li'));
-invEl.addEventListener('dragstart', (e) => {
-  dragFrom = slotIndex(e.target);
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', slots[dragFrom] || '');
-});
-invEl.addEventListener('dragover', (e) => {
-  if (dragFrom < 0 || slotIndex(e.target) < 0) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-});
-invEl.addEventListener('drop', (e) => {
-  e.preventDefault();
-  const to = slotIndex(e.target);
-  if (dragFrom >= 0 && to >= 0) swapSlots(dragFrom, to);
-  dragFrom = -1;
-});
-invEl.addEventListener('dragend', () => { dragFrom = -1; });
-
 // ---------- items on the ground ----------
 
 const drops = [];
@@ -409,7 +176,7 @@ function spawnDrop(item, x, y, vx = 0, z = 0, vz = 70, vy = 0) {
 }
 
 function dropItem(id) {
-  if (!has(id) || !started || naming || flight || sail || hop || player.swimming) return;
+  if (!has(id) || !started || naming || flight || sail || hop || player.swimming || player.trek) return;
   bag[id]--;
   renderInventory();
   const fire = id === 'wood' && fireNear(player.x, player.y);
@@ -452,6 +219,11 @@ function pickUp(d) {
   give(d.item);
   faceToward(player, d.x - player.x, d.y - player.y);
   Sfx.pickup();
+  if (d.item === 'mapPiece') markEgg(d.mark);
+  if (d.item === 'runeNote') {
+    toast('SAILOR\'S NOTE', 'Read it again any time from your bag (B)');
+    toggleNote(true);
+  }
 }
 
 function updateDrops(dt) {
@@ -539,6 +311,7 @@ function askCraft(n, text) {
     if (short.feather && !has('feather')) hint += ' Feathers? Chase the hens round the farmyard. They drop one when they flap off.';
     if (short.stone && !has('stone')) hint += ' Stones lie about on the grass and the beaches.';
     if (short.hide && !has('hide')) hint += ' Deer and boar give hides. The south woods are full of them.';
+    if (short.eel && !has('eel')) hint += ' Fire eels live in the hot sea round the fire mountain, and in the hot spring up the east stairs from the square.';
     if (shortN === needs.length) npcSay(n, `${what[0].toUpperCase()}${what.slice(1)}? Get me ${listNeeds(r.needs)} and I'll make you ${r.count ? 'some' : 'one'}.${hint}`);
     else npcSay(n, `${what[0].toUpperCase()}${what.slice(1)} takes ${listNeeds(r.needs)}. You're still short ${listNeeds(short)}.${hint}`);
   }
@@ -654,7 +427,7 @@ function updateCraft(n, dt) {
   give(c.r.item, c.r.count || 1);
   if (c.r.item === 'arrow') stats.fletched++;
   if (ITEMS[c.r.item].slots) toast('UPGRADE', `Backpack: ${packSize()} slots`);
-  if (c.r.item === 'toolBelt') toast('TOOL BELT', 'Number keys pick a tool. Q and E (or TAB) step through tools and items');
+  if (c.r.item === 'toolBelt') toast('TOOL BELT', 'Your tools hang off your belt now, and leave the backpack for everything else');
   npcSay(n, c.r.done);
   faceToward(n, player.x - n.x, player.y - n.y);
   popIcon(c.r.item, player.x, player.y - 30);
@@ -682,10 +455,13 @@ const AXE = {
   ore: { prompt: 'Mine the iron ore', hits: 4, chips: ['#b0603a', '#56565e'], done: mineOre },
   gold: { prompt: 'Mine the gold', hits: 4, chips: ['#f2c94a', '#3a4252'], done: mineGold },
   boulder: { prompt: 'Break the boulder', hits: 3, chips: [PAL.rock, PAL.rockDark], done: breakBoulder },
+  bramble: { prompt: 'Hack through the brambles', hits: 2, chips: [PAL.leafDark, '#5a3a22'], done: cutBramble },
+  log: { prompt: 'Chop up the fallen log', hits: 4, chips: [PAL.woodLight, '#d9b07a'], done: chopLog },
 };
 const AXE_KINDS = {
   barrel: 'barrel', bushPink: 'bush', bushYellow: 'bush', fern: 'bush', fenceH: 'fence', fenceV: 'fence', target: 'target',
   ore: 'ore', goldOre: 'gold', boulder: 'boulder', boulderSnow: 'boulder', boulderDark: 'boulder',
+  bramble: 'bramble', fallenLog: 'log', looseRock: 'boulder',
 };
 const CHOP_TIME = 0.36;
 const CHOP_HIT = 0.55;
@@ -697,6 +473,7 @@ function initCrafting() {
   anvil = objects.find((o) => o.key === 'anvil');
   placeOre();
   hittables = objects.filter((o) => {
+    if (o.roostFence) return false;
     if (TREES[o.key]) o.tree = o.key;
     else if (AXE_KINDS[o.key]) Object.assign(o, { axe: AXE_KINDS[o.key], base: o.key });
     return o.tree || o.axe;
@@ -760,13 +537,14 @@ const TOOL_FOR = {
   tree: ['axe'], stump: ['axe'], fence: ['axe'], barrel: ['axe', 'sword'],
   bush: ['sword', 'spear', 'axe'], target: ['sword', 'spear', 'axe'],
   ore: ['pickaxe'], gold: ['pickaxe'], boulder: ['pickaxe'],
+  bramble: ['sword', 'axe', 'spear'], log: ['axe'],
 };
 // Chores win over game, so a rabbit underfoot doesn't get in the way of the woodcutting.
-const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder']);
+const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder', 'bramble', 'log']);
 const SWUNG = new Set(Object.values(TOOL_FOR).flat());
 const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', mushroom: '#5affd8', roast: '#9a4a1e' };
 
-const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded();
+const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded() && !player.trek && !(player.downT > 0);
 // The rod is the one tool that also works from the deck, once the ship has all but stopped.
 const shipStill = () => Math.hypot(sail.vx, sail.vy) < 20;
 const canCast = () => (sail ? !hop && !carrying() && shipStill() : canUseTool());
@@ -803,15 +581,13 @@ function mendWithWood(o) {
 }
 
 const itemName = (id) => ITEMS[id].name.toLowerCase();
-// The key that readies `id`: a tool's number, or else Q/E round to it.
-const slotKey = (id) => (ITEMS[id].tool ? toolNumber(id) : 'Q/E');
 
-// F: uses the selected belt tool, or else whatever's in the selected slot.
-// At sea it casts the rod, or else sends the young dragon fishing.
+// F: uses the selected belt tool, or else whatever's in the selected slot. At sea only the rod works.
 function useTool() {
   if (hop || fade || naming || player.cook) return;
   const id = primary();
-  if (sail) return id === 'rod' && (player.fishing || castSpot()) ? useRod() : sendFishing();
+  if (id && ITEMS[id].outfit) return wear(outfit === id ? null : id);
+  if (sail) return id === 'rod' ? useRod() : undefined;
   if (!id || !canUseTool()) return;
   if (id === 'rod') return useRod();
   player.fishing = null;
@@ -821,9 +597,13 @@ function useTool() {
     swing(id, o, prey);
   } else if (id === 'bow') drawBow();
   else if (id === 'shield') raiseShield();
+  else if (id === 'torch') toggleTorch();
+  else if (id === 'saddle') saddleUp();
   else if (COOKS[id] && fire) startCook(id);
   else if (id === 'wood' && nearTarget('wood')) mendWithWood(nearTarget('wood'));
   else if (id === 'wood' && fire) dropItem('wood');
+  else if (id === 'grapple') throwGrapple();
+  else if (PLACE[id]) placeThing(id);
   else if (EDIBLE[id]) eat(id);
   else if (id === 'meat') muse('Raw? Yuck. I should roast it over a fire first.');
   else if (id === 'stone') throwStone();
@@ -851,12 +631,19 @@ function toolHint() {
   if (f && id === 'rod') return f.biting ? 'F  Reel it in!' : `${f.missT > 0 ? 'It got away!' : 'Waiting for a bite...'}   ·   F  Reel in`;
   if (f) return f.biting ? `${slotKey('rod')}  Ready the rod to reel it in!` : 'Waiting for a bite...';
   const readyRod = id === 'rod' ? 'F  Cast your line' : `${slotKey('rod')}  Ready the rod to fish`;
+  const need = EXPOSE[exposedTo()]?.outfit;
+  if (need && outfit !== need && has(need)) return id === need ? `F  Put on the ${itemName(need)}` : `${slotKey(need)}  Put on your ${itemName(need)}`;
+  if (id && ITEMS[id].outfit) return outfit === id ? `F  Take off the ${itemName(id)}` : `F  Put on the ${itemName(id)}`;
   if (sail) return has('rod') && castSpot() ? readyRod : '';
   if (!canUseTool()) return '';
   const fire = fireNear(player.x, player.y);
   if (COOKS[id] && fire) return `F  ${COOK_VERB[id]} the ${itemName(id)}`;
   if (id === 'wood' && nearTarget('wood')) return 'F  Mend the fence with a log';
   if (id === 'wood' && fire) return 'F  Throw wood on the fire';
+  const build = buildHint(id);
+  if (build) return build;
+  if (id === 'torch') return flame.out ? `F  Put the torch out   ·   ${torchHours()}h of burn left` : `F  Light the torch${flame.left > 0 ? ` (${torchHours()}h of burn left)` : ''}`;
+  if (id === 'saddle') return saddleHint();
   if (SWUNG.has(id)) {
     const { o, prey } = swingAt(id);
     if (prey) return `F  Strike the ${WILD[prey.kind].name}`;
@@ -876,7 +663,7 @@ function toolHint() {
   if (has('rod') && castSpot()) return readyRod;
   const vein = !has('pickaxe') && hittables.find((o) => (kindOf(o) === 'ore' || kindOf(o) === 'gold') && boxDist(o.col) < 9);
   if (vein) return `${vein.axe === 'gold' ? 'Gold' : 'Iron ore'}. You need a pickaxe to mine it`;
-  return '';
+  return obstacleHint();
 }
 
 // ---------- fishing ----------
@@ -887,7 +674,7 @@ const BOAT_CAST = { right: [-2, 14], left: [2, 14], down: [32, -8], up: [32, -30
 // Where the bobber lands: the first water in front of the player.
 function castSpot() {
   if ((indoors && !inCave()) || !canCast()) return null;
-  const water = (x, y) => tileAt(Math.floor(x / TILE), Math.floor(y / TILE)) === T.WATER;
+  const water = (x, y) => isWet(tileAt(Math.floor(x / TILE), Math.floor(y / TILE)));
   if (sail) {
     const [dx, dy] = BOAT_CAST[shipObj.facing];
     const x = shipObj.x + dx;
@@ -910,7 +697,12 @@ function useRod() {
     player.fishing = null;
     if (!f.biting) return Sfx.swish(0.6);
     const [hx, hy] = headPos();
-    popIcon(catchFish(f), hx, hy - 6);
+    const b = f.boat && hungryDragon();
+    const id = catchFish(f, !b);
+    if (b) {
+      feedFromLine(b, id, f.x, f.y);
+      popIcon(id, f.x, f.y - 8);
+    } else popIcon(id, hx, hy - 6);
     Sfx.splash(0.4);
     Sfx.reward();
     return;
@@ -1090,6 +882,8 @@ function eat(id) {
   bag[id]--;
   renderInventory();
   Sfx.munch();
+  // a hot meal fills the stamina bar right up; a bite of anything else gives some of it back
+  restStamina(MEALS[id] ? 1 : 0.4);
   for (let i = 0; i < 6; i++) {
     particles.push({
       type: 'chip', x: player.x + (Math.random() - 0.5) * 4, y: player.y - 12, vx: (Math.random() - 0.5) * 40, vy: -30 - Math.random() * 30,
@@ -1271,6 +1065,7 @@ function landTree(o) {
 
 // Grows back (or gets mended) only out of sight, and never on top of someone. `mendNow` skips the out of sight part.
 function regrow(o) {
+  if (o.site && roost.asked) return;
   const key = o.tree || o.base;
   const f = SPR[key].foot;
   const over = (e) => Math.abs(e.x - o.x) < f.w / 2 + 6 && e.y > o.y - f.h - 1 && e.y < o.y + 5;
@@ -1345,6 +1140,21 @@ function cutBush(o) {
   shedLeaves(o, 6);
   const n = 1 + (Math.random() < 0.5 ? 1 : 0);
   for (let i = 0; i < n; i++) spawnDrop('berries', o.x + (i ? 6 : -4), o.y + 3, (i ? 1 : -1) * 15);
+}
+
+function cutBramble(o) {
+  Object.assign(o, { key: 'brambleCut', broken: true, regrowT: REGROW_TIME });
+  o.col.off = true;
+  Sfx.swish();
+  chips(o, [PAL.leafDark, PAL.leaf, '#5a3a22'], 8, 6);
+}
+
+function chopLog(o) {
+  Object.assign(o, { hidden: true, regrowT: REGROW_TIME });
+  o.col.off = true;
+  Sfx.crash(0.6 * earshot(o.x, o.y));
+  for (let i = 0; i < 3; i++) dust(o.x, o.y - 6 - i * 12);
+  for (let i = 0; i < 2; i++) spawnDrop('wood', o.x + (i - 0.5) * 12, o.y - 10 + i * 10, (i - 0.5) * 30, 6, 60);
 }
 
 function breakFence(o) {
