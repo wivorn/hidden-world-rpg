@@ -257,6 +257,12 @@ function restoreEggs(s) {
       e.col.off = !!d.crater;
       return;
     }
+    if (d.state === 'down') {
+      Object.assign(e, { x: d.x, y: d.y, hidden: false, state: 'down' });
+      placeCollider(e);
+      e.col.off = false;
+      return;
+    }
     Object.assign(e, { hidden: true, state: d.state });
     e.col.off = true;
     if (d.state === 'carried') carried = e;

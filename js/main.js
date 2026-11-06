@@ -1337,7 +1337,27 @@ const grounded = () => !player.flying && !player.swimming;
 
 function nearEgg() {
   if (carrying() || !grounded()) return null;
-  return eggs.find((e) => e.state === 'wild' && !e.hidden && boxDist(e.col) < 14) || null;
+  return eggs.find((e) => (e.state === 'wild' || e.state === 'down') && !e.hidden && boxDist(e.col) < 14) || null;
+}
+
+// F with the egg in hand sets it on the ground just in front, clear of the player's own feet.
+function setDownEgg() {
+  if (!carried || flight || sail || hop || fade || !grounded()) return;
+  if (player.trek) {
+    if (onSummit()) dropInCrater();
+    return;
+  }
+  const e = carried;
+  const f = SPR[e.key].foot;
+  const [vx, vy] = DIR_VEC[player.dir];
+  const x = Math.round(player.x + vx * (5 + f.w / 2 + 2));
+  const y = Math.round(player.y + (vy > 0 ? f.h + 3 : vy < 0 ? -6 : 0));
+  if (blocked(x - f.w / 2, y - f.h, x + f.w / 2, y, player)) return muse('No room to set it down here.');
+  carried = null;
+  Object.assign(e, { x, y, hidden: false, state: 'down' });
+  placeCollider(e);
+  e.col.off = false;
+  Sfx.drop();
 }
 
 function pickUpEgg(e) {
@@ -3333,7 +3353,7 @@ function render() {
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
   } else if (carried) {
-    setPrompt('Carry the egg up the volcano and drop it into the crater to hatch it');
+    setPrompt('Carry the egg up the volcano and drop it into the crater to hatch it   ·   F  Set it down');
   } else if (dog.state === 'carried') {
     setPrompt(`Carry ${dogName()} home${dog.asked ? ' to the girl in the village' : ''}`);
   } else if (eggs.some((e) => e.state === 'warming' && Math.hypot(player.x - e.x, player.y - e.y) < 70)) {
@@ -3443,6 +3463,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') action();
     if (e.code === 'KeyF') {
       if (flight) breatheFire();
+      else if (carried) setDownEgg();
       else useTool();
     }
     if (e.code === 'KeyR') loopTrick();

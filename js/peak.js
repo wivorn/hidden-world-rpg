@@ -107,7 +107,7 @@ function dropInCrater() {
 }
 
 function peakPrompt() {
-  if (onSummit() && carried) return 'SPACE  Drop the egg into the crater   ·   DOWN  Climb down';
+  if (onSummit() && carried) return 'SPACE or F  Drop the egg into the crater   ·   DOWN  Climb down';
   if (onSummit() && eggs.some((e) => e.crater && e.state === 'warming')) return 'The egg is warming in the lava...   ·   DOWN  Climb down';
   if (onSummit()) return 'DOWN  Climb back down';
   return 'UP  Climb   ·   DOWN  Head back down';
