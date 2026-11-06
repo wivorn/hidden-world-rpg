@@ -3446,7 +3446,7 @@ window.addEventListener('keydown', (e) => {
       else useTool();
     }
     if (e.code === 'KeyR') loopTrick();
-    if (e.code === 'KeyN') toggleSound();
+    if (e.code === 'KeyP') toggleSound();
     if (e.code === 'KeyH') toggleHints();
     if (e.code === 'KeyM') toggleMap(true);
     if (e.code === 'KeyJ') toggleJournal(true);
