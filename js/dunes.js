@@ -100,11 +100,12 @@ const sphinxPrompt = () => (sphinx.asking ? 'ENTER  Answer the riddle   ·   SPA
 
 function speakToSphinx() {
   faceToward(player, sphinxObj.x - player.x, sphinxObj.y - player.y);
-  sphinxQueue = [];
   if (sphinx.solved) {
     sphinxSay('The treasure of the sands is yours, wise one. Enter.');
+    if (!sphinxQueue.length && sphinxObj.x === sphinxHome) later(2.5, slideAside);
     return;
   }
+  sphinxQueue = [];
   if (!sphinx.met) {
     sphinx.met = true;
     sphinxSay('HALT, traveller. None may pass into my cave unless they answer my three riddles. Speak your answers aloud.');
@@ -153,11 +154,13 @@ function sphinxHears(text) {
     Sfx.rune(3);
     sphinxSay('Correct! Three riddles, three answers. You are wise, child of the north. My treasure is yours.');
   });
-  later(5.5, () => {
-    sphinxMove = { t: 0 };
-    Sfx.rumble();
-  });
+  later(5.5, slideAside);
   return true;
+}
+
+function slideAside() {
+  sphinxMove = { t: 0 };
+  Sfx.rumble();
 }
 
 // The sphinx slides aside on its belly, and anyone in the way is nudged clear.

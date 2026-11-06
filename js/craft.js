@@ -166,7 +166,8 @@ const nextBow = () => RECIPES.find((r) => r.tier === Math.min(BOWS.length - 1, u
 // What's in the backpack itself: one slot for each kind of thing, however many of it.
 const held = () => Object.keys(ITEMS).filter((id) => has(id) && inPack(id));
 const packSize = () => 6 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
-const bagFull = (item) => inPack(item) && !has(item) && held().length >= packSize();
+// A tool always squeezes in, even past the pack's slots, so one can never be left lying out of reach.
+const bagFull = (item) => inPack(item) && !ITEMS[item].tool && !has(item) && held().length >= packSize();
 
 // With no room in the pack the item lands at the player's feet instead.
 function give(item, n = 1) {
