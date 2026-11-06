@@ -517,6 +517,73 @@ const ROOMS = {
   // Carved out of rock by carveCave rather than walled; its spots are in tiles from the top-left.
   cave: { name: 'the ice cave', cave: true, w: 70, h: 64, wall: [], rugs: [], furniture: [] },
   sandCave: { name: 'the sand cave', cave: true, sand: true, w: 44, h: 34, wall: [], rugs: [], furniture: [] },
+  // laid out after the caves so rooms already in old saves keep their place
+  weaverHouse: {
+    name: 'the weaver\'s house', w: 8, h: 5,
+    wall: [['window', 2], ['shelf', 6]],
+    rugs: [[2.2, 2.4, 3, 2, '#3d7d78']],
+    furniture: [['bed', 1, 2.1], ['hearth', 4, 0.2], ['loom', 6.5, 1.9], ['yarnBasket', 7.3, 4.5], ['yarnBasket', 6.2, 4.7], ['stool', 3.6, 3.4]],
+  },
+  seamstressHouse: {
+    name: 'the seamstress\'s house', w: 8, h: 5,
+    wall: [['shelf', 2], ['window', 5.5]],
+    rugs: [[2.6, 2.4, 3, 2, '#b04a6e']],
+    furniture: [['bed', 7, 2.1], ['hearth', 3.5, 0.2], ['dressForm', 0.8, 1.7], ['dressForm', 2, 1.7], ['table', 5, 3.9], ['stool', 3.6, 3.7], ['sacks', 0.9, 4.7]],
+  },
+  tannery: {
+    name: 'the tannery', w: 8, h: 5,
+    wall: [['rack', 1.5], ['window', 5]],
+    rugs: [],
+    furniture: [['bed', 1, 2.1], ['hearth', 4, 0.2], ['hideFrame', 6.6, 2], ['vat', 7.2, 4.5], ['barrel', 0.6, 4.6], ['stool', 3.6, 3.2]],
+  },
+  bakery: {
+    name: 'the bakery', w: 9, h: 5,
+    wall: [['shelf', 3], ['window', 6.5]],
+    rugs: [[3.2, 2.6, 3, 1.8, '#c98a3c']],
+    furniture: [['oven', 1.4, 1.5], ['table', 4.7, 3.4], ['stool', 3.3, 3.2], ['stool', 6.1, 3.2], ['bed', 8, 2.1], ['sacks', 8.1, 4.6], ['sacks', 7.1, 4.8], ['barrel', 0.6, 4.6]],
+  },
+  workshop: {
+    name: 'the carpenter\'s workshop', w: 9, h: 5,
+    wall: [['rack', 1.5], ['window', 4.5], ['shelf', 7.4]],
+    rugs: [],
+    furniture: [['workbench', 4.5, 2.2], ['logPile', 1.4, 1.4], ['stool', 4.5, 3.6], ['bed', 8, 2.1], ['barrel', 0.6, 4.6], ['sacks', 8.1, 4.7]],
+  },
+  shepherdHouse: {
+    name: 'the shepherd\'s house', w: 8, h: 5,
+    wall: [['window', 2], ['shelf', 6]],
+    rugs: [[2.5, 2.6, 3, 2, '#8f3b2e']],
+    furniture: [['bed', 1, 2.1], ['hearth', 4, 0.2], ['table', 6, 3.1], ['stool', 4.7, 2.9], ['yarnBasket', 7.3, 4.6], ['sacks', 0.9, 4.7]],
+  },
+  archerHouse: {
+    name: 'the archer\'s house', w: 8, h: 5,
+    wall: [['rack', 1.5], ['window', 4], ['shield', 6.8]],
+    rugs: [[2.4, 2.6, 3, 2, '#55703c']],
+    furniture: [['bed', 7, 2.1], ['hearth', 3.5, 0.2], ['table', 2, 3.6], ['stool', 3.4, 3.4], ['barrel', 0.6, 4.6], ['barrel', 7.4, 4.6]],
+  },
+  guardHouse: {
+    name: 'the guard\'s house', w: 9, h: 5,
+    wall: [['shield', 1.2], ['window', 3], ['shield', 7.5]],
+    rugs: [[3, 2.6, 3, 2, '#6b4a2e']],
+    furniture: [['bed', 1, 2.1], ['bed', 2.6, 2.1], ['hearth', 5, 0.2], ['table', 7, 3.4], ['stool', 5.6, 3.2], ['barrel', 8.4, 4.6], ['sacks', 0.9, 4.7]],
+  },
+  fisherHouse: {
+    name: 'the fisherman\'s house', w: 8, h: 5,
+    wall: [['window', 2], ['shelf', 6]],
+    rugs: [[2.5, 2.6, 3, 2, '#3b5c6c']],
+    furniture: [['bed', 7, 2.1], ['hearth', 3.5, 0.2], ['table', 1.8, 3.3], ['stool', 3.2, 3.1], ['barrel', 0.6, 4.6], ['barrel', 1.6, 4.8], ['sacks', 7.2, 4.6]],
+  },
+  chiefHouse: {
+    name: 'the chief\'s house', w: 10, h: 6,
+    wall: [['shield', 1.5], ['tapestry', 5], ['shield', 8.5]],
+    rugs: [[3.5, 2.6, 4, 2.4, '#7a4f2e']],
+    furniture: [['bed', 1, 2.1], ['hearth', 5, 0.2], ['table', 7.5, 3.6], ['stool', 6.1, 3.4], ['stool', 8.9, 3.4], ['barrel', 0.6, 5.7], ['barrel', 9.4, 5.7]],
+  },
+  woodcutterHut: {
+    name: 'the woodcutter\'s hut', w: 7, h: 4,
+    wall: [['window', 1.5], ['rack', 5.2]],
+    rugs: [[2, 2.2, 2.5, 1.5, '#6a6a3a']],
+    furniture: [['bed', 0.9, 2.1], ['hearth', 3.5, 0.2], ['logPile', 5.6, 1.6], ['stool', 4.8, 3]],
+  },
 };
 
 // The ice cave is a maze of cells `pitch` tiles apart; the mouth opens under the `entry` cell of the bottom row,
@@ -1517,6 +1584,8 @@ function addAbs(key, tx, ty) {
 }
 
 const addObj = (key, tx, ty) => addAbs(key, tx + OX, ty + OY);
+// A trader's house and stall, placed so the counter's middle lands on (sx, sy).
+const shopAt = (key, sx, sy, room) => { addObj(key, sx - SPR[key].stall / TILE, sy).room = room; };
 
 const SOIL = {
   snowPine: [T.SNOW, T.ROCK], palm: [T.SAND, T.GRASS, T.JUNGLE], fern: [T.GRASS, T.SAND, T.JUNGLE], jungleTree: [T.JUNGLE], deadTree: [T.ASH],
@@ -1570,7 +1639,7 @@ const VILLAGE_NPCS = [
     nightLines: ['The oven\'s still warm. I\'m setting the dough for the morning.', 'Up late, dear? The first loaves come out at dawn.', 'Night baking is the best baking. Nobody pinching the buns.', 'Mind the oven in the dark, dear. It still bites!'],
   },
   {
-    look: 'weaver', x: 72, y: 53.5, job: { station: [69.4, 53.5], face: 'left', prop: 'loom' },
+    look: 'weaver', x: 72, y: 53.5, job: { station: [74.3, 53.5], face: 'right', prop: 'loom' },
     lines: ['Wool in, cloth out. Clack, clack!', 'I can weave you linen or wool, in any colour you like.', 'The shepherd\'s sheep give me the softest wool.'],
     nightLines: ['Weaving by firelight. My eyes aren\'t what they were.', 'One more row, then bed. ...I said that an hour ago.', 'The sheep are all asleep. Lucky things.'],
   },
@@ -1580,7 +1649,7 @@ const VILLAGE_NPCS = [
     nightLines: ['Can\'t see my stitches in this light! I\'ll finish in the morning.', 'A warm cloak is just the thing on a chilly night, dear.', 'Out late? Mind you don\'t snag your sleeve in the dark.'],
   },
   {
-    look: 'tanner', x: 60.5, y: 63.6, job: { station: [58, 63.6], face: 'left', prop: 'hideFrame' },
+    look: 'tanner', x: 60.5, y: 63.6, job: { station: [62.1, 63.7], face: 'right', prop: 'hideFrame' },
     lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'Tools filling your pack? Bring me two hides and I\'ll make you a tool belt.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.'],
     nightLines: ['Hides dry slower at night. Patience.', 'A soak in the hot spring under the stars. That\'s the life.', 'Still after a tool belt? Two hides, day or night.'],
   },
@@ -1637,6 +1706,12 @@ const NPCS = [
     lines: ['Silver for fish, silver for wool! Ottar buys it all!', 'I sail the whole Hidden World. Three days round, then back here.', 'Mind the gangplank, friend.'],
     nightLines: ['Late trade? Ottar never sleeps!', 'Silver for fish, silver for wool, night or day!', 'Mind the gangplank, friend. It\'s slippery in the dark.'],
   },
+  // after the merchant, so the villagers in old saves keep their places
+  {
+    look: 'carpenter', x: 94 + OX, y: 67.5 + OY, job: { station: [92.1 + OX, 67.9 + OY], face: 'left', prop: 'workbench' },
+    lines: ['Measure twice, cut once.', 'Got a bow, {lad}? Bring it here and I\'ll make it shoot farther.', 'Good yew makes a good longbow. Good horn makes a better one.', 'Every plank in this village went over my bench.'],
+    nightLines: ['Can\'t saw straight in the dark. I\'ll whittle a little instead.', 'Still need that bow seen to? I\'m not too tired for that.', 'Sawdust in my beard again. Ah well.'],
+  },
 ];
 // Where the merchant's ship ties up in the bay, east of the longship, and where he stands on the beach beside it.
 const MERCHANT_DOCK = { x: 93 + OX, y: 106.2 + OY };
@@ -1668,21 +1743,22 @@ function placeObjects() {
   addObj('forge', 58.5, 58).room = 'smithy';
   addObj('anvil', 61.6, 59.6);
   addObj('barrel', 64.2, 58.6);
-  addObj('stallTanner', 60.5, 64.6);
-  addObj('hideFrame', 56.6, 63.9);
-  addObj('vat', 55, 65.2);
+  shopAt('shopTanner', 60.5, 64.6, 'tannery');
+  addObj('hideFrame', 63.5, 63.9);
+  addObj('vat', 62.9, 66.3);
 
-  // the market round the square
-  addObj('stallWeaver', 72, 54.5);
-  addObj('loom', 68, 53.8);
-  addObj('yarnBasket', 74.6, 54.1);
-  addObj('stallSeamstress', 84.5, 54.5);
+  // the market round the square: each trader lives in the house behind their stall
+  shopAt('shopWeaver', 72, 54.5, 'weaverHouse');
+  addObj('loom', 75.6, 53.8);
+  shopAt('shopSeamstress', 84.5, 54.5, 'seamstressHouse');
   addObj('dressForm', 80.9, 53.7);
-  addObj('stall', 69.5, 66.5);
-  addObj('barrel', 72.6, 66.6);
-  addObj('barrel', 73.5, 66.8);
+  shopAt('shopBaker', 69.5, 66.5, 'bakery');
   addObj('oven', 65.6, 65.8);
   addObj('sacks', 65.4, 67.6);
+  // the carpenter's, out in the open south-east of the square
+  shopAt('shopCarpenter', 94, 68.5, 'workshop');
+  addObj('workbench', 90.4, 68.4);
+  addObj('logPile', 89.4, 70.6);
   addObj('bonfire', 78.5, 60);
   addObj('bannerBlue', 75.5, 56.7);
   addObj('bannerBlue', 81.5, 56.7);
@@ -1693,18 +1769,18 @@ function placeObjects() {
   addObj('house', 60, 78).room = 'home';
   addObj('barrel', 56.4, 78.1);
   addObj('bushYellow', 64.2, 78);
-  addObj('houseC', 69, 78);
-  addObj('houseB', 87, 78);
-  addObj('houseD', 60, 86);
-  addObj('houseC', 69, 86);
-  addObj('houseD', 87, 86);
+  addObj('houseC', 69, 78).room = 'shepherdHouse';
+  addObj('houseB', 87, 78).room = 'archerHouse';
+  addObj('houseD', 60, 86).room = 'guardHouse';
+  addObj('houseC', 69, 86).room = 'fisherHouse';
+  addObj('houseD', 87, 86).room = 'chiefHouse';
   addObj('houseB', 95, 58).room = 'cottage';
   addObj('barrel', 98.3, 58.2);
   addObj('barrel', 99.2, 58);
   addObj('bannerRed', 91.6, 58.4);
   for (const [k, x, y] of [
     ['bushPink', 73.6, 78.2], ['bushPink', 64.6, 86.2], ['barrel', 73.2, 86.3], ['bushYellow', 82.6, 86.2], ['sacks', 82.2, 77.6],
-    ['bench', 74.2, 62.6], ['bench', 82.8, 62.6], ['sacks', 87.6, 58.4], ['yarnBasket', 76.2, 54.6], ['barrel', 86.8, 55.2],
+    ['bench', 74.2, 62.6], ['bench', 82.8, 62.6], ['sacks', 87.6, 58.4],
     ['oak', 74.5, 75.6], ['oak', 83.2, 83.4], ['bushYellow', 91.8, 79.2],
   ]) addObj(k, x, y);
 
@@ -1772,7 +1848,7 @@ function placeObjects() {
   addObj('boulderSnow', 74.4, 13.6);
 
   // the forest clearing with the woodcutter's hut
-  addObj('houseC', 15, 55.2);
+  addObj('houseC', 15, 55.2).room = 'woodcutterHut';
   addObj('logPile', 19.8, 55.8);
   addObj('stump', 22.6, 58.6);
   addObj('stumpOak', 24.4, 56.2);
@@ -1791,7 +1867,7 @@ function placeObjects() {
   woodsL(46, 44, 136, 112, 2.4, 1339, 0.4, mixed, (x, y) => !core(x, y) && !forest(x, y) && Math.hypot(x - BAY.x, y - BAY.y) > 14);
   woodsL(50, 0, 82, 18, 2.2, 1340, 0.5, () => 'snowPine');
   woodsL(0, 0, 60, 112, 4, 1341, 0.4, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'), forest);
-  for (const [k, x, y] of [['oak', 56.6, 70.2], ['oak', 93.6, 66.6], ['pine', 103.2, 70.4], ['oak', 72.6, 47.6], ['pine2', 87.2, 47.4], ['bushPink', 89.4, 51.4], ['bushYellow', 66.2, 49.6]]) plantL(k, x, y);
+  for (const [k, x, y] of [['oak', 56.6, 70.2], ['oak', 102.4, 66], ['pine', 103.2, 70.4], ['oak', 72.6, 47.6], ['pine2', 87.2, 47.4], ['bushPink', 89.4, 51.4], ['bushYellow', 66.2, 49.6]]) plantL(k, x, y);
 
   // interiors
   for (const r of Object.values(ROOMS)) for (const [k, x, y] of r.furniture) addAbs(k, ...roomSpot(r, x, y));

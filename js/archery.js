@@ -22,10 +22,11 @@ function initHens() {
   }
 }
 
-function stepHen(h, dx, dy) {
+function stepHen(h, dx, dy, dt) {
+  const x0 = h.x;
   if (henFree(h.x + dx, h.y)) h.x += dx;
   if (henFree(h.x, h.y + dy)) h.y += dy;
-  if (dx) h.dir = dx > 0 ? 'right' : 'left';
+  faceMoving(h, h.x - x0, dt, Math.hypot(dx, dy) / dt);
 }
 
 // Pecking about, strolling a few steps, and flapping off in a flurry when someone comes too close.
@@ -51,7 +52,7 @@ function updateHens(dt) {
     }
     h.anim += dt * (h.state === 'flee' ? 14 : 6);
     if (h.state === 'flee') {
-      stepHen(h, (dx / d) * 80 * dt, (dy / d) * 80 * dt);
+      stepHen(h, (dx / d) * 80 * dt, (dy / d) * 80 * dt, dt);
       if ((h.timer -= dt) <= 0) Object.assign(h, { state: 'peck', timer: 1 + Math.random() * 2 });
     } else if (h.state === 'walk') {
       const tx = h.target.x - h.x;
@@ -59,7 +60,7 @@ function updateHens(dt) {
       const td = Math.hypot(tx, ty);
       const bx = h.x;
       const by = h.y;
-      stepHen(h, (tx / td) * 18 * dt, (ty / td) * 18 * dt);
+      stepHen(h, (tx / td) * 18 * dt, (ty / td) * 18 * dt, dt);
       if (td < 2 || (h.x === bx && h.y === by)) Object.assign(h, { state: 'peck', timer: 1.5 + Math.random() * 3 });
     } else if ((h.timer -= dt) <= 0) {
       const a = Math.random() * Math.PI * 2;

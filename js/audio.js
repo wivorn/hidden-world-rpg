@@ -83,6 +83,78 @@ const Sfx = (() => {
 
   const rand = (a, b) => a + Math.random() * (b - a);
 
+  // ---------- music ----------
+  // Each part of the world has a soft tune of its own, made up as it plays from the notes of its scale: a slow
+  // drone and a pad that walks a chord loop, under a melody that wanders a step or two at a time. `beat` is in
+  // seconds, `scale` in semitones above `root` Hz, `chords` the scale degrees each bar's pad starts on, and
+  // `busy` how likely a beat is to carry a note. Moving to another part fades one tune out as the next comes in.
+  const TUNES = {
+    village: { root: 293.66, scale: [0, 2, 4, 7, 9, 12, 14, 16, 19], beat: 0.42, chords: [0, 3, 4, 2], busy: 0.55, lead: 'triangle', pluck: 0.9, vol: 0.045 },
+    sea: { root: 220, scale: [0, 2, 3, 5, 7, 9, 10, 12, 14, 15], beat: 0.7, chords: [0, 3, 5, 4], busy: 0.4, lead: 'sine', pluck: 1.8, swell: true, vol: 0.05 },
+    volcano: { root: 146.83, scale: [0, 1, 3, 5, 7, 8, 10, 12, 13], beat: 0.55, chords: [0, 1, 0, 5], busy: 0.3, lead: 'triangle', pluck: 1.2, drum: true, vol: 0.05 },
+    snow: { root: 523.25, scale: [0, 2, 4, 6, 7, 9, 11, 12, 14], beat: 0.8, chords: [0, 4, 3, 5], busy: 0.3, lead: 'sine', pluck: 2.6, bell: true, vol: 0.03 },
+  };
+  const MUSIC = 0.8;
+  const BAR = 8;
+  const playing = {};
+  const hz = (t, deg, oct = 0) => {
+    const n = t.scale.length;
+    const d = ((deg % n) + n) % n;
+    return t.root * 2 ** ((t.scale[d] + 12 * (oct + Math.floor(deg / n))) / 12);
+  };
+
+  function voice(bus, { type = 'sine', f, at, dur, vol, attack = 0.01, cut = 0 }) {
+    const osc = ac.createOscillator();
+    osc.type = type;
+    osc.frequency.value = f;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    let out = osc.connect(g);
+    if (cut) {
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = cut;
+      out = out.connect(lp);
+    }
+    out.connect(bus);
+    osc.start(at);
+    osc.stop(at + dur + 0.05);
+  }
+
+  function beat(t, s, at) {
+    const b = s.i++;
+    const v = t.vol;
+    if (b % BAR === 0) {
+      const root = t.chords[(b / BAR) % t.chords.length];
+      s.chord = root;
+      const long = t.beat * BAR + 1.5;
+      voice(s.bus, { f: hz(t, 0, -2), at, dur: long, vol: v * 0.7, attack: 1.2 });
+      for (const k of [0, 2, 4]) voice(s.bus, { type: 'triangle', f: hz(t, root + k, -1), at, dur: long, vol: v * 0.28, attack: t.swell ? 2.2 : 1, cut: 900 });
+    }
+    if (t.drum && b % 4 === 0) {
+      const o = ac.createOscillator();
+      o.frequency.setValueAtTime(95, at);
+      o.frequency.exponentialRampToValueAtTime(42, at + 0.3);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(v * 1.6, at);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.4);
+      o.connect(g).connect(s.bus);
+      o.start(at);
+      o.stop(at + 0.45);
+    }
+    // phrases end back on a note of the bar's chord, after a rest
+    const end = b % (BAR * 2);
+    if (end === BAR * 2 - 1 || Math.random() > t.busy) return;
+    if (end === BAR * 2 - 2) s.deg = s.chord + [0, 2, 4][Math.floor(Math.random() * 3)];
+    else s.deg = Math.max(0, Math.min(t.scale.length + 2, s.deg + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
+    const f = hz(t, s.deg);
+    const dur = t.pluck * (Math.random() < 0.25 ? 1.6 : 1);
+    voice(s.bus, { type: t.lead, f, at, dur, vol: v, attack: t.swell ? 0.18 : 0.012, cut: t.lead === 'triangle' ? 2400 : 0 });
+    if (t.bell) voice(s.bus, { f: f * 2.76, at, dur: dur * 0.6, vol: v * 0.3 });
+  }
+
   return {
     init,
     get muted() { return muted; },
@@ -97,6 +169,31 @@ const Sfx = (() => {
       if (!ac) return;
       waves.gain.setTargetAtTime(sea * (0.05 + 0.03 * Math.sin(ac.currentTime * 0.7)), ac.currentTime, 0.3);
       wind.gain.setTargetAtTime(air * 0.07, ac.currentTime, 0.3);
+    },
+    // `area` names the tune to play, or null for none; `k` turns it down, as indoors.
+    music(area, k = 1) {
+      if (!ac || ac.state !== 'running') return;
+      const now = ac.currentTime;
+      for (const id of Object.keys(TUNES)) {
+        const t = TUNES[id];
+        const s = playing[id] ||= { bus: ac.createGain(), i: 0, deg: 4, chord: 0, next: 0 };
+        if (!s.i && !s.next) {
+          s.bus.gain.value = 0;
+          s.bus.connect(master);
+        }
+        const on = id === area;
+        s.bus.gain.setTargetAtTime(on ? MUSIC * k : 0, now, on ? 1.6 : 1.1);
+        // faded out, it starts again from the top of a bar when it next comes in
+        if (!on && s.bus.gain.value < 0.003) {
+          Object.assign(s, { next: -1, i: 0 });
+          continue;
+        }
+        if (s.next < now) s.next = now + 0.05;
+        while (s.next < now + 0.25) {
+          beat(t, s, s.next);
+          s.next += t.beat;
+        }
+      }
     },
     // wet: 0..1 rain on the roof or the ground, storm: 0..1 howling wind
     weather(wet, storm) {

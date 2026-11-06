@@ -24,7 +24,7 @@ const ITEMS = {
   stone: { name: 'Stone', stack: true, plural: 'stones' },
   iceCube: { name: 'Ice Cube', stack: true, plural: 'ice cubes' },
   wool: { name: 'Wool', stack: true },
-  bow: { name: 'Bow', tool: true },
+  bow: { get name() { return bowTier().name; }, tool: true },
   sword: { name: 'Sword', tool: true },
   shield: { name: 'Shield', tool: true },
   spear: { name: 'Spear', tool: true },
@@ -71,6 +71,17 @@ const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
+  // the carpenter reworks the bow you have into the bow of `tier`
+  {
+    item: 'bow', tier: 1, maker: 'carpenter', words: /\b(long ?bows?|yew)\b/, time: 2.6, needs: { wood: 3, string: 1 },
+    start: 'Three lengths of good wood and a fresh string. Hold still while I lengthen the limbs...',
+    done: 'A longbow! Draw it right back and it\'ll carry half as far again.',
+  },
+  {
+    item: 'bow', tier: 2, maker: 'carpenter', words: /\b(horn ?bows?|recurve\w*|composite)\b/, time: 3, needs: { hide: 2, iron: 1, string: 1 },
+    start: 'Hide for the glue, iron to cap the grip, and a new string. Now to curve the tips back...',
+    done: 'A horn bow. Nothing on the island shoots farther.',
+  },
   {
     item: 'axe', maker: 'smith', words: /(?<!pick[ -]?)\b(axes?|hatchet)\b/, time: 1.8,
     start: 'An axe? Give me a moment...',
@@ -149,6 +160,9 @@ function ironHint(n) {
 const bag = {};
 const has = (item) => (bag[item] || 0) > 0;
 const recipeFor = (text) => RECIPES.find((r) => r.words.test(text.toLowerCase()));
+// Asked about a bow, the carpenter offers the next one up from the bow you carry.
+const BOW_ASK = /\b(bows?|upgrade\w*|improve\w*|better|farther|further)\b/;
+const nextBow = () => RECIPES.find((r) => r.tier === Math.min(BOWS.length - 1, upgrades.bow + 1));
 // What's in the backpack itself: one slot for each kind of thing, however many of it.
 const held = () => Object.keys(ITEMS).filter((id) => has(id) && inPack(id));
 const packSize = () => 6 + Object.keys(ITEMS).reduce((n, id) => n + (has(id) && ITEMS[id].slots || 0), 0);
@@ -287,13 +301,18 @@ let anvil = null;
 
 // Returns true when `n` makes what was asked for and has answered.
 function askCraft(n, text) {
-  const r = recipeFor(text);
+  let r = recipeFor(text);
+  if (n.look.id === 'carpenter' && (!r || (r.item === 'bow' && !r.tier)) && BOW_ASK.test(text.toLowerCase())) r = nextBow();
   if (r && r.maker === 'archer' && n.look.id !== 'archer') {
     npcSay(n, 'Arrows? Ask the archer at the range. He fletches his own.');
     return true;
   }
+  if (r && r.maker === 'carpenter' && n.look.id !== 'carpenter') {
+    npcSay(n, 'A better bow? That\'s the carpenter\'s work. His shop\'s south-east of the square.');
+    return true;
+  }
   if (!r || r.maker !== n.look.id) return false;
-  const name = ITEMS[r.item].name.toLowerCase();
+  const name = (r.tier ? BOWS[r.tier] : ITEMS[r.item]).name.toLowerCase();
   const needs = Object.entries(r.needs || {});
   const short = Object.fromEntries(needs.filter(([id, k]) => (bag[id] || 0) < k).map(([id, k]) => [id, k - (bag[id] || 0)]));
   const shortN = Object.keys(short).length;
@@ -301,7 +320,10 @@ function askCraft(n, text) {
   // handing over every last piece of a material frees up its slot
   const freed = needs.filter(([id, k]) => bag[id] === k).length;
   if (n.craft) npcSay(n, 'Patience! I\'m working on it.');
-  else if (has(r.item) && !ITEMS[r.item].stack) npcSay(n, `You've already got one of my ${ITEMS[r.item].plural || `${name}s`}!`);
+  else if (r.tier && !has('bow')) npcSay(n, 'Bring me a bow to work on, {lad}. The smith makes one from 1 wood and 1 string.');
+  else if (r.tier && upgrades.bow >= r.tier) npcSay(n, upgrades.bow === BOWS.length - 1 ? 'That horn bow is as good as bows get. Nothing more I can do for it!' : `That's a ${bowTier().name.toLowerCase()} already. Want it a horn bow? Ask me for one.`);
+  else if (r.tier && upgrades.bow < r.tier - 1) npcSay(n, 'One thing at a time, {lad}! A longbow first. Bring me 3 wood and 1 string.');
+  else if (has(r.item) && !ITEMS[r.item].stack && !r.tier) npcSay(n, `You've already got one of my ${ITEMS[r.item].plural || `${name}s`}!${r.item === 'bow' && upgrades.bow < BOWS.length - 1 ? ' The carpenter can make it shoot farther.' : ''}`);
   else if (!has('backpack')) npcSay(n, 'And carry it how, {lad}? Fetch your backpack first.');
   else if (r.item === 'arrow' && !has('bow')) npcSay(n, 'Arrows are no use without a bow. Get the smith to make you one first.');
   else if (needs.length && r.maker === 'smith' && !has('axe')) npcSay(n, `A ${name}? All in good time, {lad}. Start with an axe.`);
@@ -425,7 +447,11 @@ function updateCraft(n, dt) {
   }
   if (c.t < c.r.time) return;
   n.craft = null;
-  give(c.r.item, c.r.count || 1);
+  if (c.r.tier) {
+    upgrades.bow = c.r.tier;
+    renderInventory('bow');
+    toast('UPGRADE', `${bowTier().name}: shoots ${Math.round(bowTier().reach / BOWS[0].reach * 10) / 10}x as far`);
+  } else give(c.r.item, c.r.count || 1);
   if (c.r.item === 'arrow') stats.fletched++;
   if (ITEMS[c.r.item].slots) toast('UPGRADE', `Backpack: ${packSize()} slots`);
   if (c.r.item === 'toolBelt') toast('TOOL BELT', 'Your tools hang off your belt now, and leave the backpack for everything else');
@@ -831,8 +857,14 @@ const arrows = [];
 
 // Holding F draws the bow; the longer the draw, up to DRAW_TIME, the farther the arrow flies before it comes down.
 const DRAW_TIME = 1;
-const ARROW_SPEED = 260;
-const ARROW_REACH = [40, 200];
+// What the carpenter can make of a bow: how far a full draw carries, and how fast the arrow flies.
+const BOWS = [
+  { name: 'Bow', reach: 200, speed: 260 },
+  { name: 'Longbow', reach: 300, speed: 310 },
+  { name: 'Horn bow', reach: 400, speed: 360 },
+];
+const bowTier = () => BOWS[upgrades.bow] || BOWS[0];
+const ARROW_MIN = 40;
 const drawPower = () => (player.nock ? Math.min(1, player.nock.t / DRAW_TIME) : 0);
 
 function drawBow() {
@@ -857,8 +889,9 @@ function loose() {
   stats.shots++;
   player.bowT = 0.45;
   const [vx, vy] = DIR_VEC[player.dir];
-  const life = (ARROW_REACH[0] + (ARROW_REACH[1] - ARROW_REACH[0]) * power) / ARROW_SPEED;
-  arrows.push({ x: player.x + vx * 6, y: player.y + 1 + vy * 4, h: 9, vx: vx * ARROW_SPEED, vy: vy * ARROW_SPEED, t: 0, life, lob: 3 + 9 * power, stuck: 0, from: { x: player.x, y: player.y } });
+  const { reach, speed } = bowTier();
+  const life = (ARROW_MIN + (reach - ARROW_MIN) * power) / speed;
+  arrows.push({ x: player.x + vx * 6, y: player.y + 1 + vy * 4, h: 9, vx: vx * speed, vy: vy * speed, t: 0, life, lob: 3 + 9 * power, stuck: 0, from: { x: player.x, y: player.y } });
   Sfx.twang();
 }
 

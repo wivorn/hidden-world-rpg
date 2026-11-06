@@ -230,7 +230,7 @@ function buildForge() {
 }
 
 // A market stall: `goods` draws what hangs under the awning and sits on the counter.
-function buildStall(stripe, goods) {
+function buildStall(stripe, goods, outlined = true) {
   return sprite(68, 60, (g) => {
     rect(g, 6, 16, 3, 42, PAL.woodDark);
     rect(g, 59, 16, 3, 42, PAL.woodDark);
@@ -251,6 +251,55 @@ function buildStall(stripe, goods) {
     for (let y = 44; y < 58; y += 4) rect(g, 3, y, 62, 1, PAL.woodDark);
     rect(g, 2, 38, 64, 3, PAL.woodLight);
     rect(g, 2, 41, 64, 1, PAL.woodDeep);
+  }, outlined);
+}
+
+// A trader's house with their stall built onto one side, like the forge: SHOP_W wide, the house's door
+// SHOP_DOOR px off the middle on its own side and the stall's middle SHOP_STALL px off the other way.
+// `left` puts the house on the left.
+const SHOP_W = 124;
+const SHOP_DOOR = 29;
+const SHOP_STALL = 28;
+function buildShopHouse(stripe, goods, left) {
+  return sprite(SHOP_W, 80, (g) => {
+    const house = makeCanvas(66, 64);
+    drawLonghouse(house.getContext('2d'), 66, 64, { gableTop: 11, gableW: 32, doorW: 10, doorH: 15, windows: [left ? 10 : 46] });
+    g.drawImage(house, left ? 0 : SHOP_W - 66, 14);
+    g.drawImage(buildStall(stripe, goods, false), left ? SHOP_W - 68 : 0, 18);
+  });
+}
+
+// The carpenter's: planks on the counter, a bow and a bowl or two hanging under the awning.
+function woodGoods(g) {
+  for (let i = 0; i < 3; i++) {
+    rect(g, 8 + i * 2, 34 - i * 2, 26, 2, i % 2 ? '#d9b07a' : '#c49a62');
+    rect(g, 8 + i * 2, 35 - i * 2, 26, 1, PAL.woodDark);
+  }
+  for (const x of [42, 51]) {
+    ellipse(g, x, 35, 4, 2, '#b8874f');
+    rect(g, x - 3, 34, 6, 1, '#d9b07a');
+  }
+  line(g, 18, 20, 18, 22, PAL.woodDeep);
+  line(g, 14, 22, 14, 31, PAL.woodDark);
+  for (let y = 22; y <= 31; y++) px(g, Math.round(14 + 3.5 * Math.sin(((y - 22) / 9) * Math.PI)), y, '#8a5a30');
+  line(g, 50, 20, 50, 22, PAL.woodDeep);
+  rect(g, 47, 22, 6, 3, PAL.woodDark);
+  poly(g, [[48, 25], [52, 25], [51, 31], [49, 31]], '#a8b0b8');
+  for (let y = 26; y < 31; y += 2) px(g, 48 + (y - 25) / 6, y, '#66676e');
+}
+
+// The carpenter's workbench: a plank on trestles with a saw resting on it.
+function buildWorkbench() {
+  return sprite(30, 18, (g) => {
+    for (const x of [4, 22]) {
+      line(g, x, 7, x - 2, 16, PAL.woodDark, 2);
+      line(g, x + 2, 7, x + 4, 16, PAL.woodDark, 2);
+    }
+    rect(g, 1, 5, 28, 3, '#d9b07a');
+    rect(g, 1, 8, 28, 1, PAL.woodDeep);
+    poly(g, [[9, 4], [20, 3], [20, 5], [9, 5]], '#a8b0b8');
+    for (let x = 10; x < 20; x += 2) px(g, x, 5, '#66676e');
+    rect(g, 6, 3, 4, 3, PAL.woodDark);
   });
 }
 
@@ -3460,6 +3509,7 @@ const LOOKS = {
   weaver: { id: 'weaver', hair: '#a59c92', hairStyle: 'braids', tunic: '#3d7d78', kerchief: '#d8a83a' },
   seamstress: { id: 'seamstress', hair: '#2b1a12', hairStyle: 'long', tunic: '#b04a6e', collar: '#f0d6a0' },
   tanner: { id: 'tanner', hair: '#4a2c18', hairStyle: 'short', beard: '#4a2c18', tunic: '#6e6a3a', pants: '#3a2c22', apron: '#8a5530' },
+  carpenter: { id: 'carpenter', hair: '#c46a2a', hairStyle: 'short', beard: '#c46a2a', tunic: '#4f6a8a', pants: '#3a2c22', apron: '#c49a62' },
   kid: { id: 'kid', hair: '#5a3418', hairStyle: 'short', tunic: '#8a7550' },
   girl: { id: 'girl', hair: '#f2d064', hairStyle: 'long', tunic: '#3c6ca3', pants: '#3d4f6e' },
   archer: { id: 'archer', hair: '#3d2414', hairStyle: 'short', tunic: '#55703c' },
@@ -3803,6 +3853,17 @@ function buildSprites() {
   def('stallWeaver', { img: buildStall('#3d7d78', clothGoods), foot: { w: 64, h: 14 } });
   def('stallSeamstress', { img: buildStall('#d86a9a', garmentGoods), foot: { w: 64, h: 14 } });
   def('stallTanner', { img: buildStall('#7a4a26', leatherGoods), foot: { w: 64, h: 14 } });
+  // `stall` is how far the counter's middle sits from the sprite's
+  const shop = (stripe, goods, left, roof) => {
+    const img = roof ? withRoof(roof, () => buildShopHouse(stripe, goods, left)) : buildShopHouse(stripe, goods, left);
+    return { img, foot: { w: SHOP_W - 6, h: 14 }, door: { dx: left ? -SHOP_DOOR : SHOP_DOOR, w: 10 }, stall: left ? SHOP_STALL : -SHOP_STALL };
+  };
+  def('shopBaker', shop(PAL.red, breadGoods, false, ['#c79a4a', '#e3bd6a', '#9a7232', '#6e4f22']));
+  def('shopWeaver', shop('#3d7d78', clothGoods, true));
+  def('shopSeamstress', shop('#d86a9a', garmentGoods, false, ['#a8452f', '#cc6448', '#7f3020', '#5a2016']));
+  def('shopTanner', shop('#7a4a26', leatherGoods, true, ['#c79a4a', '#e3bd6a', '#9a7232', '#6e4f22']));
+  def('shopCarpenter', shop('#5a7a3a', woodGoods, false));
+  def('workbench', { img: buildWorkbench(), foot: { w: 26, h: 4 }, shadow: { rx: 14, ry: 2 } });
   def('oven', { img: buildOven(), foot: { w: 26, h: 7 }, shadow: { rx: 14, ry: 3 }, light: { dx: 0, dy: -8, r: 22, color: '#ff8a2a' } });
   def('sacks', { img: buildSacks(), foot: { w: 18, h: 5 } });
   const loom = buildLoomFrames();

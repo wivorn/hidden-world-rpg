@@ -38,7 +38,7 @@ function earshot(x, y) {
   return Math.max(0, Math.min(1, 1.3 - d / (viewW * 0.6)));
 }
 
-const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400, merchant: 230 };
+const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, carpenter: 200, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400, merchant: 230 };
 
 function surfaceUnder(x, y) {
   const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
@@ -640,6 +640,13 @@ const WORK = {
     particles.push({ type: 'sparkle', x: o.x + (Math.random() - 0.5) * 8, y: o.y - 8 - Math.random() * 14, vx: 0, vy: -4, life: 0, max: 0.4 });
     return 0.7;
   },
+  carpenter(n, o) {
+    Sfx.swish(0.5 * earshot(o.x, o.y));
+    for (let i = 0; i < 3; i++) {
+      particles.push({ type: 'chip', x: o.x + (Math.random() - 0.5) * 10, y: o.y - 9, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 20, c: i % 2 ? '#d9b07a' : '#f4e0b0', life: 0, max: 0.4 });
+    }
+    return 0.45;
+  },
   tanner(n, o) {
     o.shakeT = 0.15;
     Sfx.swish(0.5 * earshot(o.x, o.y));
@@ -705,6 +712,12 @@ const TIPS = {
     text: () => (!has('furCoat')
       ? 'Going out to the frozen isle in that tunic, {name}? You\'d freeze solid! Bring me 4 hides and 2 wool and I\'ll sew you a thick fur coat.'
       : 'Near the fire mountain the very air burns. Bring me 2 fire eels and 2 wool for a fireproof jacket. Eels love hot water, even the hot spring.'),
+  },
+  carpenter: {
+    needed: () => has('bow') && upgrades.bow < BOWS.length - 1,
+    text: () => (upgrades.bow
+      ? 'That longbow could go farther yet. Bring me 2 hides, 1 iron and 1 string and ask for a horn bow.'
+      : 'A bow, eh? Bring me 3 wood and 1 string and ask for a longbow. It\'ll shoot half as far again.'),
   },
   smith: {
     needed: () => has('pickaxe') && !has('torch') && !stats.caves,
@@ -2014,8 +2027,9 @@ function herd(s, dt) {
     ux = Math.max(-1, Math.min(1, (gx - s.x) / 6));
     uy = -1;
   }
+  const x0 = s.x;
   move(s, ux * sp, uy * sp);
-  if (Math.abs(ux) > 0.05) s.dir = ux > 0 ? 'right' : 'left';
+  faceMoving(s, s.x - x0, dt, 46);
   s.anim += dt * 9;
   Object.assign(s, { state: 'idle', timer: 0.8 });
   return true;
@@ -2716,6 +2730,34 @@ function updateAmbience(dt) {
   const air = flight ? (flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) : 0;
   if (indoors) Sfx.ambience(0.04, 0);
   else Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
+  Sfx.music(started ? musicArea() : null, indoors ? 0.6 : 1);
+}
+
+// The tune for where the player is: the village's on its island and in its houses, the sea's out on open water,
+// the fire mountain's round the volcano isle, and the snow's on snow and ice, the frozen isle and in the ice cave.
+// Anywhere else, the last one carries on.
+let musicHere = 'village';
+const OPEN_SEA = 6;
+function musicArea() {
+  if (indoors) {
+    if (indoors === ROOMS.cave) musicHere = 'snow';
+    else if (!indoors.cave) musicHere = 'village';
+    return musicHere;
+  }
+  const at = flight || (sail && shipObj) || player;
+  const tx = Math.floor(at.x / TILE);
+  const ty = Math.floor(at.y / TILE);
+  const t = tileAt(tx, ty);
+  const near = (id, m) => {
+    const i = isle(id);
+    return Math.hypot((tx + 0.5 - i.x) / (i.rx + m), (ty + 0.5 - i.y) / (i.ry + m)) < 1;
+  };
+  const sea = isWet(t) && seaDist[ty * MAP_W + tx] > OPEN_SEA;
+  if (near('volcano', 8)) musicHere = 'volcano';
+  else if (t === T.SNOW || t === T.ICE || near('frozen', 4)) musicHere = 'snow';
+  else if (sea) musicHere = 'sea';
+  else if (tx >= OX - 3 && tx < OX + 139 && ty >= OY - 3 && ty < OY + 115) musicHere = 'village';
+  return musicHere;
 }
 
 function update(dt) {

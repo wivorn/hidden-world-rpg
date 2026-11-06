@@ -2,7 +2,7 @@
 
 // All money is counted in copper: ten copper to the silver, ten silver to the gold.
 let coins = 0;
-const upgrades = { lure: false, sail: false };
+const upgrades = { lure: false, sail: false, bow: 0 };
 const purseEl = document.getElementById('purse');
 const COIN_KINDS = [['goldCoin', 'gold', 100], ['silver', 'silver', 10], ['copper', 'copper', 1]];
 const coinParts = (c) => COIN_KINDS.map(([icon, name, v]) => ({ icon, name, n: v === 100 ? Math.floor(c / v) : Math.floor(c / v) % 10 }));

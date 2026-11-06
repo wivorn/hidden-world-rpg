@@ -103,14 +103,29 @@ const awayFrom = (a, x, y) => {
   return [(a.x - x) / d, (a.y - y) / d];
 };
 
-// Turns aside when the way is blocked, and back toward home once it has run too far.
+// Turns aside when the way is blocked, and bends back toward home the further it has run past its range. The pull
+// grows smoothly so a fleeing animal doesn't dither at the edge; where it would cancel the heading outright, the
+// animal veers round to one side instead.
 function steer(a, ux, uy, sp, dt) {
   const w = WILD[a.kind];
-  const hd = Math.hypot(a.home.x - a.x, a.home.y - a.y);
-  if (hd > w.range * 2.2) {
-    ux = ux * 0.3 + ((a.home.x - a.x) / hd) * 0.7;
-    uy = uy * 0.3 + ((a.home.y - a.y) / hd) * 0.7;
+  const hx = a.home.x - a.x;
+  const hy = a.home.y - a.y;
+  const hd = Math.hypot(hx, hy) || 1;
+  const pull = Math.min(0.75, Math.max(0, (hd - w.range * 1.5) / (w.range * 1.5)));
+  if (pull > 0) {
+    let vx = ux * (1 - pull) + (hx / hd) * pull;
+    let vy = uy * (1 - pull) + (hy / hd) * pull;
+    const side = ux * hy - uy * hx > 0 ? 1 : -1;
+    const v = Math.hypot(vx, vy);
+    if (v < 0.5) {
+      vx += -uy * side * (0.5 - v) * 2;
+      vy += ux * side * (0.5 - v) * 2;
+    }
+    const n = Math.hypot(vx, vy) || 1;
+    ux = vx / n;
+    uy = vy / n;
   }
+  const x0 = a.x;
   const s = sp * dt;
   if (move(a, ux * s, uy * s)) {
     a.stuck = 0;
@@ -119,7 +134,15 @@ function steer(a, ux, uy, sp, dt) {
     const side = a.dodge || (a.dodge = Math.random() < 0.5 ? 1 : -1);
     if (!move(a, -uy * side * s, ux * side * s)) a.dodge = -side;
   }
-  if (Math.abs(ux) > 0.15) a.dir = ux > 0 ? 'right' : 'left';
+  faceMoving(a, a.x - x0, dt, sp);
+}
+
+// Faces the way it has really been going, smoothed, so a blocked step or a heading near straight up or down
+// doesn't flip it back and forth.
+function faceMoving(e, mx, dt, sp) {
+  if (dt <= 0) return;
+  e.fvx = (e.fvx || 0) + (mx / dt - (e.fvx || 0)) * (1 - Math.exp(-dt * 5));
+  if (Math.abs(e.fvx) > sp * 0.3) e.dir = e.fvx > 0 ? 'right' : 'left';
 }
 
 function startle(a) {
