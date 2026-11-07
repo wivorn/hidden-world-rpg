@@ -2751,6 +2751,7 @@ function action() {
   else if (nearBackpack()) pickUpBackpack();
   else if (nearHomeBelt()) pickUpBelt();
   else if (nearBed()) sleep();
+  else if (inHotSpring()) chillInHotSpring();
   else if (nearChest()) toggleChest(true);
   else if (nearWallMap()) takeMap();
   else if (nearGlowcap()) pickGlowcap(nearGlowcap());
@@ -3499,6 +3500,8 @@ function render() {
     setPrompt('SPACE  Pick up the tool belt');
   } else if (nearBed()) {
     setPrompt(indoors === ROOMS.hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning');
+  } else if (inHotSpring()) {
+    setPrompt('SPACE  Chill in the hot spring for 4 hours');
   } else if (nearChest()) {
     setPrompt('SPACE  Open the chest');
   } else if (nearWallMap()) {

@@ -3,7 +3,7 @@
 
 // ---------- the clock ----------
 
-const DAY_LENGTH = 900;
+const DAY_LENGTH = 600;
 // 0 is midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset.
 let clock = 0.3;
 let dayCount = 1;
@@ -27,11 +27,13 @@ function timeOfDay(c = clock) {
 }
 
 function updateClock(dt) {
-  clock += dt / DAY_LENGTH;
-  if (clock >= 1) {
-    clock -= 1;
-    dayCount++;
-  }
+  advanceClock(dt / DAY_LENGTH, dt);
+}
+
+function advanceClock(days, dt = 0) {
+  const next = clock + days;
+  dayCount += Math.floor(next);
+  clock = next % 1;
   updateCalendar(dt);
   renderClock();
 }
@@ -437,6 +439,21 @@ function sleep() {
         else if (sameSpace(hermit)) npcSay(hermit, 'Morning. The sea kept watch, and so did I.');
         else muse('A good night\'s sleep at the hermit\'s. Time to get going.');
       }, 1500);
+      saveGame(true);
+    },
+  };
+}
+
+const inHotSpring = () => !indoors && player.swimming && tileAt(Math.floor(player.x / TILE), Math.floor((player.y - 1) / TILE)) === T.SPRING;
+
+function chillInHotSpring() {
+  if (fade || !inHotSpring()) return;
+  Sfx.yawn();
+  fade = {
+    t: 0, len: 1.4, act: () => {
+      advanceClock(4 / 24);
+      restStamina(1);
+      muse('Four peaceful hours pass in the hot spring.');
       saveGame(true);
     },
   };
