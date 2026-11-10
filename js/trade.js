@@ -68,6 +68,7 @@ const SHOPS = {
       shopWare('toolBelt', 200, 'Worn at the waist. Room for two more things.'),
       shopWare('pouch', 200, 'Worn on the belt. Room for two more things.'),
       { id: 'saddle', price: 300, text: 'Double stitched. Strap it on a grown dragon and ride.' },
+      { id: 'tent', price: 400, text: 'Pitch it anywhere. Nap by day to wake at nightfall, by night to wake at dawn.' },
     ],
     browse: 'Hides make everything here. Bigger the beast, the more hide it gives.',
     hello: 'Buying, are we? Best leather on the island.',
@@ -128,14 +129,6 @@ const SHOPS = {
 let shopKey = null;
 let shopNpc = null;
 const shopOf = () => SHOPS[shopKey];
-
-function shopNear() {
-  if (!coinShown() || flight || sail || hop) return null;
-  const n = nearNpc();
-  return n && SHOPS[n.look.id] ? n : null;
-}
-
-const openShop = (n) => openBoard(n.look.id);
 
 function openBoard(key) {
   const n = npcs.find((q) => q.look.id === key);

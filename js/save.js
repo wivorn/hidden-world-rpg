@@ -249,12 +249,16 @@ function restoreDog(d) {
 }
 
 function restorePlayer(s) {
-  Object.assign(shipObj, s.ship);
+  // a ship saved at its old mooring, too far off the jetty to step aboard, comes alongside it
+  const oldMooring = s.ship.x === Math.round((85.6 + OX) * TILE) && s.ship.y === Math.round((102.5 + OY) * TILE);
+  if (!oldMooring) Object.assign(shipObj, s.ship);
   const p = s.player;
   indoors = p.room ? ROOMS[p.room] || null : null;
   Object.assign(player, { x: p.x, y: p.y, dir: p.dir, fedT: p.fedT, swimming: false, flying: false });
   // a spot saved in an older layout of the cave may now be solid rock
   if (indoors?.cave && !canStand(player, p.x, p.y)) Object.assign(player, { x: (indoors.door + 0.5) * TILE, y: indoors.doorY * TILE - 2, dir: 'up' });
+  // and one out on the mountain may now be inside a rock face
+  else if (!indoors && tierAt(tileX(p.x), tileY(p.y)) && !canStand(player, p.x, p.y)) Object.assign(player, standSpotNear(player, p.x, p.y));
   if (!p.sail) return;
   const deck = deckPos();
   sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };

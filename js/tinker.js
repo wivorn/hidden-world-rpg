@@ -1,13 +1,14 @@
 // Tinkering: put a few things together and see what comes of it. Nobody hands out the recipes. The ones found go in
 // the list of discoveries, and a near miss says what's lacking. Villagers will say how, if asked how to make a thing.
 
-// `needs` are used up; a `keep` tool has to be in the mix but stays in the pack; `fire` wants a fire or the forge close by.
-// `miss` is what the player thinks when the mix is right but short; `teach` is what a villager says when asked.
+// `needs` are used up; a `keep` tool has to be carried, though tools never go in the mix; `fire` wants a fire or the
+// forge close by. `miss` is what the player thinks when the mix is right but short, or the tool's missing; `teach` is
+// what a villager says when asked.
 const TINKER = [
   {
     item: 'plank', count: 2, needs: { wood: 1 }, keep: ['axe'], words: /\b(planks?|boards?)\b/, teacher: 'smith',
     miss: 'A whole log. If I split it with something sharp, I\'d have boards.',
-    teach: 'Planks? Put a log with your axe and split it. Two boards from every log.',
+    teach: 'Planks? Carry an axe and split a log with it. Two boards from every log.',
   },
   {
     item: 'rope', needs: { string: 3 }, words: /\bropes?\b/, teacher: 'weaver',
@@ -47,7 +48,6 @@ const STAND_INS = {
   string: ['rope', 'String is too thin to hold. It wants something thicker.'],
   wood: ['plank', 'A round log won\'t lie flat. Boards would do better.'],
   stone: ['iron', 'Stone won\'t bend. It wants something that will.'],
-  sword: ['axe', 'A sword would only blunt on this. An axe is the thing for splitting wood.'],
 };
 const SHRUGS = ['Nothing useful comes of that.', 'Hmm. Those don\'t go together.', 'No... not like that.', 'That just makes a mess.'];
 
@@ -66,8 +66,9 @@ let tinkerOpen = false;
 
 const heatNear = () => !!fireNear(player.x, player.y) || objects.some((o) => o.key === 'forge' && Math.hypot(o.x - player.x, o.y - player.y) < 70);
 const countOf = (list) => list.reduce((m, id) => ((m[id] = (m[id] || 0) + 1), m), {});
-const wants = (r) => ({ ...r.needs, ...Object.fromEntries((r.keep || []).map((id) => [id, 1])) });
-const recipeText = (r) => Object.entries(wants(r)).map(([id, n]) => `${n > 1 ? `${n} ` : ''}${n > 1 && ITEMS[id].plural ? ITEMS[id].plural : itemName(id)}`).join(' + ') + (r.fire ? ', by a fire' : '');
+const wants = (r) => r.needs;
+const recipeText = (r) => Object.entries(wants(r)).map(([id, n]) => `${n > 1 ? `${n} ` : ''}${n > 1 && ITEMS[id].plural ? ITEMS[id].plural : itemName(id)}`).join(' + ')
+  + (r.keep ? `, with ${r.keep.map((id) => `an ${itemName(id)}`).join(' and ')}` : '') + (r.fire ? ', by a fire' : '');
 
 // How far `tried` is from `r`: what's missing and what's extra, counted one by one.
 function gap(tried, r) {
@@ -86,6 +87,7 @@ function gap(tried, r) {
 function judge(list) {
   const tried = countOf(list);
   const exact = TINKER.find((r) => { const g = gap(tried, r); return !g.missing && !g.extra; });
+  if (exact && exact.keep && !exact.keep.every(has)) return { say: exact.miss };
   if (exact) return exact.fire && !heatNear() ? { say: exact.cold } : { r: exact };
   const close = TINKER.map((r) => ({ r, ...gap(tried, r) })).filter((g) => !g.extra && g.missing).sort((a, b) => a.missing - b.missing)[0];
   if (close) return { say: close.r.miss };
@@ -138,7 +140,7 @@ function tinkerWith(list) {
 
 // How many of `id` are still free to add, after what's already in the slots.
 const spare = (id) => (bag[id] || 0) - tinker.tried.filter((t) => t === id).length;
-const tinkerable = () => Object.keys(ITEMS).filter((id) => has(id) && !ITEMS[id].worn);
+const tinkerable = () => Object.keys(ITEMS).filter((id) => has(id) && !ITEMS[id].worn && !ITEMS[id].tool);
 
 function renderTinker() {
   const focused = document.activeElement?.dataset?.key;
@@ -171,7 +173,7 @@ function renderTinker() {
       renderTinker();
     }));
     return li;
-  }) : [noneRow('Nothing in your pack to tinker with.')]));
+  }) : [noneRow('Nothing in your pack to craft with.')]));
   const found = TINKER.filter((r) => tinker.known.has(r.item));
   tinkerKnownTitle.textContent = `DISCOVERIES ${found.length}/${TINKER.length}`;
   tinkerKnown.replaceChildren(...(found.length ? found.map((r) => {
@@ -236,7 +238,7 @@ function teachHears(text, near) {
   const r = TINKER.find((x) => x.words.test(t));
   if (!r) return false;
   const n = near.find((x) => x.look.id === r.teacher) || near.find((x) => addresses(x.look.id, t)) || near[0];
-  if (n.look.id === r.teacher || n.look.id === 'hermit') npcSay(n, `${r.teach} Press C to tinker.`);
+  if (n.look.id === r.teacher || n.look.id === 'hermit') npcSay(n, `${r.teach} Press C to craft.`);
   else npcSay(n, `A ${itemName(r.item)}? Ask the ${TEACHER_NAMES[r.teacher]}. They'd know how it goes together.`);
   faceToward(n, player.x - n.x, player.y - n.y);
   return true;
@@ -252,7 +254,7 @@ function updateTinker() {
   tinkerBtn.hidden = !has('backpack');
   if (tinker.told || !has('backpack') || tinkerable().length < 2) return;
   tinker.told = true;
-  toast('TINKER', 'Press C to put things together and see what you can make');
+  toast('CRAFT', 'Press C to put things together and see what you can make');
 }
 
 const saveTinker = () => ({ known: [...tinker.known], told: tinker.told });

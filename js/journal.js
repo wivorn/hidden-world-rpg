@@ -143,7 +143,7 @@ const QUESTS = [
     ],
   },
   {
-    id: 'tinker', title: 'Tinkering', start: () => tinker.told || tinker.known.size > 0,
+    id: 'tinker', title: 'Crafting', start: () => tinker.told || tinker.known.size > 0,
     steps: [
       { id: 'tinkerFirst', text: 'Press C and put things together to discover something new', done: () => tinker.known.size > 0 },
       { id: 'tinkerAll', text: () => `Discover everything there is to make (${tinker.known.size}/${TINKER.length}). Ask villagers how`, done: () => tinker.known.size >= TINKER.length },

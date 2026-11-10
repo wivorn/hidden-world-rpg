@@ -1141,43 +1141,6 @@ function buildPalm(nuts = true) {
 
 // ---------- regions ----------
 
-// A mountain seen from the south: lit west face, shaded east face, and `snow` (0..1) reaching
-// down from the summit, furthest along the gullies.
-function buildPeak(w, h, seed, snow) {
-  return sprite(w, h, (g) => {
-    const base = h - 1;
-    const ax = Math.round(w * (0.38 + hash(seed, 1, 50) * 0.24));
-    const H = base - 3;
-    const tops = [];
-    for (let x = 0; x < w; x++) {
-      const t = x <= ax ? x / ax : (w - 1 - x) / (w - 1 - ax);
-      const jag = (hash(x >> 2, seed, 51) - 0.5) * 5 + (hash(x >> 1, seed, 52) - 0.5) * 2;
-      tops.push(Math.round(base - H * t ** 1.45 + jag * Math.min(1, t * 3) * (1 - t * 0.6)));
-    }
-    const apex = tops[ax];
-    const gullies = Array.from({ length: 5 }, (_, k) => ax + (k - 2) * w * 0.13 + (hash(k, seed, 53) - 0.5) * 8);
-    for (let x = 1; x < w - 1; x++) {
-      const t = x <= ax ? x / ax : (w - 1 - x) / (w - 1 - ax);
-      const reach = snow * H * (0.35 + t * 0.65) * (0.7 + hash(x >> 1, seed, 54) * 0.5);
-      for (let y = Math.max(1, tops[x]); y < base; y++) {
-        const spine = ax + (y - apex) * 0.32 + (hash(y >> 2, seed, 55) - 0.5) * 3;
-        const lit = x < spine;
-        const gully = gullies.some((gx) => Math.abs(x - (gx + (y - apex) * (gx < spine ? -0.25 : 0.25))) < 1);
-        const sn = y - tops[x] < reach + (gully ? H * snow * 0.35 : 0);
-        const d = (y - apex) / H;
-        let c;
-        if (sn) c = lit ? (hash(x, y, 56) < 0.08 ? PAL.snow : PAL.snowLight) : (y - tops[x] < 2 ? PAL.snow : PAL.snowDark);
-        else if (gully) c = lit ? PAL.rock : PAL.rockDeep;
-        else if (lit) c = d > 0.8 ? PAL.rock : hash(x >> 1, y >> 1, 57) < 0.18 ? PAL.rock : PAL.rockLight;
-        else c = d > 0.75 ? PAL.rockDeep : hash(x >> 1, y >> 1, 58) < 0.2 ? PAL.rockDeep : PAL.rockDark;
-        px(g, x, y, c);
-      }
-      if (tops[x] < base) px(g, x, Math.max(1, tops[x]), x < ax ? PAL.snowLight : snow ? PAL.snow : PAL.rockLight);
-    }
-    for (let x = 2; x < w - 2; x++) if (hash(x, seed, 59) < 0.5 && tops[x] < base - 2) px(g, x, base - 1, PAL.rockDeep);
-  });
-}
-
 // A smoking cone of black rock with a glowing crater and lava running down the south face.
 
 function buildVolcano() {
@@ -2583,6 +2546,51 @@ function buildCampfireKit() {
   });
 }
 
+function buildTentIcon() {
+  return sprite(15, 12, (g) => {
+    poly(g, [[0, 11], [7, 1], [7, 11]], '#c8925a');
+    poly(g, [[7, 1], [14, 11], [7, 11]], '#a06a3a');
+    poly(g, [[7, 4], [4, 11], [10, 11]], '#3a2414');
+    line(g, 6, 0, 8, 2, PAL.woodDark);
+    line(g, 8, 0, 6, 2, PAL.woodDark);
+    rect(g, 0, 11, 15, 1, '#7a4e2a');
+  });
+}
+
+// A hide tent seen from the front: its roof running back from the gable, the flap pinned open on the dark inside,
+// the poles crossed over the ridge and pegged out at the corners.
+function buildTent() {
+  return sprite(38, 31, (g) => {
+    const [lit, mid, shd, seam] = ['#c8925a', '#a8723f', '#8a5a32', '#6e4424'];
+    poly(g, [[3, 28], [19, 11], [19, 3], [3, 20]], lit);
+    poly(g, [[19, 11], [35, 28], [35, 20], [19, 3]], shd);
+    // where two hides are stitched together, halfway up each side of the roof
+    for (let i = 0; i <= 16; i += 2) {
+      px(g, 3 + i, 24 - i, seam);
+      px(g, 35 - i, 24 - i, seam);
+    }
+    line(g, 3, 20, 19, 3, shade(lit, 0.15));
+    line(g, 19, 3, 35, 20, shade(shd, 0.1));
+    poly(g, [[3, 28], [19, 11], [35, 28]], mid);
+    line(g, 3, 28, 19, 11, shade(lit, 0.15));
+    poly(g, [[19, 15], [13, 28], [25, 28]], '#2a1a10');
+    poly(g, [[19, 15], [13, 28], [9, 28]], '#d8a46a');
+    poly(g, [[19, 15], [25, 28], [29, 28]], shd);
+    line(g, 19, 15, 9, 28, seam);
+    line(g, 19, 15, 29, 28, seam);
+    for (let i = 0; i < 4; i++) px(g, 6 + i * 2, 25 - i * 2, seam);
+    line(g, 17, 8, 19, 11, PAL.woodDark);
+    line(g, 21, 8, 19, 11, PAL.woodDark);
+    line(g, 17, 0, 19, 3, PAL.woodDark);
+    line(g, 21, 0, 19, 3, PAL.woodDark);
+    line(g, 3, 20, 0, 24, '#d8c8a0');
+    line(g, 35, 20, 37, 24, '#d8c8a0');
+    rect(g, 0, 24, 1, 2, PAL.woodDark);
+    rect(g, 37, 24, 1, 2, PAL.woodDark);
+    rect(g, 3, 29, 33, 1, '#5a3a1e');
+  });
+}
+
 function buildGrapple() {
   return sprite(14, 15, (g) => {
     ellipse(g, 5, 11, 4.5, 3, '#8a6a3a');
@@ -2774,6 +2782,18 @@ function buildTorchIcon() {
     ellipse(g, 4.5, 3, 2.5, 3, '#e5481c');
     ellipse(g, 4.5, 3.5, 1.5, 2, '#ff9a26');
     px(g, 4, 3, '#ffe066');
+  });
+}
+
+// The lit torch in hand, smaller than its icon: a short stick, its wrap, and a flame that flickers between two frames.
+function buildHeldTorch(f) {
+  return sprite(7, 12, (g) => {
+    rect(g, 3, 6, 2, 5, PAL.woodDark);
+    rect(g, 3, 6, 1, 5, PAL.wood);
+    rect(g, 2, 5, 4, 2, '#d8d0bc');
+    ellipse(g, f ? 4.2 : 3.8, f ? 2.8 : 3.2, 1.8, f ? 2.6 : 2.2, '#e5481c');
+    ellipse(g, 4, 3.6, 1, 1.4, '#ff9a26');
+    px(g, f ? 4 : 3, 3, '#ffe066');
   });
 }
 
@@ -3943,7 +3963,8 @@ function drawBraid(g, x, y, len, hair, w = 1) {
 // `carry` raises both arms overhead with the hands at row 1, to hold something above the head.
 // `run` swaps in running frames: 1 and 3 are long strides, 0 and 2 are airborne between them.
 // A `coat` (see OUTFITS) goes on over the tunic: its colours, a trim at the collar and hem, and maybe scales.
-function drawCharacter(g, look, dir, frame, carry = false, run = false) {
+// `climb` leaves the arms off the back view: drawClimbArms puts them in, reaching overhead.
+function drawCharacter(g, look, dir, frame, carry = false, run = false, climb = false) {
   const sk = look.skin || PAL.skin;
   const hair = look.hair;
   const coat = look.coat;
@@ -4021,7 +4042,7 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
           px(g, x, 13 + b, sk);
         }
       }
-    } else {
+    } else if (!climb) {
       const la = frame === 1 ? 1 : 0;
       const ra = frame === 3 ? 1 : 0;
       rect(g, 3, 11 + b, 1, 3 + la, tunD);
@@ -4202,12 +4223,12 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false) {
 
 const charCache = new Map();
 
-function charSprite(look, dir, frame, carry = false, run = false) {
-  const key = `${look.id}|${look.coat?.id || ''}|${!!look.pack}|${dir}|${frame}|${carry}|${run}`;
+function charSprite(look, dir, frame, carry = false, run = false, climb = false) {
+  const key = `${look.id}|${look.coat?.id || ''}|${!!look.pack}|${dir}|${frame}|${carry}|${run}|${climb}`;
   let c = charCache.get(key);
   if (!c) {
     const d = dir === 'left' ? 'right' : dir;
-    c = sprite(16, 24, (g) => drawCharacter(g, look, d, frame, carry, run), true);
+    c = sprite(16, 24, (g) => drawCharacter(g, look, d, frame, carry, run, climb), true);
     if (dir === 'left') c = mirror(c);
     charCache.set(key, c);
   }
@@ -4308,7 +4329,7 @@ function buildSprites() {
     ruby: buildGem('#d8322a', '#ff7a6a', '#8a1a14'), emerald: buildGem('#2fae5a', '#7ae89a', '#1a6a34'),
     goblet: buildGoblet(), crown: buildCrown(),
     plank: buildPlank(), rope: buildRope(), ladder: buildLadderIcon(), bridge: buildBridgeKit(),
-    campfire: buildCampfireKit(), grapple: buildGrapple(),
+    campfire: buildCampfireKit(), tent: buildTentIcon(), grapple: buildGrapple(),
     mapPiece: buildMapPieceIcon(), runeNote: buildNoteIcon(),
     furCoat: buildCoatIcon(COATS.furCoat), fireJacket: buildCoatIcon(COATS.fireJacket),
     tunic_male: buildTunicIcon(PLAYER_LOOKS.male.tunic), tunic_female: buildTunicIcon(PLAYER_LOOKS.female.tunic),
@@ -4316,7 +4337,7 @@ function buildSprites() {
   SPR.ui = { ...buildUiIcons(), tinker: buildTinkerIcon() };
   SPR.icon.grilledFish = buildCooked(SPR.icon.fish, 'rgba(214,140,50,0.45)', true);
   SPR.icon.bakedApple = buildCooked(SPR.icon.apple, 'rgba(110,40,10,0.45)', false);
-  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe() };
+  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe(), torch: [buildHeldTorch(0), buildHeldTorch(1)] };
   def('ore', { img: buildOre(false), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 } });
   def('oreSpent', { img: buildOre(true) });
   def('goldOre', { img: buildOre(false, 'gold'), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 }, light: { dx: 0, dy: -8, r: 10, color: '#f2c94a' } });
@@ -4397,6 +4418,7 @@ function buildSprites() {
     frames: bonfire, fps: 10, foot: { w: 28, h: 9 },
     light: { dx: 0, dy: -10, r: 60, color: '#ff9a3a' }, after: (g, x, y, t, o) => drawBlaze(g, x, y, t, o),
   });
+  def('tent', { img: buildTent(), foot: { w: 30, h: 10 }, shadow: { rx: 19, ry: 4 } });
   SPR.flyDragon = {};
   SPR.flyDragonSaddled = {};
   SPR.heldEgg = {};
@@ -4412,9 +4434,6 @@ function buildSprites() {
   const altarOpen = buildAltar(true);
   def('altar', { img: altar, oy: altar.height - 4, pick: (t, o) => (o.open ? altarOpen : altar) });
   for (let v = 0; v < 3; v++) def(`reef-${v}`, { frames: [buildReefRock(v, false), buildReefRock(v, true)], fps: 0.8 });
-  [['peak', 112, 100, 0.42], ['peak2', 104, 92, 0.48], ['peakB', 84, 74, 0.32], ['peakC', 56, 48, 0.22]].forEach(([k, w, h, snow], i) => {
-    for (let v = 0; v < 3; v++) def(`${k}-${v}`, { img: buildPeak(w, h, 1 + i * 3 + v, snow * (0.85 + v * 0.15)) });
-  });
   def('volcano', { img: buildVolcano(), light: { dx: 0, dy: -96, r: 40, color: '#ff6a1a' }, after: (g, x, y) => drawCraterEgg(g, x, y) });
   // drawn as part of the volcano; this is just its doorway
   def('fireCaveMouth', { img: sprite(1, 1, () => {}), foot: { w: 30, h: 6 }, door: { dx: 0, w: 14 }, light: { dx: 0, dy: -4, r: 18, color: '#ff6a1a' } });
@@ -4432,8 +4451,7 @@ function buildSprites() {
   def('ruinWall', { img: buildRuinWall(), foot: { w: 32, h: 6 }, after: (g, x, y, t, o) => drawWallCarving(g, x, y, t, o) });
   const nest = buildNest();
   def('nest', { img: nest, oy: nest.height - 4 });
-  def('cairn', { img: buildCairn(), foot: { w: 10, h: 4 }, shadow: { rx: 7, ry: 2 } });
-  const roost = buildRoost();
+  def('cairn', { img: buildCairn(), foot: { w: 10, h: 4 }, shadow: { rx: 7, ry: 2 } });  const roost = buildRoost();
   def('roost', { img: roost, oy: 63, foot: { w: 112, h: 10 } });
   def('stake', { img: buildStake(), foot: { w: 4, h: 3 } });
   def('nursery', { img: buildNursery(), oy: 42, foot: { w: 68, h: 8 } });

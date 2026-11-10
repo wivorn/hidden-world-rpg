@@ -138,6 +138,8 @@ function blocked(x0, y0, x1, y1, self, swim = false) {
     }
   }
   if (solidAt(x0, y0, x1, y1)) return true;
+  // anyone already caught across a ledge's end can still step off it
+  if (acrossTiers(x0, y0, x1, y1) && !(self && acrossTiers(self.x - 5, self.y - 4, self.x + 5, self.y))) return true;
   for (const e of entities) {
     if (e !== self && !e.flying && x1 > e.x - 5 && x0 < e.x + 5 && y1 > e.y - 4 && y0 < e.y) return true;
   }
@@ -303,6 +305,8 @@ function fenceHopSpot() {
 }
 
 function diveSpot() {
+  // from up on the mountain it's a fall onto the rocks, not a dive
+  if (tierAt(tileX(player.x), tileY(player.y))) return null;
   let [vx, vy] = readInput();
   if (!vx && !vy) [vx, vy] = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[player.dir];
   for (let d = 2; d <= 56; d += 2) {
@@ -1060,8 +1064,9 @@ function startHop(tx, ty, lift0, lift1, done) {
 
 function updateHop(dt) {
   hop.t = Math.min(1, hop.t + dt / (hop.dur || 0.45));
-  player.x = hop.fx + (hop.tx - hop.fx) * hop.t;
-  player.y = hop.fy + (hop.ty - hop.fy) * hop.t;
+  const u = hop.climb ? climbPhase(hop.t, hop.moves).rise : hop.t;
+  player.x = hop.fx + (hop.tx - hop.fx) * u;
+  player.y = hop.fy + (hop.ty - hop.fy) * u;
   if (hop.t >= 1) {
     const done = hop.done;
     hop = null;
@@ -2422,14 +2427,17 @@ function deckPos() {
   return { x: shipObj.x + d.seat[0] - d.ox, lift: d.oy - d.seat[1] - 5 };
 }
 
-function shipDist() {
+// How far from the hull the player can be to step aboard, or step ashore off it.
+const BOARD_REACH = 16;
+
+function shipDist(x = player.x, y = player.y) {
   const [x0, y0, x1, y1] = shipBox(shipObj.facing, shipObj.x, shipObj.y);
-  const dx = Math.max(x0 - player.x, 0, player.x - x1);
-  const dy = Math.max(y0 - player.y, 0, player.y - y1);
+  const dx = Math.max(x0 - x, 0, x - x1);
+  const dy = Math.max(y0 - y, 0, y - y1);
   return Math.hypot(dx, dy);
 }
 
-const nearShip = () => !sail && !flight && !hop && shipDist() < 56;
+const nearShip = () => !sail && !flight && !hop && shipDist() < BOARD_REACH;
 
 // What SPACE climbs aboard: the ship or a perched dragon, whichever is closer when both are in reach.
 function nearMount() {
@@ -2465,12 +2473,12 @@ function shoreSpot() {
   const cy = (y0 + y1) / 2;
   let best = null;
   let bestD = Infinity;
-  for (let r = 8; r <= 50; r += 6) {
+  for (let r = 4; r <= BOARD_REACH; r += 3) {
     for (let a = 0; a < 24; a++) {
       const ang = (a / 24) * Math.PI * 2;
       const x = cx + Math.cos(ang) * ((x1 - x0) / 2 + r);
       const y = cy + Math.sin(ang) * ((y1 - y0) / 2 + r);
-      if (!canStand(player, x, y)) continue;
+      if (shipDist(x, y) >= BOARD_REACH || !canStand(player, x, y)) continue;
       const d = Math.hypot(x - cx, y - cy);
       if (d < bestD) { bestD = d; best = { x, y }; }
     }
@@ -2751,6 +2759,7 @@ function action() {
   else if (nearBackpack()) pickUpBackpack();
   else if (nearHomeBelt()) pickUpBelt();
   else if (nearBed()) sleep();
+  else if (nearTent()) napInTent();
   else if (inHotSpring()) chillInHotSpring();
   else if (nearChest()) toggleChest(true);
   else if (nearWallMap()) takeMap();
@@ -2759,6 +2768,9 @@ function action() {
   else if (dogFirst()) dog.state === 'lost' ? pickUpDog() : petDog();
   else if (signFirst()) openBoard(nearSign().shop);
   else if (doorAhead()) enterBuilding(doorAhead());
+  else if (!nearNpc() && ledgeDrop()) hopDown(ledgeDrop());
+  else if (!nearNpc() && faceClimb()) climbFace(faceClimb());
+  else if (!nearNpc() && fenceHopSpot()) jump();
   else if (!talk() && !petSheep()) jump();
 }
 
@@ -3093,6 +3105,7 @@ function drawObject(o, cx, cy) {
   const thin = s.fade && o.y > player.y && o.y - player.y < view.oy + 4 && Math.abs(o.x - player.x) < 24;
   if (thin) ctx.globalAlpha = 0.45;
   ctx.drawImage(img, sx, sy);
+  if (o.burnT >= 0 || o.charred) drawCharred(o, img, sx, sy);
   ctx.globalAlpha = 1;
   if (o.rider) {
     const carry = o === shipObj && carrying();
@@ -3140,9 +3153,10 @@ function drawEntity(e, cx, cy, lift = 0) {
   const top = Math.round(e.y - lift) - 20 - cy;
   const carry = e === player && carrying();
   const run = e.running && !hop;
+  const climb = e === player && hop?.climb && !carry;
   if (carry) drawHeldEgg(x, top);
   drawHeldTool(e, x, top, true);
-  const spr = charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run);
+  const spr = charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run, climb);
   if (e.craft && e.craft.atAnvil) {
     // leave out the hanging right arm; drawSmithHammer draws it swinging
     ctx.drawImage(spr, 0, 0, 12, 24, x - 8, top, 12, 24);
@@ -3153,6 +3167,36 @@ function drawEntity(e, cx, cy, lift = 0) {
   }
   drawHeldTool(e, x, top, false);
   drawSmithHammer(e, x, top);
+  if (climb) drawClimbArms(e, x, top);
+}
+
+// The foot opposite the reaching hand steps up onto a hold, and pushes until the body has pulled up over it.
+const climbFeet = ({ m, pull }) => (pull < 0.7 ? (m % 2 ? 1 : 3) : 0);
+
+// Hand over hand up the rock, seen from behind. Each move one hand lets go and reaches up to the next hold by the
+// crown of the head while the body hangs; then the body pulls up, and both gripping hands sink toward the
+// shoulders as it rises past them, elbows bending out.
+function drawClimbArms(e, x, top) {
+  const { m, reach, pull } = climbPhase(hop.t, hop.moves);
+  const b = e.frame === 1 || e.frame === 3 ? 1 : 0;
+  const sleeve = e.look.coat ? e.look.coat.dark : shade(e.look.tunic, -0.25);
+  for (const side of [-1, 1]) {
+    const mover = side === (m % 2 ? 1 : -1);
+    // 0 at the highest hold, 1 down by the shoulder
+    const h = mover ? 1 - reach + 0.5 * pull : 0.5 + 0.5 * pull;
+    const sx = x + (side < 0 ? -5 : 4);
+    const sy = top + 11 + b;
+    const hx = sx + side * (1 + (mover && pull === 0 ? Math.round(Math.sin(reach * Math.PI) * 1.5) : 0));
+    const hy = top + 4 + Math.round(h * 6);
+    const ex = sx + side * (1 + Math.round(h * 2));
+    const ey = Math.round((sy + hy) / 2 + h);
+    for (const [w, c] of [[3, '#22160f'], [1, sleeve]]) {
+      line(ctx, sx, sy, ex, ey, c, w);
+      line(ctx, ex, ey, hx, hy, c, w);
+    }
+    rect(ctx, hx - 1, hy - 1, 3, 3, '#22160f');
+    px(ctx, hx, hy, e.look.skin || PAL.skin);
+  }
 }
 
 // Knocked flat on the ground, head to the side they were facing.
@@ -3396,7 +3440,7 @@ function render() {
 
   if (hop) {
     const lift = hop.climb ? 0 : hop.lift0 + (hop.lift1 - hop.lift0) * hop.t + Math.sin(hop.t * Math.PI) * (hop.arc ?? 16);
-    player.frame = hop.climb ? Math.floor(hop.t * 10) % 4 : 1;
+    player.frame = hop.climb ? climbFeet(climbPhase(hop.t, hop.moves)) : 1;
     drawEntity(player, cx, cy, lift);
   }
   for (const d of highDragons) drawBaby(d, cx, cy);
@@ -3500,6 +3544,9 @@ function render() {
     setPrompt('SPACE  Pick up the tool belt');
   } else if (nearBed()) {
     setPrompt(indoors === ROOMS.hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning');
+  } else if (nearTent()) {
+    const pack = primary() === 'tent' ? '   ·   F  Pack up the tent' : '';
+    setPrompt(`SPACE  ${isNight() ? 'Sleep in the tent until morning' : 'Nap in the tent until nightfall'}${pack}`);
   } else if (inHotSpring()) {
     setPrompt('SPACE  Chill in the hot spring for 4 hours');
   } else if (nearChest()) {
@@ -3520,12 +3567,14 @@ function render() {
     setPrompt('SPACE  Give Fred back');
   } else if (signFirst()) {
     setPrompt(`SPACE  See what ${SHOPS[nearSign().shop].who} ${coinShown() ? 'makes and sells' : 'makes'}`);
-  } else if (shopNear()) {
-    setPrompt(`B  Shop with ${SHOPS[shopNear().look.id].who}`);
   } else if (bagHint()) {
     setPrompt(`B  Open your bag to ${bagHint()}`);
   } else if (doorAhead()) {
     setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
+  } else if (!nearNpc() && ledgeDrop()) {
+    setPrompt('SPACE  Hop down the ledge');
+  } else if (!nearNpc() && faceClimb()) {
+    setPrompt('SPACE  Climb up the rock');
   } else if (!nearNpc() && fenceHopSpot()) {
     const tool = toolHint();
     setPrompt(!fenceHopSpot().log ? 'SPACE  Hop over the fence'
@@ -3677,7 +3726,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Slash') toggleAutoPick();
     if (e.code === 'KeyM') toggleMap(true);
     if (e.code === 'KeyJ') toggleJournal(true);
-    if (e.code === 'KeyB') shopNear() ? openShop(shopNear()) : toggleBag(true);
+    if (e.code === 'KeyB') toggleBag(true);
     if (e.code === 'KeyL') toggleFishLog(true);
     if (e.code === 'KeyC') toggleTinker(true);
     if (e.code === 'KeyG') takeBack();

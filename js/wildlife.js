@@ -38,6 +38,7 @@ const HERDS = [
   { kind: 'rabbit', n: 3, isle: 'ruin' },
   { kind: 'goat', n: 3, area: local(96, 28, 126, 40) },
   { kind: 'goat', n: 2, area: local(12, 8, 24, 30) },
+  { kind: 'goat', n: 3, area: local(84, 8, 120, 28) },
   { kind: 'fox', n: 2, area: local(38, 4, 60, 26) },
   { kind: 'fox', n: 2, isle: 'frozen', look: 'arcticFox' },
   { kind: 'frog', n: 4, area: local(12, 44, 32, 64) },

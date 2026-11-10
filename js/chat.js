@@ -96,7 +96,7 @@ const REPLIES = {
     places: [
       'The forest is out past the west gate. There\'s a woodcutter\'s clearing in the middle of it.',
       'The hot spring is up the east stairs from the square, on the rocks under the mountains. Lovely and warm!',
-      'Behind the great hall the mountains rise. A pass climbs up to a snowy valley.',
+      'Behind the great hall the mountains rise in ledges. Follow the cairns up the pass and climb from ledge to ledge, up to the snow.',
       'The waterfall comes down off the mountains, west of the great hall.',
       'Sailors talk of a volcano to the north, a frozen isle and a jungle isle. I\'ve never been.',
       'They say there\'s an ice cave on the frozen isle, walled round with ice and dark as a troll\'s pocket. Take a torch if you go.',
@@ -135,7 +135,7 @@ const REPLIES = {
     insult: ['I have weathered worse storms than you, child.'],
     dragon: ['Long ago, dragons flew beside our people.'],
     map: ['The sea map hangs on the wall of the great hall. Take it, {name}. Press M to read it once it\'s yours.', 'Our ancestors charted every isle on that map in the great hall.'],
-    places: ['The mountains have guarded us for a hundred winters. Only the pass behind the hall leads through.', 'Our island has forest, hot springs and snow. And beyond the sea, stranger lands still.'],
+    places: ['The mountains have guarded us for a hundred winters. Our fathers climbed their ledges with bare hands.', 'Our island has forest, hot springs and snow. And beyond the sea, stranger lands still.'],
     eggFound: ['A dragon egg! Take it up inside the fire mountain and give it to the lava, {name}. That is the old way.'],
     hatched: ['A new dragon in our village! This is a great day.'],
     grown: ['Long ago our ancestors flew on dragons. Now you will too, {name}.'],
@@ -216,8 +216,8 @@ const REPLIES = {
     other: ['Mm-hm.', 'Stand still, would you?'],
   },
   tanner: {
-    name: ['Tanner. I turn hides into leather.', 'I\'m the tanner. I can make you boots, belts or a pouch.'],
-    wares: ['Tool belts and hunter\'s pouches, two hides apiece. Strong and supple!', 'Anything leather: boots, tool belts, pouches, straps.'],
+    name: ['Tanner. I turn hides into leather.', 'I\'m the tanner. I can make you boots, belts, a pouch or a tent.'],
+    wares: ['Tool belts and hunter\'s pouches, two hides apiece. Strong and supple!', 'Anything leather: boots, tool belts, pouches, straps.', 'A camping tent: six hides, four strings and two lengths of wood for the poles.'],
     greet: ['Ho there!', 'Don\'t mind the smell.'],
     leather: ['A tool belt takes two hides. Its two pouches carry what your pack can\'t.', 'A hide sits weeks in the vat before it\'s ready.'],
     hunt: ['Deer in the western woods, boar further south. Boar\'s the tastier, but it bites back.', 'Hunting? Walk, don\'t run. Deer hear a running Viking a mile off.'],

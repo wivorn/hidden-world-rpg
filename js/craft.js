@@ -70,14 +70,15 @@ const ITEMS = {
   ladder: { name: 'Ladder', stack: true, plural: 'ladders' },
   bridge: { name: 'Bridge kit', stack: true, plural: 'bridge kits' },
   campfire: { name: 'Campfire kit', stack: true, plural: 'campfire kits' },
+  tent: { name: 'Camping tent', tool: true },
   grapple: { name: 'Grappling hook', tool: true },
 };
 // The hotbar's order. Arrows show as a count on the bow.
-const TOOLS = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'shield', 'torch'];
+const TOOLS = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'tent', 'shield', 'torch'];
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !ITEMS[id].tool;
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -151,6 +152,11 @@ const RECIPES = [
     item: 'saddle', maker: 'tanner', words: /\bsaddles?\b/, time: 2.8, needs: { hide: 3 },
     start: 'A dragon saddle? Three hides, double stitched. Nobody falls off one of mine...',
     done: 'There! Stand by your dragon, open your bag and strap it on. Then up you get.',
+  },
+  {
+    item: 'tent', maker: 'tanner', words: /\b(camping )?tents?\b/, time: 3, needs: { hide: 6, string: 4, wood: 2 },
+    start: 'A camping tent? Six hides stitched with four strings, over two poles. This takes some sewing...',
+    done: 'Your own tent! Choose it on the hotbar and press F to pitch it, and F again by it to pack it up. Nap in it by day and you wake at nightfall, by night and you wake at dawn.',
   },
 ];
 
@@ -506,8 +512,9 @@ function askCraft(n, text) {
     let hint = short.iron && !has('iron') ? ` ${ironHint(n)}` : '';
     if (short.string && !has('string')) hint += ' String comes from the weaver. She spins it from wool.';
     if (short.wool && !has('wool')) hint += ' Wool? Give the sheep a pat, they shed a tuft now and then.';
-    if (short.feather && !has('feather')) hint += ' Feathers? Chase the hens round the farmyard. They drop one when they flap off.';
+    if (short.feather && !has('feather')) hint += ' Feathers? Chase the hens round the farmyard. Now and then one drops when they flap off.';
     if (short.stone && !has('stone')) hint += ' Stones lie about on the grass and the beaches.';
+    if (short.wood && !has('wood')) hint += ' Wood? Take an axe to a tree. Press F facing one to chop.';
     if (short.hide && !has('hide')) hint += ' Deer and boar give hides. The south woods are full of them.';
     if (short.eel && !has('eel')) hint += ' Fire eels live in the hot sea round the fire mountain, and in the hot spring up the east stairs from the square.';
     if (shortN === needs.length) npcSay(n, `${what[0].toUpperCase()}${what.slice(1)}? Get me ${listNeeds(r.needs)} and I'll make you ${r.count ? 'some' : 'one'}.${hint}`);
@@ -543,16 +550,23 @@ function startCraft(n, r) {
   n.stuck = 0;
 }
 
-// The first time the player talks to the smith, he forges them an axe unasked.
+// The first time the player talks to the smith, he hands over his old wooden axe.
+// Saves from when he forged it instead can say `gaveAxe` with no axe in the bag, so he hands one over then too.
 function welcomeAxe(n) {
-  if (n.look.id !== 'smith' || n.gaveAxe || n.craft || has('axe')) return false;
+  if (n.look.id !== 'smith' || n.craft || has('axe')) return false;
   if (!has('backpack')) {
     npcSay(n, 'A new face! I\'ve an axe for you, {lad}, but fetch your backpack first.');
     return true;
   }
+  const first = !n.gaveAxe;
   n.gaveAxe = true;
-  npcSay(n, 'A new face! Every Viking needs an axe. Hold on, I\'ll make you one...');
-  startCraft(n, RECIPES.find((r) => r.item === 'axe'));
+  give('axe');
+  faceToward(n, player.x - n.x, player.y - n.y);
+  popIcon('axe', player.x, player.y - 30);
+  Sfx.reward();
+  npcSay(n, first
+    ? 'A new face! Every Viking needs an axe. Here, take my old wooden one. Select it, face a tree and press F to chop.'
+    : 'No axe, {lad}? Here, have my old wooden one. Try not to lose it this time.');
   return true;
 }
 
@@ -806,6 +820,7 @@ function useTool() {
     else if (meltTarget()) torchIce(meltTarget());
     else toggleTorch();
   } else if (id === 'grapple') throwGrapple();
+  else if (id === 'tent') placeThing('tent');
 }
 
 // What could be done here with something from the pack. Only the bag's buttons do it; the prompt just says so.
@@ -1392,7 +1407,7 @@ function regrow(o) {
     o.regrowT = o.mendNow ? 0.3 : 5;
     return;
   }
-  Object.assign(o, { key, hidden: false, broken: false, shaken: false, mendNow: false });
+  Object.assign(o, { key, hidden: false, broken: false, shaken: false, mendNow: false, charred: false });
   placeCollider(o);
   o.col.off = false;
 }
@@ -1558,7 +1573,7 @@ function drawHeldTool(e, x, top, behind) {
   const bowUp = (e.bowT > 0 || e.nock) && has('bow');
   if (bowUp && !e.chop && !(e.blockT > 0)) drawHeld(e, SPR.icon.bow, x, top);
   if (e.blockT > 0) drawHeld(e, SPR.icon.shield, x, top);
-  else if (e === player && torchLit() && !e.chop && !e.fishing && !bowUp) drawHeld(e, SPR.icon.torch, x, top);
+  else if (e === player && torchLit() && !e.chop && !e.fishing && !bowUp) drawHeldTorch(e, x, top);
 }
 
 function drawHeld(e, img, x, top) {
@@ -1571,6 +1586,19 @@ function drawHeld(e, img, x, top) {
   } else {
     ctx.drawImage(img, x - Math.round(img.width / 2) + (e.dir === 'down' ? 2 : -2), top + 6);
   }
+}
+
+// The lit torch, gripped low on its stick and leaning forward, so its flame stays clear of the face.
+const TORCH_TILT = 0.5;
+function drawHeldTorch(e, x, top) {
+  const img = SPR.held.torch[Math.floor(time * 7) % 2];
+  const out = e.dir === 'left' || e.dir === 'up' ? -1 : 1;
+  const side = e.dir === 'right' || e.dir === 'left';
+  ctx.save();
+  ctx.translate(x + out * (side ? 5 : 3), top + 15);
+  ctx.rotate(out * TORCH_TILT);
+  ctx.drawImage(img, -4, -10);
+  ctx.restore();
 }
 
 // Hand and rod tip, relative to the sprite's top centre.

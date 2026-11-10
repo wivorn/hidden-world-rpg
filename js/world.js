@@ -171,7 +171,6 @@ const VOLCANO = { x: 250, y: 53 };
 
 // village landmarks, in village tiles
 const mtnEdge = (x) => 30.5 + 2.2 * Math.sin(x * 0.13 + 1) + (vnoise(x, 0, 6, 21) - 0.5) * 5 - Math.max(0, 38 - x) * 1.7;
-const passX = (y) => 63.5 + 2.5 * Math.sin(y * 0.33);
 const SPRINGS = [[105.5, 36.6, 2.8, 2], [112.2, 35.2, 3.6, 2.5], [118.2, 38.4, 2.5, 1.7]];
 const CLEARING = { x: 20, y: 57, rx: 6.5, ry: 4.5 };
 const BAY = { x: 85, y: 104, rx: 10.5, ry: 6.5 };
@@ -293,6 +292,7 @@ function generateMap() {
   }
 
   villageTerrain();
+  terraceMountain();
   islandTerrain();
 
   // cliff faces below every south-facing shore
@@ -316,19 +316,12 @@ function generateMap() {
   }
 }
 
-// Mountains across the north with a pass up to a snowy valley, the stream and waterfall,
+// Mountains across the north (terraced by terraceMountain), the stream and waterfall,
 // the river through the forest, the hot springs, and the harbour bay.
 function villageTerrain() {
   for (let y = -3; y < 42; y++) {
     for (let x = 22; x < 139; x++) if (lt(x, y) === T.GRASS && y < mtnEdge(x)) ls(x, y, T.MOUNT);
   }
-  inBlob(66, 10, 11, 6.5, 22, 0.5, (x, y) => { if (lt(x, y) !== T.WATER) ls(x, y, T.SNOW); });
-  for (let y = 12; y < 42; y++) {
-    for (let x = 56; x < 72; x++) {
-      if (Math.abs(x + 0.5 - passX(y)) < 1.7 + Math.max(0, y - 26) * 0.35 && lt(x, y) === T.MOUNT) ls(x, y, y < 21 ? T.SNOW : T.ROCK);
-    }
-  }
-  inBlob(70, 9.5, 4.5, 2.2, 23, 0.4, (x, y) => { if (lt(x, y) === T.SNOW) ls(x, y, T.ICE); });
   // scree at the mountains' feet
   for (let y = 4; y < 44; y++) {
     for (let x = 22; x < 139; x++) {
@@ -1043,12 +1036,16 @@ function speckle(g, x, y, X, Y, base, light, dark, n = 14) {
 
 // Rocky edges where open ground meets water, and shade under cliffs and mountains.
 function rim(g, x, y, X, Y) {
-  const edge = (t) => t === T.WATER || t === T.FALL || t === T.CLIFF;
+  // mountain faces draw their own ends
+  const edge = (dx) => {
+    const t = tileAt(x + dx, y);
+    return t === T.WATER || t === T.FALL || (t === T.CLIFF && !tierAt(x + dx, y));
+  };
   const n = tileAt(x, y - 1);
   if (n === T.WATER || n === T.FALL) rect(g, X, Y, 16, 1, PAL.rockDark);
-  if (edge(tileAt(x - 1, y))) { rect(g, X, Y, 2, 16, PAL.rock); rect(g, X, Y, 1, 16, PAL.rockDark); }
-  if (edge(tileAt(x + 1, y))) { rect(g, X + 14, Y, 2, 16, PAL.rock); rect(g, X + 15, Y, 1, 16, PAL.rockDark); }
-  if (n === T.CLIFF || n === T.MOUNT) {
+  if (edge(-1)) { rect(g, X, Y, 2, 16, PAL.rock); rect(g, X, Y, 1, 16, PAL.rockDark); }
+  if (edge(1)) { rect(g, X + 14, Y, 2, 16, PAL.rock); rect(g, X + 15, Y, 1, 16, PAL.rockDark); }
+  if ((n === T.CLIFF && !tierAt(x, y - 1)) || n === T.MOUNT) {
     g.fillStyle = 'rgba(0,0,0,0.18)';
     g.fillRect(X, Y, 16, 4);
   }
@@ -1064,15 +1061,19 @@ function grassTile(g, x, y, X, Y) {
     px(g, tx + 1, ty - 1, PAL.grassTuft);
     px(g, tx, ty - 1, PAL.grassLight);
   }
-  const edge = (t) => t === T.WATER || t === T.FALL || t === T.CLIFF;
+  // mountain faces draw their own ends
+  const edge = (dx) => {
+    const t = tileAt(x + dx, y);
+    return t === T.WATER || t === T.FALL || (t === T.CLIFF && !tierAt(x + dx, y));
+  };
   const n = tileAt(x, y - 1);
   if (n === T.WATER || n === T.FALL) {
     rect(g, X, Y, 16, 1, PAL.rockDark);
     rect(g, X, Y + 1, 16, 1, PAL.grassDark);
   }
-  if (edge(tileAt(x - 1, y))) { rect(g, X, Y, 2, 16, PAL.rock); rect(g, X, Y, 1, 16, PAL.rockDark); }
-  if (edge(tileAt(x + 1, y))) { rect(g, X + 14, Y, 2, 16, PAL.rock); rect(g, X + 15, Y, 1, 16, PAL.rockDark); }
-  if (n === T.CLIFF || n === T.MOUNT) {
+  if (edge(-1)) { rect(g, X, Y, 2, 16, PAL.rock); rect(g, X, Y, 1, 16, PAL.rockDark); }
+  if (edge(1)) { rect(g, X + 14, Y, 2, 16, PAL.rock); rect(g, X + 15, Y, 1, 16, PAL.rockDark); }
+  if ((n === T.CLIFF && !tierAt(x, y - 1)) || n === T.MOUNT) {
     g.fillStyle = 'rgba(0,0,0,0.18)';
     g.fillRect(X, Y, 16, 4);
   }
@@ -1441,11 +1442,11 @@ function groundTile(g, x, y) {
       blendInto(g, x, y, X, Y, T.JUNGLE, PAL.jungle);
       break;
     case T.WOOD: woodTile(g, x, y, X, Y); break;
-    case T.CLIFF: cliffTile(g, x, y, X, Y); break;
+    case T.CLIFF: (tierAt(x, y) ? faceTile : cliffTile)(g, x, y, X, Y); break;
     case T.STAIRS: stairsTile(g, x, y, X, Y); break;
     case T.FALL: rect(g, X, Y, 16, 16, '#5aa6ec'); break;
-    case T.ROCK: screeTile(g, x, y, X, Y); break;
-    case T.SNOW: snowTile(g, x, y, X, Y); break;
+    case T.ROCK: (tierAt(x, y) ? ledgeTile : screeTile)(g, x, y, X, Y); break;
+    case T.SNOW: (tierAt(x, y) ? ledgeTile : snowTile)(g, x, y, X, Y); break;
     case T.MOUNT: mountTile(g, x, y, X, Y); break;
     case T.SPRING: springTile(g, x, y, X, Y); break;
     case T.ASH: ashTile(g, x, y, X, Y); break;
@@ -1455,6 +1456,7 @@ function groundTile(g, x, y) {
     case T.JUNGLE: jungleTile(g, x, y, X, Y); break;
     default: waterTile(g, x, y, X, Y);
   }
+  if (isLand(tileAt(x, y))) sideStep(g, x, y, X, Y);
 }
 
 // ---------- ground chunks ----------
@@ -1698,7 +1700,7 @@ const evergreen = (r) => (r < 0.5 ? 'pine' : r < 0.92 ? 'pine2' : 'oak');
 const VILLAGE_NPCS = [
   {
     look: 'chief', x: 78, y: 42.6, roam: 1.5,
-    lines: ['Welcome to the Hidden World, {name}.', 'Every island hides a story. Go and find them.', 'Our smith can make you all kinds of tools. Pay him a visit.', 'The great hall is always open to you.', 'Behind the hall the mountains rise. Only the pass leads through them, up to the snow.'],
+    lines: ['Welcome to the Hidden World, {name}.', 'Every island hides a story. Go and find them.', 'Our smith can make you all kinds of tools. Pay him a visit.', 'The great hall is always open to you.', 'Behind the hall the mountains rise ledge on ledge. Climb the rock from one to the next, all the way up to the snow.'],
     nightLines: ['Still about, {name}? The fire in the great hall burns all night.', 'Look at those stars. Our ancestors steered their ships by them.', 'Night is for the old stories. Sit a while.', 'Rest well tonight. The islands will still be waiting in the morning.'],
   },
   {
@@ -1723,8 +1725,8 @@ const VILLAGE_NPCS = [
   },
   {
     look: 'tanner', x: 60.5, y: 63.6, job: { station: [62.1, 63.7], face: 'right', prop: 'hideFrame' },
-    lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'Pack filling up? Bring me two hides and I\'ll make you a tool belt with pouches.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.'],
-    nightLines: ['Hides dry slower at night. Patience.', 'A soak in the hot spring under the stars. That\'s the life.', 'Still after a tool belt? Two hides, day or night.'],
+    lines: ['Don\'t mind the smell. That\'s good leather, that is.', 'Pack filling up? Bring me two hides and I\'ll make you a tool belt with pouches.', 'A hide sits weeks in the vat before it\'s ready.', 'After work I soak in the hot spring, up the east stairs. Best cure for aching bones.', 'Off up the mountain? Six hides, four strings and two lengths of wood, and I\'ll make you a tent to camp in.'],
+    nightLines: ['Hides dry slower at night. Patience.', 'A soak in the hot spring under the stars. That\'s the life.', 'Still after a tool belt? Two hides, day or night.', 'Far from your bed at this hour? Pitch one of my tents and sleep till dawn.'],
   },
   {
     look: 'kid', x: 82.5, y: 61.3, roam: 1.5,
@@ -1911,8 +1913,8 @@ function placeObjects() {
   signBy('fisher', 77.9, 98.8);
   addObj('barrel', 78.3, 96.7);
   addObj('barrel', 83.2, 97.4);
-  addObj('sacks', 84.4, 97.8);
-  addObj('ship', 85.6, 102.5).dir = 'right';
+  addObj('sacks', 86.2, 97.8);
+  addObj('ship', 84.2, 102.5).dir = 'right';
 
   // hot spring among the rocks
   for (const [k, x, y] of [
@@ -1920,13 +1922,6 @@ function placeObjects() {
     ['boulder', 115.8, 41], ['boulderSnow', 122.2, 35.8], ['stone', 104.2, 33.8], ['stone', 121, 41], ['stone', 99.6, 38.2],
     ['snowPine', 100, 33.2], ['snowPine', 113, 31.2], ['snowPine', 120.6, 33], ['snowPine', 124, 39],
   ]) addObj(k, x, y);
-
-  // the snowy valley over the pass
-  addObj('cairn', 63, 8.6);
-  addObj('cairn', 64.8, 21.4);
-  for (const [x, y] of [[66.6, 8.4], [73.8, 11], [72.6, 7.6]]) addObj('iceCrystal', x, y);
-  addObj('boulderSnow', 59, 12);
-  addObj('boulderSnow', 74.4, 13.6);
 
   // the forest clearing with the woodcutter's hut
   addObj('houseC', 15, 55.2).room = 'woodcutterHut';
@@ -1936,7 +1931,6 @@ function placeObjects() {
   addObj('stump', 18.2, 60.2);
 
   placeIslands();
-  placePeaks();
 
   // trees
   homes = NPCS.map((n) => [n.x, n.y]).concat([[PLAZA.x, PLAZA.y]], SHEEP.map((s) => [s.x, s.y]));
@@ -1946,7 +1940,7 @@ function placeObjects() {
   woodsL(0, 0, 60, 112, 1.35, 1337, 0.72, evergreen, forest);
   woodsL(46, 30, 126, 43, 2.2, 1338, 0.42, mixed, (x, y) => !(x > 70 && x < 87) && !(x > 98 && x < 125));
   woodsL(46, 44, 136, 112, 2.4, 1339, 0.4, mixed, (x, y) => !core(x, y) && !forest(x, y) && Math.hypot(x - BAY.x, y - BAY.y) > 14);
-  woodsL(50, 0, 82, 18, 2.2, 1340, 0.5, () => 'snowPine');
+  placeMountain();
   woodsL(0, 0, 60, 112, 4, 1341, 0.4, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'), forest);
   for (const [k, x, y] of [['oak', 56.6, 70.2], ['oak', 102.4, 66], ['pine', 103.2, 70.4], ['oak', 72.6, 47.6], ['pine2', 87.2, 47.4], ['bushPink', 89.4, 51.4], ['bushYellow', 66.2, 49.6]]) plantL(k, x, y);
 
@@ -2190,44 +2184,6 @@ function placeIslands() {
     addAbs('stone', i.x - 2.5, i.y + 1.8);
     for (const [dx, dy] of [[-3.2, -1], [3.4, -0.6], [-0.8, -2.2], [2.2, -2.6], [-3.8, 1.8], [3.6, 2.2]]) {
       if (isLand(tileAt(Math.floor(i.x + dx), Math.floor(i.y + dy - 0.01)))) addAbs(i.islet.trees, i.x + dx, i.y + dy);
-    }
-  }
-}
-
-// Fills the mountain mass with peaks, biggest first, wherever a whole silhouette fits on mountain tiles.
-function placePeaks() {
-  const W = 140;
-  const H = 44;
-  const cover = new Uint8Array(W * H);
-  const rng = mulberry32(91);
-  const sil = (bx, by, w, h, fn) => {
-    for (let y = Math.floor(by - h); y < by; y++) {
-      const t = (by - y - 0.5) / h;
-      const half = (1 - t ** 0.69) * w / 2;
-      for (let x = Math.floor(bx - half); x < bx + half; x++) if (fn(x, y) === false) return false;
-    }
-    return true;
-  };
-  for (const [key, w, h] of [['peak', 7, 6.25], ['peak2', 6.5, 5.75], ['peakB', 5.25, 4.6], ['peakC', 3.5, 3]]) {
-    const cands = [];
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (lt(x, y) !== T.MOUNT) continue;
-        cands.push([x + 0.5 + (rng() - 0.5) * 0.6, y + 1, lt(x, y + 1) !== T.MOUNT ? 0 : rng() + 1]);
-      }
-    }
-    cands.sort((a, b) => a[2] - b[2]);
-    for (const [bx, by] of cands) {
-      let tot = 0;
-      let free = 0;
-      const fits = sil(bx, by, w, h, (x, y) => {
-        if (x < 0 || y < 0 || x >= W || y >= H || lt(x, y) !== T.MOUNT) return false;
-        tot++;
-        if (!cover[y * W + x]) free++;
-      });
-      if (!fits || free < tot * 0.55) continue;
-      sil(bx, by, w, h, (x, y) => { cover[y * W + x] = 1; });
-      addObj(`${key}-${Math.floor(rng() * 3)}`, bx, by);
     }
   }
 }

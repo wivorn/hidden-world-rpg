@@ -317,6 +317,11 @@ function nightLights(cx, cy, visible) {
       if (tileAt(x, y) === T.LAVA && (x + y) % 2 === 0) out.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, r: 26, k: 0.8 });
     }
   }
+  for (const o of burning) {
+    const l = burnLight(o);
+    if (l) out.push(l);
+  }
+  for (const s of smoulder) out.push({ x: s.x, y: s.y - 3, r: 12, k: 0.7 * (1 - s.t / s.max) });
   for (const f of fireflies) out.push({ x: f.x, y: f.y, r: 7, k: 0.8 * fireflyGlow(f) });
   out.push(...festivalLights());
   return out;
@@ -439,6 +444,25 @@ function sleep() {
         else if (sameSpace(hermit)) npcSay(hermit, 'Morning. The sea kept watch, and so did I.');
         else muse('A good night\'s sleep at the hermit\'s. Time to get going.');
       }, 1500);
+      saveGame(true);
+    },
+  };
+}
+
+// A nap in a pitched tent: by day the player wakes at nightfall, by night at dawn, crawling out of the flap.
+const NAP_DUSK = 0.86;
+const NAP_DAWN = 0.27;
+function napInTent() {
+  if (fade) return;
+  Sfx.yawn();
+  const night = isNight();
+  fade = {
+    t: 0, len: 1.4, act: () => {
+      advanceClock((((night ? NAP_DAWN : NAP_DUSK) - clock) % 1 + 1) % 1);
+      setWeather(night ? 'clear' : pickWeather(), true);
+      restStamina(1);
+      player.dir = 'down';
+      setTimeout(() => muse(night ? 'Morning already! Best sleep I\'ve had in ages.' : 'Dark already? That was some nap.'), 1500);
       saveGame(true);
     },
   };

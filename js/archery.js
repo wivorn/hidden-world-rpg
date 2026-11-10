@@ -5,6 +5,8 @@
 // The yard between the sheep pen and the fields.
 const HEN_YARD = { x0: (102 + OX) * TILE, x1: (124 + OX) * TILE, y0: (58.4 + OY) * TILE, y1: (63.6 + OY) * TILE };
 const FEATHER_WAIT = 25;
+// how often a startled hen that's grown a feather back actually loses it
+const FEATHER_CHANCE = 0.3;
 const hens = [];
 
 const henFree = (x, y) => x > HEN_YARD.x0 && x < HEN_YARD.x1 && y > HEN_YARD.y0 && y < HEN_YARD.y1 && !blocked(x - 4, y - 3, x + 4, y, null);
@@ -39,7 +41,7 @@ function updateHens(dt) {
     if (d < 22 && h.state !== 'flee' && !player.flying && !sail && sameSpace(h)) {
       Object.assign(h, { state: 'flee', timer: 0.9 });
       Sfx.cluck(earshot(h.x, h.y));
-      if (h.featherT <= 0) {
+      if (h.featherT <= 0 && Math.random() < FEATHER_CHANCE) {
         h.featherT = FEATHER_WAIT;
         spawnDrop('feather', h.x, h.y + 2, (Math.random() - 0.5) * 16, 14, 30);
         drops[drops.length - 1].float = true;

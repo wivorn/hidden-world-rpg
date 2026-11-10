@@ -180,12 +180,12 @@ function tileColor(t, i) {
     }
     case T.FALL: return '#a9d2e6';
     case T.SAND: return '#e8d49a';
-    case T.CLIFF: return '#8f7a5c';
+    case T.CLIFF: return tier[i] ? ['#8f7a5c', '#7d7468', '#6f6e74', '#68707e', '#6c7788', '#76839a'][Math.min(tier[i], TIERS)] : '#8f7a5c';
     case T.PATH: case T.STAIRS: return '#bba987';
     case T.WOOD: return '#9a6a3c';
     case T.DIRT: return '#b89464';
     case T.HAY: return '#d8b852';
-    case T.ROCK: return '#a49c8c';
+    case T.ROCK: return tier[i] >= 2 ? '#a3a5ab' : '#a49c8c';
     case T.SNOW: case T.ICE: return '#eef0ee';
     case T.MOUNT: return elev[i] === 255 ? '#4c4446' : elev[i] >= 3 ? '#d8dbd8' : '#8a8278';
     case T.SPRING: return '#7cc6bc';
