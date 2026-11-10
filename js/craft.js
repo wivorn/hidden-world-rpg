@@ -37,6 +37,7 @@ const ITEMS = {
   cavefish: { name: 'Cave fish', stack: true },
   goldenFish: { name: 'Golden fish', stack: true },
   mackerel: { name: 'Mackerel', stack: true },
+  pufferfish: { name: 'Pufferfish', stack: true },
   salmon: { name: 'Salmon', stack: true },
   anglerfish: { name: 'Anglerfish', stack: true },
   emberKoi: { name: 'Ember koi', stack: true },
@@ -78,7 +79,7 @@ const TOOLS = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'ten
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !ITEMS[id].tool;
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0, torLanded: 0, torSeen: 0, torBuzz: 0, torTouch: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -141,7 +142,7 @@ const RECIPES = [
   {
     item: 'furCoat', maker: 'seamstress', words: /\b(fur ?coats?|coats?|furs?|parkas?|cloaks?)\b/, time: 3, needs: { hide: 4, wool: 2 },
     start: 'A fur coat for the frozen isle? Four hides and a wool lining. Hold still while I measure you...',
-    done: 'Warm as a bear! Put it on before you land on the ice. Open your bag (B) and wear it.',
+    done: 'Warm as a bear! Put it on before you land on the ice. Open your equipments (E) and wear it.',
   },
   {
     item: 'fireJacket', maker: 'seamstress', words: /\b(fire[ -]?proof|jackets?)\b/, time: 3, needs: { eel: 2, wool: 2 },
@@ -151,7 +152,7 @@ const RECIPES = [
   {
     item: 'saddle', maker: 'tanner', words: /\bsaddles?\b/, time: 2.8, needs: { hide: 3 },
     start: 'A dragon saddle? Three hides, double stitched. Nobody falls off one of mine...',
-    done: 'There! Stand by your dragon, open your bag and strap it on. Then up you get.',
+    done: 'There! Stand by your dragon and press SPACE to strap it on. Then up you get.',
   },
   {
     item: 'tent', maker: 'tanner', words: /\b(camping )?tents?\b/, time: 3, needs: { hide: 6, string: 4, wood: 2 },
@@ -387,7 +388,7 @@ function pickUp(d, auto = false, quiet = false) {
   if (!quiet) Sfx.pickup();
   if (d.item === 'mapPiece') markEgg(d.mark);
   if (d.item === 'runeNote') {
-    toast('SAILOR\'S NOTE', 'Read it again any time from your bag (B)');
+    toast('SAILOR\'S NOTE', 'Read it again any time from your equipments (E)');
     toggleNote(true);
   }
 }
@@ -861,7 +862,7 @@ function toolHint() {
   const lure = lureToPick() ? '   ·   Pick a lure' : lureOn() ? `   ·   ${ITEMS[lureOn()].name} ×${bag[lureOn()]}` : '';
   const readyRod = id === 'rod' ? `F  Cast your line   ·   Hold F to cast farther${lure}` : `${slotKey('rod')}  Ready the rod to fish`;
   const need = EXPOSE[exposedTo()]?.outfit;
-  if (need && outfit !== need && has(need)) return `B  Put on your ${itemName(need)}`;
+  if (need && outfit !== need && has(need)) return `E  Put on your ${itemName(need)}`;
   if (sail) return has('rod') && castSpot() ? readyRod : '';
   if (!canUseTool()) return '';
   const build = buildHint(id);
@@ -1230,7 +1231,7 @@ function eat(id) {
 // ---------- cooking ----------
 
 // Raw food held over a fire turns into a hot meal; eating one puts a spring in your step for `MEALS` seconds.
-const GRILLED = ['fish', 'mackerel', 'cod', 'trout', 'salmon', 'eel', 'cavefish', 'anglerfish', 'emberKoi', 'crystalFish'];
+const GRILLED = ['fish', 'mackerel', 'pufferfish', 'cod', 'trout', 'salmon', 'eel', 'cavefish', 'anglerfish', 'emberKoi', 'crystalFish'];
 const COOKS = { ...Object.fromEntries(GRILLED.map((id) => [id, 'grilledFish'])), apple: 'bakedApple', meat: 'roast' };
 const COOK_VERB = { ...Object.fromEntries(GRILLED.map((id) => [id, 'Grill'])), apple: 'Bake', meat: 'Roast' };
 const MEALS = { grilledFish: 90, bakedApple: 45, roast: 150, bread: 60, honeyCake: 120 };

@@ -91,7 +91,11 @@ const WEATHER = {
 // `level` fades the current weather in and out; when `want` differs it fades out, then the new one fades in.
 const weather = { kind: 'clear', want: 'clear', level: 1, left: 160, flash: 0, boltT: 4 };
 const WEATHER_FADE = 7;
-const weatherNow = (k) => WEATHER[weather.kind][k] * smooth(weather.level);
+// Near Stormcrown Tor its own rain takes over from whatever's falling elsewhere.
+const weatherNow = (k) => {
+  const here = WEATHER[weather.kind][k] * smooth(weather.level);
+  return here + (Math.max(here, TOR_SKY[k]) - here) * torSky();
+};
 
 function pickWeather() {
   const dawn = clock > 0.14 && clock < 0.32;
@@ -270,6 +274,7 @@ function drawWeather(cx, cy) {
     drawDrifting(cx, cy, blob(90, '236,240,244'), 9, 7, 0.4 * fog, 2);
   }
   drawRuinMist(cx, cy);
+  drawTorCloud(cx, cy);
 }
 
 // ---------- night ----------

@@ -43,16 +43,33 @@ function packSeen() {
   return runs.join(',');
 }
 
-function unpackSeen(s) {
+// A save from a narrower map is unpacked at its own width, then copied over row by row.
+function unpackSeen(s, w = MAP_W) {
+  const runs = s.split(',').map(Number);
+  const out = w === MAP_W ? seen : new Uint8Array(runs.reduce((a, n) => a + n, 0));
   let i = 0;
   let v = 0;
-  for (const n of s.split(',').map(Number)) {
-    seen.fill(v, i, i + n);
+  for (const n of runs) {
+    out.fill(v, i, i + n);
     i += n;
     v ^= 1;
   }
+  if (out !== seen) for (let y = 0; y < Math.min(MAP_H, out.length / w); y++) seen.set(out.subarray(y * w, (y + 1) * w), y * MAP_W);
   fogDirty = true;
   lastReveal = '';
+}
+
+// The map saves made before it grew, and the rooms below it, which moved down with its bottom edge.
+const OLD_WORLD = [480, 360];
+function movedRooms(s) {
+  const [, h] = s.world || OLD_WORLD;
+  if (h === MAP_H) return;
+  const dy = (MAP_H - h) * TILE;
+  const down = (y) => (y >= h * TILE ? y + dy : y);
+  s.player.y = down(s.player.y);
+  for (const d of s.drops) d[2] = down(d[2]);
+  for (const e of s.eggs) e.y = down(e.y);
+  for (const d of s.dragons) d.y = down(d.y);
 }
 
 function snapshot() {
@@ -61,6 +78,7 @@ function snapshot() {
   if (player.cook) things[player.cook.id] = (things[player.cook.id] || 0) + 1;
   return {
     v: SAVE_VERSION,
+    world: [MAP_W, MAP_H],
     hero: { name: player.name, look: player.look.id },
     clock, dayCount, weather: weather.want,
     player: { ...spot, dir: player.dir, sail: !!sail, fedT: Math.max(0, player.fedT || 0), flight: flightSave() },
@@ -70,7 +88,7 @@ function snapshot() {
     flock: { asked: flockAsked, done: flockDone },
     dog: { state: dog.state, asked: dog.asked },
     eggStage,
-    eggs: eggs.map((e) => ({ state: e.state, x: e.x, y: e.y, hatchT: e.hatchT, pool: !!e.pool, crater: !!e.crater })),
+    eggs: eggs.map((e) => ({ species: e.species, state: e.state, x: e.x, y: e.y, hatchT: e.hatchT, pool: !!e.pool, crater: !!e.crater })),
     dragons: dragons.map((d) => {
       const at = flight && flight.dragon === d ? spot : d;
       return {
@@ -127,6 +145,7 @@ function saveGame(announce = false) {
 // ---------- loading ----------
 
 function restore(s) {
+  movedRooms(s);
   player.name = s.hero.name;
   if (PLAYER_LOOKS[s.hero.look]) player.look = PLAYER_LOOKS[s.hero.look];
   clock = s.clock;
@@ -148,7 +167,7 @@ function restore(s) {
     wallMap().hidden = true;
     mapBtn.hidden = false;
   }
-  unpackSeen(s.map.seen);
+  unpackSeen(s.map.seen, (s.world || OLD_WORLD)[0]);
   for (const p of POIS) {
     p.learned ||= s.map.learned.includes(p.id);
     p.seen ||= s.map.seenPois.includes(p.id);
@@ -268,8 +287,10 @@ function restorePlayer(s) {
 
 function restoreEggs(s) {
   for (const stage of STAGES) if (STAGES.indexOf(stage) <= STAGES.indexOf(s.eggStage)) setStage(stage);
+  // saves from before eggs kept their kind line up with the eggs there were then, in order
+  const before = !s.eggs.some((d) => d.species) && eggs.filter((e) => e.species !== 'skrill');
   s.eggs.forEach((d, i) => {
-    const e = eggs[i];
+    const e = before ? before[i] : eggs.find((n) => n.species === d.species);
     if (!e || d.state === 'wild') return;
     // in the cave's lava pool or the crater, only the egg's own drawing shows it
     if (d.state === 'warming') {

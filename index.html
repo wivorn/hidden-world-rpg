@@ -14,14 +14,13 @@
   <div id="bubbles"></div>
   <div id="prompt"></div>
   <div id="hotbar" hidden>
-    <ul id="hotbar-slots" aria-label="Tools. F uses the selected tool; number keys pick one, E or Tab steps forward and Q back"></ul>
+    <ul id="hotbar-slots" aria-label="Tools. F uses the selected tool; number keys pick one, Tab steps forward and Shift+Tab back"></ul>
   </div>
   <div id="pack" hidden>
-    <button id="bag-btn" class="toggle" type="button" aria-expanded="false" aria-controls="pack-tray" title="Backpack"><img alt="" /><span></span></button>
+    <button id="bag-btn" class="toggle" type="button" aria-expanded="false" aria-controls="pack-tray" title="Backpack (B)" data-key="B"><img alt="" /><span></span></button>
     <section id="pack-tray" aria-labelledby="pack-title" hidden>
       <div class="pack-head">
         <h3 id="pack-title">BACKPACK <span id="pack-room"></span></h3>
-        <button id="pack-open" type="button" aria-haspopup="dialog">BAG (B)</button>
       </div>
       <ul id="pack-slots"></ul>
     </section>
@@ -37,6 +36,7 @@
     <button id="hints" class="toggle" type="button" aria-pressed="false" aria-label="Hints" title="Hints (H)" data-key="H"><img alt="" /></button>
     <button id="sound" class="toggle" type="button" aria-pressed="true" aria-label="Sound" title="Sound (P)" data-key="P"><img alt="" /></button>
     <button id="autopick" class="toggle" type="button" aria-pressed="false" aria-label="Auto pick up" title="Auto pick up (/)" data-key="/"><img alt="" /></button>
+    <button id="equip-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Equipments" title="Equipments (E)" data-key="E" hidden><img alt="" /></button>
     <button id="journal-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Quest journal" title="Quest journal (J)" data-key="J" hidden><img alt="" /></button>
     <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="World map" title="World map (M)" data-key="M" hidden><img alt="" /></button>
     <button id="fishlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Fish log" title="Fish log (L)" data-key="L" hidden><img alt="" /></button>
@@ -158,7 +158,7 @@
   </div>
   <div id="bag" class="overlay" role="dialog" aria-modal="true" aria-labelledby="bag-title" hidden>
     <div class="panel bag-panel">
-      <h2 id="bag-title">YOUR BAG</h2>
+      <h2 id="bag-title">EQUIPMENTS</h2>
       <div class="bag-cols">
         <section aria-labelledby="bag-wear-title">
           <h3 id="bag-wear-title">WEARING</h3>
@@ -181,7 +181,7 @@
         <p id="bag-what" role="status" aria-live="polite"></p>
         <div id="bag-actions"></div>
       </div>
-      <p id="bag-keys">ARROWS or TAB  choose   ·   ENTER  use   ·   X  drop   ·   SHIFT+X  drop all   ·   ESC  close</p>
+      <p id="bag-keys">ARROWS or TAB  choose   ·   ENTER  use   ·   X  drop   ·   SHIFT+X  drop all   ·   E or ESC  close</p>
       <button id="bag-close" type="button">CLOSE</button>
     </div>
   </div>
@@ -225,6 +225,7 @@
   <script src="js/archery.js"></script>
   <script src="js/cave.js"></script>
   <script src="js/ruin.js"></script>
+  <script src="js/tor.js"></script>
   <script src="js/dunes.js"></script>
   <script src="js/tinker.js"></script>
   <script src="js/build.js"></script>

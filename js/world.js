@@ -1,5 +1,5 @@
-const MAP_W = 480;
-const MAP_H = 360;
+const MAP_W = 640;
+const MAP_H = 480;
 // The village island is authored in its own 136x112 coordinate space, placed here in the world.
 const OX = 172;
 const OY = 124;
@@ -137,8 +137,13 @@ const ISLANDS = [
   { id: 'isletWest', x: 140, y: 246, rx: 6, ry: 5, ground: T.GRASS, beach: 2, seed: 20, islet: { trees: 'oak', loot: ['gold', 'gold', 'emerald'], note: true } },
   { id: 'isletSouth', x: 340, y: 322, rx: 7, ry: 5, ground: T.SAND, beach: 0, seed: 21, islet: { trees: 'palm', loot: ['ruby', 'emerald', 'goblet'], mark: 'speck' } },
   { id: 'isletFar', x: 446, y: 172, rx: 6, ry: 5, ground: T.JUNGLE, beach: 2, seed: 22, islet: { trees: 'palm', loot: ['crown', 'gold'], mark: 'jungle' } },
+  { id: 'tor', x: 560, y: 128, rx: 22, ry: 15, ground: T.GRASS, beach: 0, seed: 23 },
 ];
 const isle = (id) => ISLANDS.find((i) => i.id === id);
+
+// The barrow on top of Stormcrown Tor, in tiles; the skrill's egg lies on its crown. `sides` are the old scorch
+// marks east, west, north and south of it, where lightning once found metal.
+const TOR_AT = { x: isle('tor').x + 1, y: isle('tor').y - 1, sides: [[3.4, 0.2], [-3.4, 0.2], [0, -2.3], [0, 2.6]] };
 
 // The dragon roost's ground point on the hermit's isle, and the box of tiles cleared around it.
 const ROOST_AT = { x: isle('hermit').x + 14, y: isle('hermit').y - 1 };
@@ -428,6 +433,15 @@ function islandTerrain() {
   alongLine([[VOLCANO.x + 0.7, VOLCANO.y], [VOLCANO.x - 0.3, VOLCANO.y + 4], [VOLCANO.x + 1.2, VOLCANO.y + 8], [VOLCANO.x + 0.2, VOLCANO.y + 12], [VOLCANO.x + 1.2, VOLCANO.y + 18]], 0.9, lava);
   alongLine([[VOLCANO.x + 1.5, VOLCANO.y], [VOLCANO.x + 4, VOLCANO.y + 3], [VOLCANO.x + 6.5, VOLCANO.y + 5.5]], 0.8, lava);
   inBlob(VOLCANO.x + 7, VOLCANO.y + 6, 1.8, 1.2, 38, 0.4, lava);
+
+  // Stormcrown Tor: bare rock breaking through the heath, but for the ground round the barrow at the top
+  const t = isle('tor');
+  for (let y = t.y - t.ry - 3; y <= t.y + t.ry + 3; y++) {
+    for (let x = t.x - t.rx - 3; x <= t.x + t.rx + 3; x++) {
+      const near = Math.hypot((x + 0.5 - TOR_AT.x) / 7, (y + 0.5 - TOR_AT.y) / 5) < 1;
+      if (!near && tileAt(x, y) === T.GRASS && vnoise(x, y, 3, 42) > 0.7) setTile(x, y, T.ROCK);
+    }
+  }
 }
 
 function hawkTerrain() {
@@ -1665,6 +1679,7 @@ const signBy = (shop, x, y) => { addObj('shopSign', x, y).shop = shop; };
 const SOIL = {
   snowPine: [T.SNOW, T.ROCK], palm: [T.SAND, T.GRASS, T.JUNGLE], fern: [T.GRASS, T.SAND, T.JUNGLE], jungleTree: [T.JUNGLE], deadTree: [T.ASH],
   boulderDark: [T.ASH], boulderSnow: [T.SNOW, T.ROCK], iceCrystal: [T.SNOW, T.ICE], boulder: [T.ROCK, T.GRASS], stone: [T.GRASS, T.SAND, T.ROCK, T.SNOW],
+  splitTree: [T.GRASS, T.ROCK],
 };
 let homes = [];
 
@@ -2186,6 +2201,19 @@ function placeIslands() {
       if (isLand(tileAt(Math.floor(i.x + dx), Math.floor(i.y + dy - 0.01)))) addAbs(i.islet.trees, i.x + dx, i.y + dy);
     }
   }
+
+  // Stormcrown Tor: the barrow with the skrill's egg on its crown and the four old scorch marks round it, the
+  // weather-watcher's fallen lookout, glassy streaks where lightning struck the ground, and trees it split
+  const t = isle('tor');
+  const m = TOR_AT;
+  addAbs('torMound', m.x, m.y);
+  Object.assign(addAbs('egg_skrill', m.x, m.y + 0.3), { species: 'skrill', storm: true });
+  for (const [dx, dy] of m.sides) addAbs('torScorch', m.x + dx, m.y + dy);
+  addAbs('lookout', t.x - 9, t.y + 4.5);
+  for (const [x, y] of [[t.x + 8, t.y + 6], [t.x - 13, t.y - 3], [t.x + 12, t.y - 6], [t.x - 5, t.y + 9], [t.x + 16, t.y + 3]]) addAbs('glassStreak', x, y);
+  for (const [x, y] of [[t.x - 15, t.y + 4], [t.x + 14, t.y + 8], [t.x + 6, t.y - 9], [t.x - 8, t.y - 8]]) plant('boulder', x, y);
+  const clearOf = (x, y) => Math.hypot((x + OX - m.x) / 8, (y + OY - m.y) / 6) > 1 && Math.hypot(x + OX - (t.x - 9), y + OY - (t.y + 4.5)) > 3;
+  woods(t.x - t.rx, t.y - t.ry, t.x + t.rx, t.y + t.ry, 2.8, 1409, 0.5, (r) => (r < 0.55 ? 'splitTree' : 'pine2'), clearOf);
 }
 
 const colliders = [];

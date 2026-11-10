@@ -1,19 +1,20 @@
 // What bites depends on where the line goes in. The fish log keeps tally, and the fisher has a word for each first catch.
 
-// `size` is the range in cm, `where` fills the log once caught and `hint` before. Each water has its common fish
-// and a rarer one or two, which bite `RARITY` times as often.
+// `size` is the range in cm and `where` fills the log once caught. Each water has its common fish and a rarer one or
+// two, which bite `RARITY` times as often.
 const FISH = {
-  fish: { zone: 'shallows', rarity: 'common', size: [18, 32], where: 'Shallow sea, close to shore', hint: 'Cast off any beach or jetty.' },
-  mackerel: { zone: 'shallows', rarity: 'uncommon', size: [28, 46], where: 'Shallow sea, now and then', hint: 'Darts about the shallows. A shiny lure catches its eye.' },
-  cod: { zone: 'deep', rarity: 'common', size: [40, 95], where: 'Deep open sea', hint: 'Lives far out, where the water turns dark.' },
-  anglerfish: { zone: 'deep', rarity: 'rare', size: [30, 80], where: 'Deep open sea, very rarely', hint: 'Dangles its own little light, way down deep.' },
-  trout: { zone: 'lake', rarity: 'common', size: [24, 52], where: 'Lakes and rivers', hint: 'Prefers fresh water to salt.' },
-  salmon: { zone: 'lake', rarity: 'uncommon', size: [50, 95], where: 'Lakes and rivers, now and then', hint: 'A strong swimmer in fresh water. Tempt it with a lure.' },
-  eel: { zone: 'volcano', rarity: 'common', size: [50, 130], where: 'Hot sea round the fire mountain, and the hot spring', hint: 'Likes its water warm. Very warm.' },
-  emberKoi: { zone: 'volcano', rarity: 'rare', size: [35, 70], where: 'Hot water by the fire mountain, very rarely', hint: 'Glows like a coal among the fire eels.' },
-  cavefish: { zone: 'cave', rarity: 'common', size: [10, 22], where: 'The pool deep in the ice cave', hint: 'Has never once seen the sun.' },
-  crystalFish: { zone: 'cave', rarity: 'rare', size: [12, 26], where: 'The ice cave pool, very rarely', hint: 'Clear as ice. Hard to see, harder to catch.' },
-  goldenFish: { zone: 'any', rarity: 'legendary', size: [30, 48], where: 'Anywhere at all, once in a long while', hint: 'A legend. They say a golden lure helps.' },
+  fish: { zone: 'shallows', rarity: 'common', size: [18, 32], where: 'Shallow sea, close to shore' },
+  mackerel: { zone: 'shallows', rarity: 'uncommon', size: [28, 46], where: 'Shallow sea, now and then' },
+  pufferfish: { zone: 'shallows', rarity: 'rare', size: [14, 30], where: 'Shallow sea, very rarely' },
+  cod: { zone: 'deep', rarity: 'common', size: [40, 95], where: 'Deep open sea' },
+  anglerfish: { zone: 'deep', rarity: 'rare', size: [30, 80], where: 'Deep open sea, very rarely' },
+  trout: { zone: 'lake', rarity: 'common', size: [24, 52], where: 'Lakes and rivers' },
+  salmon: { zone: 'lake', rarity: 'uncommon', size: [50, 95], where: 'Lakes and rivers, now and then' },
+  eel: { zone: 'volcano', rarity: 'common', size: [50, 130], where: 'Hot sea round the fire mountain, and the hot spring' },
+  emberKoi: { zone: 'volcano', rarity: 'rare', size: [35, 70], where: 'Hot water by the fire mountain, very rarely' },
+  cavefish: { zone: 'cave', rarity: 'common', size: [10, 22], where: 'The pool deep in the ice cave' },
+  crystalFish: { zone: 'cave', rarity: 'rare', size: [12, 26], where: 'The ice cave pool, very rarely' },
+  goldenFish: { zone: 'any', rarity: 'legendary', size: [30, 48], where: 'Anywhere at all, once in a long while' },
 };
 const FISH_IDS = Object.keys(FISH);
 const RARITY = { common: 1, uncommon: 0.18, rare: 0.05 };
@@ -88,6 +89,7 @@ const FISHER_SAYS = {
   eel: 'A fire eel?! From the hot water by the volcano? Hold it by the tail, they bite!',
   cavefish: 'A cave fish... no eyes at all! Where did you find that? Brr, it\'s cold as ice.',
   mackerel: 'A mackerel! Look at those stripes. Quick little things, they go for anything shiny.',
+  pufferfish: 'A pufferfish! Look at it swell up. Mind the spines, and whatever you do, don\'t eat the wrong bit.',
   salmon: 'A salmon, from fresh water! Strong as an ox, those. You did well to land it.',
   anglerfish: 'By the gods, what IS that? An anglerfish, from the very bottom of the deep. It\'s got its own lantern!',
   emberKoi: 'An ember koi! I\'ve heard of them but never seen one. It\'s still warm!',
@@ -117,6 +119,7 @@ function fisherTip() {
     eel: 'The water round the fire mountain runs hot. Something lives in it, red as embers. Fire eels!',
     cavefish: 'The hermit swears there\'s a pool inside the ice cave on the frozen isle, with pale fish in it. Bring a torch.',
     mackerel: 'Mackerel dart about the shallows, but they\'re choosy. A feather lure or a spinner from my shack gets their attention.',
+    pufferfish: 'Now and then a pufferfish wanders into the shallows. Round as a ball and twice as grumpy. A spinner helps.',
     salmon: 'There\'s salmon in the lake, now and then. Put a lure on and be patient.',
     anglerfish: 'Out in the deep there\'s a fish with its own lantern. They say a glow lure fools it.',
     emberKoi: 'Among the fire eels by the volcano swims an ember koi, once in a blue moon. Try a glow lure.',
@@ -142,10 +145,13 @@ function silhouette(id) {
   const g = c.getContext('2d');
   g.drawImage(src, 0, 0);
   g.globalCompositeOperation = 'source-in';
-  g.fillStyle = '#2a1a0e';
+  g.fillStyle = '#000000';
   g.fillRect(0, 0, c.width, c.height);
   return (silhouettes[id] = c.toDataURL());
 }
+
+const LOG_ORDER = ['common', 'uncommon', 'rare', 'legendary'];
+const byRarity = FISH_IDS.toSorted((a, b) => LOG_ORDER.indexOf(FISH[a].rarity) - LOG_ORDER.indexOf(FISH[b].rarity));
 
 function giveFishLog() {
   bag.fishLog = 1;
@@ -154,7 +160,7 @@ function giveFishLog() {
 
 function renderFishLog() {
   fishLogSum.textContent = `${kindsCaught()} OF ${FISH_IDS.length} KINDS CAUGHT`;
-  fishLogList.replaceChildren(...FISH_IDS.map((id) => {
+  fishLogList.replaceChildren(...byRarity.map((id) => {
     const got = fishLog.caught[id];
     const li = document.createElement('li');
     li.className = got ? 'fish got' : 'fish';
@@ -163,8 +169,8 @@ function renderFishLog() {
     img.alt = '';
     img.style.width = `${SPR.icon[id].width * 3}px`;
     const name = Object.assign(document.createElement('h3'), { textContent: got ? ITEMS[id].name : '???' });
-    const where = Object.assign(document.createElement('p'), { textContent: got ? FISH[id].where : FISH[id].hint });
-    li.append(img, name, where);
+    li.append(img, name);
+    if (got) li.append(Object.assign(document.createElement('p'), { textContent: FISH[id].where }));
     if (FISH[id].rarity !== 'common') li.append(Object.assign(document.createElement('p'), { className: `rarity ${FISH[id].rarity}`, textContent: FISH[id].rarity.toUpperCase() }));
     if (got) li.append(Object.assign(document.createElement('p'), { className: 'tally', textContent: `CAUGHT ${got.n}  ·  BEST ${got.best} CM` }));
     return li;

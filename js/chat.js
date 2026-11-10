@@ -17,6 +17,7 @@ const TOPICS = [
   ['joke', /\b(joke|funny|make me laugh)\b/],
   ['dance', /\b(dance|dancing|party|celebrate)\b/],
   ['roost', /\b(roost\w*|breed\w*|mate|mating)\b/],
+  ['tor', /\b(stormcrown|tor|lightning|thunder|storms?|skrills?)\b/],
   ['eel', /\b(fire ?eels?|eels?)\b/],
   ['hatch', /\b(hatch\w*|crater|lava|incubat\w*)\b/],
   ['egg', /\b(eggs?|ruins?|ancient|towers?|nest|baby)\b/],
@@ -44,7 +45,7 @@ const TOPICS = [
 
 const TOPIC_EMOTES = {
   follow: 'exclaim', stop: 'dots', insult: 'angry', love: 'heart', thanks: 'heart', goodnight: 'note', bye: 'note',
-  yes: 'smile', no: 'dots', wares: 'smile', name: 'smile', mood: 'smile', joke: 'smile', dance: 'note', roost: 'question', eel: 'exclaim', egg: 'exclaim', hatch: 'exclaim', eggFound: 'exclaim', hatched: 'heart', grown: 'exclaim',
+  yes: 'smile', no: 'dots', wares: 'smile', name: 'smile', mood: 'smile', joke: 'smile', dance: 'note', roost: 'question', tor: 'exclaim', eel: 'exclaim', egg: 'exclaim', hatch: 'exclaim', eggFound: 'exclaim', hatched: 'heart', grown: 'exclaim',
   dragon: 'exclaim', places: 'exclaim', hunt: 'exclaim', iron: 'dots', map: 'dots', string: 'dots', dog: 'question', ship: 'dots',
   craft: 'dots', forge: 'dots', food: 'dots', clothes: 'dots', cloth: 'dots', leather: 'dots', shop: 'dots', backpack: 'question', sheep: 'question', fish: 'dots', help: 'dots', greet: 'exclaim',
   question: 'question', other: 'question',
@@ -93,6 +94,7 @@ const REPLIES = {
     grown: ['That dragon is enormous!', 'Is it true you can ride it?', 'Please ask it not to eat my sheep.'],
     dragon: ['Dragons? Haven\'t seen one in years.', 'The old hermit tells tales of dragons.'],
     eel: ['Fire eels? The fisher down at the harbour knows where they bite.', 'Eels that swim in boiling water... ask the fisher. He\'s caught one.'],
+    tor: ['Stormcrown Tor? Way out east, past the hermit\'s isle. A storm sits on it and never leaves.', 'Sailors keep clear of the Tor. Lightning strikes it twice a day, they say.'],
     places: [
       'The forest is out past the west gate. There\'s a woodcutter\'s clearing in the middle of it.',
       'The hot spring is up the east stairs from the square, on the rocks under the mountains. Lovely and warm!',
@@ -100,6 +102,7 @@ const REPLIES = {
       'The waterfall comes down off the mountains, west of the great hall.',
       'Sailors talk of a volcano to the north, a frozen isle and a jungle isle. I\'ve never been.',
       'They say there\'s an ice cave on the frozen isle, walled round with ice and dark as a troll\'s pocket. Take a torch if you go.',
+      'Sailors whisper of Stormcrown Tor, far out east. A storm that never ends, they say.',
     ],
     hunt: [
       'Deer graze in the forest past the west gate. Quick as the wind, so take a bow.',
@@ -147,6 +150,7 @@ const REPLIES = {
     name: ['Smith. I make things out of hot metal.', 'I\'m the smith. I can make all kinds of tools for you.'],
     greet: ['Oi.', 'Mind the sparks!', 'Need a tool, {lad}?'],
     wares: ['Axe, pickaxe, bow, sword, shield, spear, torch. You name it, I forge it.', 'All kinds! Axes, pickaxes, bows, swords, shields and spears.'],
+    tor: ['Lightning struck my old master\'s anvil once. Iron draws it like a lodestone draws a needle.', 'The Tor? Mad place for a forge. Every bit of metal out there fizzes in the rain.'],
     forge: [
       'Axe, pickaxe, bow, sword, shield, spear. Hand-forged, every one.',
       'Name the tool and bring me the makings. A bow\'s wood and string. Swords, spears, shields and pickaxes need iron.',
@@ -201,7 +205,7 @@ const REPLIES = {
     clothes: [
       'Off to the frozen isle? A thick fur coat: four hides and two wool, and the cold won\'t touch you.',
       'Fire eel skin doesn\'t burn. Bring me two fire eels and two wool and I\'ll make you a fireproof jacket for the volcano.',
-      'One outfit at a time, dear. Change in your bag (B) whenever you like.',
+      'One outfit at a time, dear. Change in your equipments (E) whenever you like.',
       'Every stitch by hand.',
     ],
     eel: ['Fire eel skin is the only thing that won\'t burn. Two eels and two wool and I\'ll sew you a fireproof jacket. The fisher knows where they bite.'],
@@ -359,6 +363,11 @@ const REPLIES = {
       'The jungle isle is a long way south-east. Palms as tall as masts, and snakes in the undergrowth. Watch your step!',
       'Stay clear of the ruin isle in the south-west. Two rings of reef in thick mist. Only way through is in from the east, round by the north, then in from the west.',
       'Due west lies Hawk Rock. Cliffs all round the top, and old Bjorn swore he hid his silver up there. Nobody\'s found a way up since.',
+      'Far out east, past the hermit, there\'s Stormcrown Tor. Look for the storm cloud that never shifts.',
+    ],
+    tor: [
+      'Stormcrown Tor lies far out east, past the hermit\'s isle. Look for the cloud that never moves.',
+      'Never stand about on the Tor in a storm with iron on you. Lightning goes looking for metal out there.',
     ],
     hatched: ['{dragon} keeps eyeing my fish! Fish off the side of the longship and it\'ll snatch every catch before it hits the deck.', 'Dragons and fishermen, we both love the open sea.'],
     grown: ['It ate its fill out there. Mighty beast now!'],
@@ -401,6 +410,11 @@ const REPLIES = {
     ],
     places: ['The fire mountain, the frozen isle, the jungle... I have seen them all. Each one keeps a secret.', 'Look for nests. Dragons like the wild places.', 'Under the frozen isle runs an ice cave. A ring of ice seals its mouth; only fire gets you through. Gold in its walls, mushrooms that glow... and at the very end, something precious. Wrap up warm: the cold there bites to the bone.', 'Far to the south lies the dune isle. A sphinx of stone guards a cave of treasure there, and lets by only those who answer its riddles.', 'The jungle isle\'s heart is a maze of vine trees, and snakes lie in wait in it. One bite and you\'ll lie stiff as a log. A thunderdrum nests at the very middle.', 'Old Bjorn hid his hoard in a cairn on Hawk Rock, west of your village. Cliffs, rapids, thorns... he never made anything easy. Bring tools, and your wits.'],
     dragon: ['Dragons... I once saw an egg in the ancient ruin, far to the south-west.'],
+    tor: [
+      'On Stormcrown Tor, far to the east of here, an egg sleeps on an old barrow. Only the rain brings it out.',
+      'No lava will wake the Tor\'s egg. That one wants the sky\'s own fire.',
+      'A weather-watcher kept a lookout on the Tor once. He learned what draws the lightning down, and scratched it into his post.',
+    ],
     help: ['Sail south-west to the ancient ruin. Mind the reefs, and go by night.', 'The broken walls of the ruin remember the order of the stones.'],
     ship: ['The sea brought you. It will take you back.'],
     hunt: ['Two deer share this isle with me. I never hunt them. We are old friends.'],

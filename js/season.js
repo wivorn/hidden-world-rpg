@@ -98,7 +98,7 @@ const flowerColors = () => (seasonShown < 0 ? PETALS : SEASONS[seasonShown].peta
 
 // Leafy things that turn with the seasons, and the ones that get a coat of snow in winter.
 const TURNS = new Set(['oak', 'bushPink', 'bushYellow', 'bushCut']);
-const SNOWS = new Set([...TURNS, 'pine', 'pine2', 'house', 'houseB', 'houseC', 'houseD', 'hall']);
+const SNOWS = new Set([...TURNS, 'pine', 'pine2', 'house', 'houseB', 'houseC', 'houseD', 'hall', 'torMound']);
 const turnedImgs = new Map();
 
 function seasonalImg(img, o) {

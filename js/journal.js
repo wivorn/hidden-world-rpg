@@ -62,7 +62,7 @@ const QUESTS = [
     id: 'saddle', title: 'Saddle Up', start: () => eggPast('grown'),
     steps: [
       { id: 'made', text: 'Bring the tanner 3 hides and ask for a saddle', done: () => has('saddle') || dragons.some((d) => d.saddled) },
-      { id: 'on', text: 'Stand by your grown dragon, open your bag (B) and strap the saddle on', done: () => dragons.some((d) => d.saddled) },
+      { id: 'on', text: 'Stand by your grown dragon and press SPACE to strap the saddle on', done: () => dragons.some((d) => d.saddled) },
       { id: 'fly', text: 'Climb on with SPACE and take to the skies', done: () => stats.flown > 0 },
     ],
   },
@@ -157,6 +157,14 @@ const QUESTS = [
       { id: 'hawkCache', text: 'Get through to the cairn and open Old Bjorn\'s cache', done: () => hawk.opened },
     ],
   },
+  {
+    id: 'tor', title: 'The Storm on the Tor', start: () => POIS.find((p) => p.id === 'tor').learned || stats.torLanded > 0,
+    steps: [
+      { id: 'torLanded', text: 'Go ashore on Stormcrown Tor, far out east past the hermit\'s isle', done: () => stats.torLanded > 0 },
+      { id: 'torSeen', text: 'Find what lies on the barrow at the top. It only shows in the rain', done: () => stats.torSeen > 0 },
+      { id: 'torHatched', text: 'Find a way to crack the egg', done: () => torEgg.state === 'hatched' },
+    ],
+  },
 ];
 
 const questDone = (q) => q.steps.every((s) => journal.done[s.id]);
@@ -220,6 +228,7 @@ function flashJournalButton() {
 
 function weatherName() {
   if (snowy && precipitation() > 0.05) return 'Snow';
+  if (torSky() > 0.5) return 'Storm';
   return WEATHER[weather.level > 0.4 ? weather.kind : weather.want === weather.kind ? weather.kind : 'clear'].name;
 }
 

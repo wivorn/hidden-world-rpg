@@ -341,7 +341,59 @@ function updateWhale(w, dt) {
   if (w.t > 14.4 && w.t - dt <= 14.4 && near > 0) seaSplash(w.x - w.face * 10, w.y - 2, 1.6);
 }
 
+// ---------- stunned fish ----------
+
+// Lightning in the water stuns any school it reaches: a few of its fish float up belly-up for a while, to be
+// scooped up by a dragon swooping low, and the school is back again later.
+const FLOAT_LIFE = 40;
+const FLOAT_SINK = 3;
+const SCHOOL_BACK = 90;
+const floaters = [];
+
+function stunSchool(s) {
+  if (!s.fish.length) return;
+  const n = Math.min(3, Math.ceil(s.fish.length / 2));
+  for (let i = 0; i < n; i++) {
+    const x = s.x + (Math.random() - 0.5) * 28;
+    const y = s.y + (Math.random() - 0.5) * 14;
+    floaters.push({ x, y, id: pickFish({ x, y }), t: -i * 0.15, phase: Math.random() * 6, face: Math.random() < 0.5 ? 1 : -1 });
+  }
+  Object.assign(s, { spare: s.fish, fish: [], backT: SCHOOL_BACK, jump: null });
+  seaSplash(s.x, s.y, 0.5);
+}
+
+function updateFloaters(dt) {
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const f = floaters[i];
+    f.t += dt;
+    if (f.t >= FLOAT_LIFE) floaters.splice(i, 1);
+  }
+}
+
+// Belly-up on the surface, rocking with the swell, and sinking away once their time's up.
+function drawFloaters(cx, cy) {
+  for (const f of floaters) {
+    if (f.t < 0 || !onScreen(f.x, f.y, cx, cy)) continue;
+    const img = SPR.icon[f.id];
+    const rise = Math.min(1, f.t / 0.4);
+    const sink = Math.max(0, (f.t - (FLOAT_LIFE - FLOAT_SINK)) / FLOAT_SINK);
+    const x = Math.round(f.x - cx);
+    const y = Math.round(f.y - cy + Math.sin(time * 2 + f.phase) * 0.6);
+    ctx.globalAlpha = 0.5 * rise * (1 - sink);
+    strokeRing(x, y + 1, 7 + Math.sin(time * 3 + f.phase), 2.5, '#dbe7f2');
+    ctx.globalAlpha = rise * (1 - sink);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(time * 1.6 + f.phase) * 0.12);
+    ctx.scale(f.face, -1);
+    ctx.drawImage(img, -Math.round(img.width / 2), -Math.round(img.height / 2));
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
 function updateSchool(s, dt) {
+  if (!s.fish.length && s.backT > 0 && (s.backT -= dt) <= 0) s.fish = s.spare;
   const threat = (player.swimming && !flight) ? [player.x, player.y] : shipMoving() ? [shipObj.x, shipObj.y - 6] : null;
   if (threat && s.fleeT <= 0 && Math.hypot(threat[0] - s.x, threat[1] - s.y) < (sail ? 60 : 36)) {
     const a = Math.atan2(s.y - threat[1], s.x - threat[0]);
@@ -603,6 +655,7 @@ function updateSea(dt) {
   for (const p of seaLife.pods) updatePod(p, dt);
   for (const w of seaLife.whales) updateWhale(w, dt);
   for (const s of seaLife.schools) updateSchool(s, dt);
+  updateFloaters(dt);
   for (const t of seaLife.turtles) updateTurtle(t, dt);
   for (const j of seaLife.jellies) updateJellies(j, dt);
   for (const s of seaLife.seals) updateSeal(s, dt);
@@ -670,6 +723,7 @@ function drawSeaUnder(cx, cy) {
   for (const j of seaLife.jellies) if (onScreen(j.x, j.y, cx, cy)) drawJellies(j, cx, cy);
   ctx.globalAlpha = 1;
   drawWaves(cx, cy);
+  drawFloaters(cx, cy);
 }
 
 function drawManta(m, cx, cy) {

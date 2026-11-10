@@ -1,10 +1,12 @@
 // The hotbar along the top holds every tool carried, in TOOLS order, and F uses the selected one. The backpack button
-// at the bottom left folds out the backpack's slots, and the bag (B) shows everything carried: what's worn, the tools
-// and the backpack, and uses what's in it.
+// at the bottom left (B) folds out the backpack's slots, where picking a thing takes it out to carry and X drops it;
+// the equipments (E) show everything carried: what's worn, the tools and the backpack, and use what's in it.
 
 const hotbar = [];
 // The tool F works with.
 let hand = null;
+// What the player has out of the backpack, held up over their head.
+let carriedItem = null;
 
 const hotbarEl = document.getElementById('hotbar');
 const hotbarSlots = document.getElementById('hotbar-slots');
@@ -13,7 +15,7 @@ const packEl = document.getElementById('pack');
 const packTray = document.getElementById('pack-tray');
 const packSlotsEl = document.getElementById('pack-slots');
 const packRoom = document.getElementById('pack-room');
-const packOpen = document.getElementById('pack-open');
+const equipBtn = document.getElementById('equip-btn');
 let trayOpen = localStorage.getItem('hw-tray') === '1';
 const iconUrls = {};
 const iconOf = (id) => SPR.icon[id] || SPR.ui[id];
@@ -39,7 +41,7 @@ function selectHand(i) {
 
 const pickTool = (n) => n >= 1 && selectHand(n - 1);
 
-// E and Tab step to the next tool (`step` 1), Q back (-1), wrapping round.
+// Tab steps to the next tool, Shift+Tab back, wrapping round.
 function cycleSelection(step) {
   const n = hotbar.length;
   if (n) selectHand((hotbar.indexOf(hand) + step + n) % n);
@@ -73,6 +75,8 @@ function countTag(id) {
 function renderInventory(changed) {
   const worn = has('backpack');
   packEl.hidden = !worn;
+  equipBtn.hidden = !worn;
+  if (carriedItem && !has(carriedItem)) carriedItem = null;
   syncHotbar();
   syncPack();
   hotbarEl.hidden = !worn || !hotbar.length;
@@ -112,7 +116,7 @@ function renderInventory(changed) {
   if (bagOpen) renderBag();
 }
 
-// Every slot of the backpack, the empty ones too; picking a thing opens the bag on it.
+// Every slot of the backpack, the empty ones too; picking a thing takes it out to carry, picking it again puts it back.
 function renderTray(changed) {
   packTray.hidden = !trayOpen;
   bagBtn.setAttribute('aria-expanded', String(trayOpen));
@@ -128,7 +132,9 @@ function renderTray(changed) {
     const n = countTag(id);
     if (n) btn.append(n);
     btn.title = ITEMS[id].name;
-    btn.setAttribute('aria-label', `${itemLabel(id)}, opens the bag`);
+    btn.setAttribute('aria-label', `${itemLabel(id)}, carry it`);
+    btn.setAttribute('aria-pressed', String(id === carriedItem));
+    li.classList.toggle('carried', id === carriedItem);
     if (id === changed) li.classList.add('bump');
     li.append(btn);
     return li;
@@ -142,6 +148,33 @@ function toggleTray(open = !trayOpen) {
   Sfx.drop();
 }
 
+// ---------- carrying a thing from the backpack ----------
+
+// Only shown, and only dropped, while the hands are free on solid ground.
+const handsFree = () => !carrying() && !sail && !flight && !player.swimming && !player.chop && !player.fishing && !player.cook;
+const carriedOut = () => (carriedItem && has(carriedItem) && handsFree() ? carriedItem : null);
+
+function carryItem(id) {
+  carriedItem = carriedItem === id ? null : id;
+  renderInventory();
+  Sfx.drop();
+}
+
+function putAwayItem() {
+  if (!carriedItem) return;
+  carriedItem = null;
+  renderInventory();
+}
+
+// X drops one of what's carried, Shift+X the lot; still carrying any left.
+function dropCarried(all) {
+  const id = carriedOut();
+  if (!id) return;
+  if (all) dropAll(id);
+  else dropItem(id);
+  if (!has(id)) putAwayItem();
+}
+
 hotbarSlots.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -153,16 +186,18 @@ bagBtn.addEventListener('click', () => {
   toggleTray();
   bagBtn.blur();
 });
-packOpen.addEventListener('click', () => {
-  packOpen.blur();
+equipBtn.addEventListener('click', () => {
+  equipBtn.blur();
   toggleBag(true);
 });
 packSlotsEl.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (btn) toggleBag(true, btn.dataset.item);
+  if (!btn) return;
+  carryItem(btn.dataset.item);
+  btn.blur();
 });
 
-// ---------- the bag ----------
+// ---------- the equipments ----------
 
 const bagEl = document.getElementById('bag');
 const bagClose = document.getElementById('bag-close');
@@ -187,6 +222,7 @@ function toggleBag(open = !bagOpen, pick = null) {
   if (open && (!has('backpack') || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || pileOpen)) return;
   bagOpen = open;
   bagEl.hidden = !open;
+  equipBtn.setAttribute('aria-expanded', String(open));
   document.body.classList.toggle('bag-open', open);
   keys.clear();
   Sfx.door();
@@ -337,7 +373,7 @@ function renderPick() {
     if (here && id === 'stone') out('THROW', throwStone);
     if (id === 'saddle') {
       if (nearDragon()) out('SADDLE UP', saddleUp);
-      else bagWhat.textContent += ' Stand by a grown dragon and open the bag to strap it on.';
+      else bagWhat.textContent += ' Stand by a grown dragon and press SPACE to strap it on.';
     }
     if (id === 'runeNote') btn('READ', () => toggleBag(false) || toggleNote(true));
     if (LURES[id]) bagWhat.textContent += ` ${LURES[id].note} Cast with the rod to pick a lure; it's used up when you land a fish.`;
@@ -366,7 +402,7 @@ window.addEventListener('keydown', (e) => {
   if (!bagOpen) return;
   e.stopImmediatePropagation();
   const step = e.code === 'Tab' ? (e.shiftKey ? -1 : 1) : { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.code];
-  if (e.code === 'Escape' || e.code === 'KeyB') {
+  if (e.code === 'Escape' || e.code === 'KeyE') {
     e.preventDefault();
     toggleBag(false);
   } else if (step) {

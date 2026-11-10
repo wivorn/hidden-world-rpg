@@ -12,7 +12,7 @@ function coinWords(c) {
 }
 
 // What Ottar pays for one of each, in copper.
-const PRICES = { fish: 8, mackerel: 20, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600 };
+const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600 };
 const WARES = [
   { id: 'torch', price: 35, text: 'Burns six hours once lit. For caves and dark nights.' },
   { id: 'arrow', n: 10, price: 60, text: 'A bundle of ten arrows.' },
@@ -83,7 +83,7 @@ const SHOPS = {
     ],
     browse: 'Bring me the makings and I\'ll sew you something. Mind, fire eel skin isn\'t easy to come by!',
     hello: 'Something warm, or something fireproof? Have a look.',
-    sold: 'There you are! Open your bag and try it on.',
+    sold: 'There you are! Open your equipments and try it on.',
     bye: 'Wear it well!',
   },
   weaver: {

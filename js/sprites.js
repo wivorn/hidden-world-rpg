@@ -843,19 +843,24 @@ function buildTunicIcon(colour) {
   ], { C: '#c9ae84', T: colour, d: shade(colour, -0.25), L: '#5a3a1e' });
 }
 
+// A horse saddle seen from the side: the horn up front, the cantle behind, the skirt over a red blanket, and the
+// fender hanging down to its stirrup.
 function buildSaddleIcon() {
   return pixmap([
-    '.L..........',
-    'LLL......DD.',
-    '.LSSSSSSSDD.',
-    '..SsssssSSD.',
-    '.RRRRRRRRRR.',
-    'RrRRRRRRRRrR',
-    'R.RRRRRRRR.R',
-    '...B....B...',
-    '...B....B...',
-    '..GGG..GGG..',
-  ], { L: '#5a3418', D: '#5a3418', S: '#8a5428', s: '#b07a48', R: '#b83a2a', r: '#7e2218', B: '#4a2c14', G: '#e8d890' });
+    '..........KKK.',
+    '..........KhK.',
+    '..KKK......K..',
+    '.KhhSK....KSK.',
+    '.KhSSSKKKKSSK.',
+    '..KSShhhhhSSK.',
+    'KKDDDDDDDDDDDK',
+    'KDDDDDDKFFKDK.',
+    'RKDDDDDKFFKDK.',
+    'RRKKKKKKFFKK..',
+    'rrrrrrrKFFK...',
+    '......KK..KK..',
+    '......KhhhhK..',
+  ], { K: '#3a2210', h: '#d09a5e', S: '#9a5e2c', D: '#7a4620', F: '#5a3418', R: '#b83a2a', r: '#7e2218' });
 }
 
 function buildToolBelt() {
@@ -942,6 +947,21 @@ function buildUiIcons() {
       '....LLLL....',
       '............',
     ], { P: '#f2dca8', L: '#cfae6e', X: '#d0342c', d: '#7a4a22' }),
+    // a tunic with its belt, for what's worn and carried
+    equip: pixmap([
+      '............',
+      '..TTT..TTT..',
+      '.TTTTddTTTT.',
+      'TTTTTddTTTTT',
+      'TTTTTddTTTTT',
+      'TT.TTddTT.TT',
+      '...TTddTT...',
+      '...LLGGLL...',
+      '...TTddTT...',
+      '...TTddTT...',
+      '...TTTTTT...',
+      '............',
+    ], { T: '#4a78b8', d: '#2f5288', L: '#5a3418', G: '#ffd36b' }),
     fishLog: pixmap([
       '............',
       '............',
@@ -1246,6 +1266,102 @@ function buildDeadTree() {
   });
 }
 
+// ---------- Stormcrown Tor ----------
+
+const GLASS = ['#d8f4ff', '#8fd0e8', '#5a8aa0'];
+
+// Branching lines of fused glass from (x, y) out along `a` radians, `len` long, forking `forks` times.
+function glassVein(g, x, y, a, len, forks, r) {
+  let px0 = x;
+  let py0 = y;
+  for (let s = 0; s < len; s += 3) {
+    a += (r() - 0.5) * 0.9;
+    const x1 = px0 + Math.cos(a) * 3;
+    const y1 = py0 + Math.sin(a) * 1.6;
+    line(g, px0, py0, x1, y1, s < len / 2 ? GLASS[0] : GLASS[1]);
+    if (forks > 0 && r() < 0.18) glassVein(g, x1, y1, a + (r() < 0.5 ? -0.9 : 0.9), (len - s) * 0.6, forks - 1, r);
+    px0 = x1;
+    py0 = y1;
+  }
+}
+
+// The barrow: a low dome of turf ringed with old kerb stones, its crown burnt bare and veined with glass.
+function buildTorMound() {
+  return sprite(80, 34, (g) => {
+    ellipse(g, 40, 19, 38, 14, PAL.grassDark);
+    ellipse(g, 40, 17, 36, 13, PAL.grass);
+    ellipse(g, 38, 13, 26, 8, PAL.grassLight);
+    ellipse(g, 40, 16, 13, 5, '#3a3428');
+    ellipse(g, 40, 16, 9, 3, '#24201a');
+    const r = mulberry32(71);
+    for (let i = 0; i < 6; i++) glassVein(g, 40, 16, (i / 6) * Math.PI * 2 + r() * 0.5, 9 + r() * 5, 1, r);
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2 + 0.2;
+      const x = 40 + Math.cos(a) * 35;
+      const y = 19 + Math.sin(a) * 12.5;
+      ellipse(g, x, y, 2.2, 1.6, PAL.rockDark);
+      ellipse(g, x - 0.5, y - 0.6, 1.4, 0.9, PAL.rockLight);
+    }
+    for (const [x, y] of [[18, 12], [60, 14], [28, 24], [54, 25], [12, 19], [68, 20]]) px(g, x, y, PAL.grassTuft);
+  }, false);
+}
+
+// Burnt black where a bolt found metal once, with a bead of glass and a fleck of rust at its heart.
+function buildTorScorch() {
+  return sprite(26, 12, (g) => {
+    ellipse(g, 13, 6, 12, 5, '#3c3a2c');
+    ellipse(g, 13, 6, 8, 3, '#262218');
+    const r = mulberry32(73);
+    for (let i = 0; i < 5; i++) glassVein(g, 13, 6, (i / 5) * Math.PI * 2 + r(), 6 + r() * 4, 0, r);
+    rect(g, 12, 5, 3, 2, '#8a4a2e');
+    px(g, 13, 5, '#b0603a');
+  }, false);
+}
+
+// Sand and soil fused to glass along a strike's path, forking as it ran.
+function buildGlassStreak() {
+  return sprite(36, 14, (g) => {
+    const r = mulberry32(79);
+    ellipse(g, 6, 7, 4, 2, '#3c3a2c');
+    glassVein(g, 6, 7, 0.1, 30, 2, r);
+    glassVein(g, 6, 7, -0.5, 14, 1, r);
+    px(g, 6, 7, '#ffffff');
+  }, false);
+}
+
+// A pine that lightning split down the middle, both halves charred and leaning apart.
+function buildSplitTree() {
+  return sprite(26, 40, (g) => {
+    const bark = '#3a2e28';
+    const char = '#1e1814';
+    poly(g, [[10, 39], [13, 39], [12, 18], [6, 6], [5, 8], [10, 20]], bark);
+    poly(g, [[13, 39], [16, 39], [16, 20], [21, 9], [20, 7], [13, 18]], bark);
+    line(g, 10, 38, 7, 9, char);
+    line(g, 15, 38, 19, 10, char);
+    line(g, 12, 30, 14, 20, '#d8c8a0');
+    for (const [x0, y0, x1, y1] of [[8, 14, 3, 10], [7, 10, 2, 4], [18, 14, 24, 11], [19, 11, 23, 4]]) line(g, x0, y0, x1, y1, bark);
+    px(g, 13, 19, '#ff8a2a');
+  });
+}
+
+// What's left of the weather-watcher's lookout: two posts, one snapped, a fallen platform and a rusted vane.
+function buildLookout() {
+  return sprite(34, 42, (g) => {
+    rect(g, 6, 6, 3, 35, PAL.woodDark);
+    rect(g, 6, 6, 1, 35, PAL.wood);
+    rect(g, 25, 22, 3, 19, PAL.woodDark);
+    rect(g, 25, 22, 1, 19, PAL.wood);
+    poly(g, [[25, 22], [28, 22], [27, 19], [26, 21]], '#1e1814');
+    line(g, 8, 14, 26, 30, PAL.woodDark, 2);
+    poly(g, [[2, 36], [20, 30], [32, 34], [14, 41]], PAL.wood);
+    for (let i = 0; i < 4; i++) line(g, 5 + i * 6, 35 - i * 1.5, 11 + i * 6, 39 - i * 1.5, PAL.woodDark);
+    rect(g, 7, 1, 1, 6, '#6a3a24');
+    poly(g, [[8, 2], [14, 3], [8, 5]], '#8a4a2e');
+    px(g, 11, 3, '#b0603a');
+    for (const [x, y] of [[8, 20], [7, 27], [8, 32]]) px(g, x, y, '#2a1a10');
+  });
+}
+
 function buildColumn() {
   return sprite(16, 34, (g) => {
     rect(g, 2, 28, 12, 5, PAL.rockDark);
@@ -1379,6 +1495,13 @@ const DRAGON_SPECIES = {
     belly: '#c8e07a', horn: '#f0e4b0', look: { horns: 'horns', spines: 'spikes', tail: 'spade', tips: true },
     egg: { base: '#4f8a2e', light: '#6aa83a', speck: '#f0a23a', speckDark: '#2f5a1a', shine: '#fff0a0', gloss: '#a8d45a', glow: '#ffc25a' },
     breath: ['#ff8a2a', '#fff0a0', '#d6421a'],
+  },
+  skrill: {
+    name: 'Skrill', defaultName: 'Volt',
+    body: '#4b4a78', dark: '#2b2a4c', light: '#7f84c0', wing: '#3a3966', eye: '#eaf6ff', fin: '#7fd8ff', glint: '#ffffff',
+    belly: '#6a70a8', horn: '#cfe8ff', look: { horns: 'horns', spines: 'spikes', tail: 'spade', marks: 'stripes', tips: true },
+    egg: { base: '#3a3f66', light: '#555c8c', speck: '#bfe8ff', speckDark: '#22264a', shine: '#ffffff', gloss: '#8fa6e0', glow: '#9fdcff' },
+    breath: ['#8fdcff', '#ffffff', '#3f7fff'],
   },
 };
 
@@ -2222,6 +2345,23 @@ function buildFishKind({ body, belly, fin, len = 5, tall = 3, spots, stripe, eye
     for (const [x, y] of spots || []) px(g, x, y, fin);
     if (shine) for (const [x, y] of [[4, cy - 1], [len, cy - tall + 2], [len + 3, cy - 1]]) px(g, x, y, shine);
     if (eye) px(g, 3, cy - 1, '#10141c');
+  });
+}
+
+// Puffed up round, facing left with the rest: spines all over, a little tail, and big worried eyes.
+function buildPufferfish() {
+  return sprite(15, 13, (g) => {
+    poly(g, [[10, 6], [14, 3], [14, 9]], '#a8782a');
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + 0.2;
+      px(g, Math.round(6 + Math.cos(a) * 5.6), Math.round(6 + Math.sin(a) * 5.6), '#7a5420');
+    }
+    ellipse(g, 6, 6, 5, 5, '#e2bc52');
+    ellipse(g, 6, 8, 3.6, 2.6, '#f8ecc4');
+    for (const [x, y] of [[5, 2], [8, 3], [9, 5], [7, 4]]) px(g, x, y, '#8a5c22');
+    px(g, 3, 4, '#ffffff');
+    rect(g, 3, 5, 2, 1, '#10141c');
+    px(g, 1, 7, '#a8482a');
   });
 }
 
@@ -4317,6 +4457,7 @@ function buildSprites() {
     cavefish: buildFishKind({ body: '#e8d4d4', belly: '#fff4f4', fin: '#c8a8b0', len: 4, tall: 2.5, eye: false }),
     goldenFish: buildFishKind({ body: '#f2c03a', belly: '#fff0a0', fin: '#c88a1a', len: 5, tall: 3, shine: '#ffffff' }),
     mackerel: buildFishKind({ body: '#3e7a8a', belly: '#d8e8e8', fin: '#24505e', len: 6, tall: 2.5, spots: [[5, 1], [7, 2], [9, 1], [11, 2]] }),
+    pufferfish: buildPufferfish(),
     salmon: buildFishKind({ body: '#a8a0a4', belly: '#f4a890', fin: '#6a6268', len: 7, tall: 3, spots: [[6, 2], [9, 2], [12, 3]] }),
     anglerfish: buildAnglerfish(),
     emberKoi: buildFishKind({ body: '#ff7a2a', belly: '#ffe0a0', fin: '#c83a14', len: 5, tall: 3, spots: [[5, 2], [8, 3], [10, 2]], shine: '#fff0c0' }),
@@ -4448,6 +4589,15 @@ function buildSprites() {
   def('boulderDark', { img: buildBoulder('dark'), foot: { w: 24, h: 8 }, shadow: { rx: 13, ry: 3 } });
   def('deadTree', { img: buildDeadTree(), foot: { w: 6, h: 4 }, shadow: { rx: 8, ry: 2 } });
   def('column', { img: buildColumn(), foot: { w: 12, h: 5 }, shadow: { rx: 7, ry: 2 } });
+  // flat things lie on the ground under everything else, whichever side of them it stands
+  const mound = buildTorMound();
+  def('torMound', { img: mound, oy: 17, flat: true });
+  const scorch = buildTorScorch();
+  def('torScorch', { img: scorch, oy: 6, flat: true });
+  const streak = buildGlassStreak();
+  def('glassStreak', { img: streak, ox: 6, oy: 7, flat: true });
+  def('splitTree', { img: buildSplitTree(), foot: { w: 8, h: 4 }, shadow: { rx: 9, ry: 3 } });
+  def('lookout', { img: buildLookout(), foot: { w: 28, h: 7 }, shadow: { rx: 16, ry: 3 } });
   def('ruinWall', { img: buildRuinWall(), foot: { w: 32, h: 6 }, after: (g, x, y, t, o) => drawWallCarving(g, x, y, t, o) });
   const nest = buildNest();
   def('nest', { img: nest, oy: nest.height - 4 });

@@ -206,6 +206,18 @@ const Sfx = (() => {
       noise({ dur: 0.25, vol: 0.12 * k, f0: 2400, f1: 300, delay });
       noise({ dur: 2.8, vol: 0.2 * k, f0: 220, f1: 50, delay: delay + 0.08, attack: 0.1 });
     },
+    // a crackle of static, and a bolt striking close by
+    zap(k = 1) {
+      noise({ dur: 0.16, vol: 0.07 * k, f0: 6500, f1: 2600, type: 'highpass', attack: 0.004 });
+      tone({ type: 'square', f0: rand(900, 1400), f1: 260, dur: 0.1, vol: 0.025 * k });
+      tone({ type: 'sawtooth', f0: 90, f1: 120, dur: 0.22, vol: 0.025 * k, delay: 0.02 });
+    },
+    strike(k = 1) {
+      noise({ dur: 0.12, vol: 0.32 * k, f0: 9000, f1: 1500, type: 'highpass' });
+      noise({ dur: 0.5, vol: 0.28 * k, f0: 3200, f1: 200, delay: 0.02 });
+      noise({ dur: 3.6, vol: 0.34 * k, f0: 260, f1: 40, delay: 0.06, attack: 0.04 });
+      tone({ type: 'sine', f0: 72, f1: 28, dur: 1.4, vol: 0.26 * k, delay: 0.03 });
+    },
     sizzle(k = 1) { noise({ dur: 0.5, vol: 0.035 * k, f0: 5200, f1: 3000, type: 'bandpass', q: 0.8, attack: 0.08 }); },
     yawn() { tone({ type: 'triangle', f0: 320, f1: 180, dur: 0.9, vol: 0.06, attack: 0.25 }); },
 
@@ -283,6 +295,10 @@ const Sfx = (() => {
       } else if (el === 'sonic') {
         tone({ f0: 90, f1: 35, dur: 0.6, vol: 0.25 * k });
         noise({ dur: 0.7, vol: 0.22 * k, f0: 600, f1: 80 });
+      } else if (el === 'lightning') {
+        noise({ dur: 0.08, vol: 0.26 * k, f0: 8000, f1: 2000, type: 'highpass' });
+        noise({ dur: 0.5, vol: 0.18 * k, f0: 1800, f1: 120, delay: 0.02 });
+        for (let i = 0; i < 3; i++) noise({ dur: 0.03, vol: 0.06 * k, f0: 5000, type: 'bandpass', q: 3, delay: 0.08 + i * rand(0.04, 0.09) });
       } else {
         tone({ f0: 140, f1: 40, dur: 0.45, vol: 0.22 * k });
         noise({ dur: 0.55, vol: 0.28 * k, f0: 900, f1: 90 });

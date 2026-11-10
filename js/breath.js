@@ -2,9 +2,10 @@
 
 // Every kind of dragon breathes its own element. Plasma blasts things apart and its beam burns through trees, fire
 // sets things alight, frost turns the ground to ice for a while, snows over trees, freezes animals and puts fires
-// out, and the Thunderdrum's roar is a wall of sound that knocks things flat.
+// out, the Thunderdrum's roar is a wall of sound that knocks things flat, and the Skrill's lightning strikes the
+// moment it's breathed, setting trees alight and blasting the rest.
 // Bred dragons take theirs from the colour of their breath.
-const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire' };
+const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning' };
 
 // `reach`, `speed` and `size` scale the fireball, and `radius` is how far its blast reaches. A beam runs out to
 // `len`, strikes the ground every `step` along its sweep from `tilt[0]` to `tilt[1]` radians below level over
@@ -14,6 +15,10 @@ const BREATHS = {
   fire: { reach: 0.75, speed: 0.85, size: 1.2, radius: 24, beam: { len: 210, step: 14, time: 1, tilt: [0.85, -0.1], width: 1.6 } },
   frost: { reach: 1.25, speed: 1.3, size: 0.85, radius: 22, beam: { len: 380, step: 14, time: 1.3, tilt: [0.6, -0.15], width: 0.7 } },
   sonic: { reach: 1, speed: 1.15, size: 1.1, radius: 34, beam: { len: 260, step: 24, time: 0.9, tilt: [0.75, -0.2], width: 2.2 } },
+  // no beam: a tap strikes `bolt.tap` ahead, nearer to farther with the charge; let go at the full, the storm's
+  // ring spans from halfway to the farthest tap, `bolt.lift` up the screen, striking up to `bolt.targets` things
+  // in it and `bolt.strikes` more round it.
+  lightning: { reach: 1, speed: 1, size: 1, radius: 26, bolt: { tap: [90, 290], lift: 20, targets: 10, strikes: 8 } },
 };
 
 function breathOf(species) {
@@ -47,7 +52,8 @@ function releaseBreath() {
   if (!f || f.charge == null) return;
   const c = f.charge;
   f.charge = null;
-  if (c >= 1) beamBreath(f);
+  if (BREATH === 'lightning') boltBreath(f, c);
+  else if (c >= 1) beamBreath(f);
   else breatheFire(f, c);
 }
 
@@ -77,6 +83,177 @@ function beamBreath(f) {
   const face = f.face || f.dir;
   beams.push({ face, dir: FACE_VEC[face], t: 0, hit: null, last: null, pal: PLASMA, el: BREATH });
   Sfx.beam(BREATH);
+}
+
+// ---------- lightning ----------
+
+// Lightning has no ball to fly: a bolt cracks from the mouth to where a fireball would have landed, and strikes
+// there at once. Let go at the full charge, it calls down a storm instead (see stormBolt).
+const BOLT_TIME = 0.35;
+const STORM_TIME = 0.7;
+const bolts = [];
+
+function boltBreath(f, c) {
+  if (c >= 1) return stormBolt(f);
+  f.fireCd = 0.35;
+  const face = f.face || f.dir;
+  const [dx, dy] = FACE_VEC[face];
+  const [x0, y0, h0] = mouthAt(f, face);
+  const [near, far] = BREATHS.lightning.bolt.tap;
+  const reach = near + (far - near) * c;
+  strikeBolt({ x0, y0, h0, face }, x0 + dx * reach, y0 + dy * reach, PLASMA, true);
+  Sfx.zap(1.4);
+}
+
+// The storm: a great bolt three quarters of the way to the full reach, and a ring of lightning round it from
+// halfway out to the farthest point. Everything inside is struck: bolts fork out from the middle to whatever stands in the ring, and to
+// `bolt.strikes` points spread evenly round it.
+function stormBolt(f) {
+  const B = BREATHS.lightning.bolt;
+  f.fireCd = 0.9;
+  const face = f.face || f.dir;
+  const [dx, dy] = FACE_VEC[face];
+  const [x0, y0, h0] = mouthAt(f, face);
+  const far = B.tap[1];
+  const r = far / 4;
+  const x = x0 + dx * (far - r);
+  const y = y0 + dy * (far - r) - B.lift;
+  shockWater(x, y, SHOCK_REACH, r);
+  const main = strikeBolt({ x0, y0, h0, face }, x, y, PLASMA, true, 1.6);
+  main.ring = r;
+  main.life = STORM_TIME;
+  const turn = Math.random() * Math.PI * 2;
+  const spread = Array.from({ length: B.strikes }, (_, i) => {
+    const a = turn + (i / B.strikes) * Math.PI * 2;
+    return { x: x + Math.cos(a) * r * 0.7, y: y + Math.sin(a) * r * 0.7 };
+  });
+  const inside = [...prey().filter((a) => alive(a)), ...hittables.filter((o) => kindOf(o))]
+    .filter((o) => Math.hypot(o.x - x, o.y - y) < r)
+    .slice(0, B.targets);
+  for (const to of [...inside, ...spread]) {
+    main.forks.push([to.x, to.y]);
+    breathHit(to.x, to.y, 'lightning', PLASMA, false);
+  }
+  for (const a of prey()) if (alive(a) && huntable(a) && Math.hypot(a.x - x, a.y - y) < r) hurtAnimal(a, 99);
+  for (let i = 0; i < 2; i++) particles.push({ type: 'ring', layer: 'water', x, y, vx: 0, vy: 0, r: r * 0.4, grow: r * 1.4, flat: 1, pal: [PLASMA[0]], life: -i * 0.12, max: 0.5 });
+  weather.flash = Math.max(weather.flash, 0.7);
+  Sfx.strike(0.7);
+}
+
+// `from` is the mouth: on the ridden dragon it follows the dragon for as long as the bolt shows.
+function strikeBolt(from, x, y, pal, big, width = 1, hunt = false) {
+  const b = { from, x, y, pal, t: 0, width, pts: null, forks: [] };
+  bolts.push(b);
+  if (hunt) huntBlast(x, y);
+  breathHit(x, y, 'lightning', pal, big);
+  return b;
+}
+
+function boltStart(b) {
+  if (b.from.face && flight) return mouthAt(flight, b.from.face);
+  return [b.from.x0, b.from.y0, b.from.h0];
+}
+
+function sparksAt(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const v = 40 + Math.random() * 70;
+    particles.push({ type: 'spark', layer: 'sky', x, y: y - 3, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6 - 30, c: '#ffffff', c2: PLASMA[0], life: 0, max: 0.3 + Math.random() * 0.25 });
+  }
+}
+
+function updateBolts(dt) {
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    const b = bolts[i];
+    b.t += dt;
+    if (b.t >= (b.life || BOLT_TIME)) bolts.splice(i, 1);
+  }
+  updateShocks(dt);
+}
+
+// Lightning in the water doesn't stop where it lands: it jumps tile to tile out across the water round it, up to
+// `reach` tiles away, reaching each SHOCK_STEP after the one before and crackling there for SHOCK_SHOW. Any school
+// of fish it reaches is stunned and floats up. A storm lights all the water within `area` px of where it lands the
+// moment it hits, and the shock runs on `reach` tiles past that. A strike landing in water a shock has only just
+// lit is part of that shock.
+const SHOCK_REACH = 4;
+const SHOCK_STEP = 0.06;
+const SHOCK_SHOW = 0.3;
+const shocks = [];
+
+function shockWater(x, y, reach, area = 0) {
+  const tx = Math.floor(x / TILE);
+  const ty = Math.floor((y - 1) / TILE);
+  const key = (a, b) => b * MAP_W + a;
+  if (shocks.some((s) => s.t === 0 && s.seen.has(key(tx, ty)))) return;
+  const seen = new Map();
+  const a = Math.ceil(area / TILE);
+  for (let j = -a; j <= a; j++) {
+    for (let i = -a; i <= a; i++) {
+      if (Math.hypot(i, j) * TILE > area || !inBounds(tx + i, ty + j) || !isWet(tileAt(tx + i, ty + j))) continue;
+      seen.set(key(tx + i, ty + j), { tx: tx + i, ty: ty + j, d: 0, from: null });
+    }
+  }
+  if (!seen.size) return;
+  const queue = [...seen.values()];
+  const max = area / TILE + reach;
+  while (queue.length) {
+    const t = queue.shift();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = t.tx + dx;
+      const ny = t.ty + dy;
+      if (seen.has(key(nx, ny)) || Math.hypot(nx - tx, ny - ty) > max || !inBounds(nx, ny) || !isWet(tileAt(nx, ny))) continue;
+      const n = { tx: nx, ty: ny, d: t.d + 1, from: t };
+      seen.set(key(nx, ny), n);
+      queue.push(n);
+    }
+  }
+  const tiles = [...seen.values()];
+  const schools = seaLife.schools
+    .map((s) => ({ s, at: seen.get(key(Math.floor(s.x / TILE), Math.floor(s.y / TILE))) }))
+    .filter((o) => o.at && o.s.fish.length);
+  shocks.push({ tiles, seen, schools, t: 0, end: Math.max(...tiles.map((t) => t.d)) * SHOCK_STEP + SHOCK_SHOW });
+  Sfx.sizzle((area ? 2.5 : 1.5) * earshot(x, y));
+}
+
+function updateShocks(dt) {
+  for (let i = shocks.length - 1; i >= 0; i--) {
+    const s = shocks[i];
+    s.t += dt;
+    for (const o of s.schools) {
+      if (o.done || s.t < o.at.d * SHOCK_STEP) continue;
+      o.done = true;
+      stunSchool(o.s);
+    }
+    const live = s.tiles.filter((t) => s.t >= t.d * SHOCK_STEP && s.t < t.d * SHOCK_STEP + SHOCK_SHOW);
+    if (live.length && Math.random() < dt * 30) {
+      const t = live[Math.floor(Math.random() * live.length)];
+      particles.push({ type: 'spark', layer: 'sky', x: (t.tx + Math.random()) * TILE, y: (t.ty + Math.random()) * TILE, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 30, c: '#ffffff', c2: '#7fd8ff', life: 0, max: 0.25 });
+    }
+    if (s.t >= s.end) shocks.splice(i, 1);
+  }
+}
+
+// Each tile glows as the shock reaches it, with an arc jumping across from the tile it came from.
+function drawShocks(cx, cy) {
+  const mid = (t) => [(t.tx + 0.5) * TILE, (t.ty + 0.5) * TILE];
+  for (const s of shocks) {
+    for (const t of s.tiles) {
+      const u = (s.t - t.d * SHOCK_STEP) / SHOCK_SHOW;
+      if (u < 0 || u >= 1) continue;
+      const bright = 1 - u;
+      const [x, y] = mid(t);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.35 * bright;
+      ellipse(ctx, Math.round(x - cx), Math.round(y - cy), 8, 5, '#3f7fff');
+      ctx.globalCompositeOperation = 'source-over';
+      if (t.from && Math.random() < 0.8) {
+        const [fx, fy] = mid(t.from);
+        strokeJag(jag(fx, fy, x, y, 3, 4), cx, cy, bright * 0.8);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 // The beam stays fixed to the mouth and keeps its heading while it lasts, shooting out to full length in BEAM_REACH.
@@ -158,12 +335,15 @@ function updateCharge(f, dt) {
     const a = Math.random() * Math.PI * 2;
     const r = 12 + Math.random() * 10;
     const life = 0.25;
-    particles.push({ type: 'plasma', layer: 'sky', x: x + Math.cos(a) * r, y: y - h + Math.sin(a) * r, vx: f.vx - (Math.cos(a) * r) / life, vy: f.vy - (Math.sin(a) * r) / life, pal: PLASMA, life: 0, max: life });
+    const p = { x: x + Math.cos(a) * r, y: y - h + Math.sin(a) * r, vx: f.vx - (Math.cos(a) * r) / life, vy: f.vy - (Math.sin(a) * r) / life, life: 0, max: life };
+    if (BREATH === 'lightning') particles.push({ ...p, type: 'spark', layer: 'sky', c: '#ffffff', c2: PLASMA[0] });
+    else particles.push({ ...p, type: 'plasma', layer: 'sky', pal: PLASMA });
   }
 }
 
 function updateFireballs(dt) {
   updateBeams(dt);
+  updateBolts(dt);
   updateMarks(dt);
   for (let i = fireballs.length - 1; i >= 0; i--) {
     const b = fireballs[i];
@@ -219,6 +399,13 @@ function hitWater(x, y, el, big, near, beam) {
     for (let i = 0; i < (big ? 8 : 2); i++) particles.push({ type: 'chip', x, y: y - 2, vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 30, c: [PAL.iceLight, '#ffffff'][i % 2], life: 0, max: 0.4 });
     return;
   }
+  if (el === 'lightning') {
+    seaSplash(x, y - 2, big ? 1 : 0.5);
+    sparksAt(x, y, big ? 16 : 6);
+    for (let i = 0; i < (big ? 2 : 1); i++) particles.push({ type: 'ring', layer: 'water', x, y, vx: 0, vy: 0, r: 3, grow: big ? 40 : 22, flat: 0.45, pal: [PLASMA[0]], life: -i * 0.08, max: 0.4 });
+    shockWater(x, y, big ? SHOCK_REACH : SHOCK_REACH / 2);
+    return;
+  }
   if (el === 'sonic') {
     seaSplash(x, y - 2, big ? 2.2 : 1);
     if (big) splash(x, y);
@@ -252,8 +439,14 @@ function hitGround(x, y, el, pal, big, tile, beam) {
     return;
   }
   const cold = tile === T.SNOW || tile === T.ICE;
-  if (el === 'plasma' || el === 'fire') thawGround(x, y, BREATHS[el].radius * (big ? 1 : 0.7));
-  if (el === 'plasma') {
+  if (el !== 'frost' && el !== 'sonic') thawGround(x, y, BREATHS[el].radius * (big ? 1 : 0.7));
+  if (el === 'lightning') {
+    sparksAt(x, y, big ? 22 : 8);
+    if (big) {
+      particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, pal, life: 0, max: 0.35 });
+      for (let i = 0; i < 3; i++) particles.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 8, y: y - 4, vx: (Math.random() - 0.5) * 10, vy: -14 - Math.random() * 8, life: 0, max: 1.2 });
+    }
+  } else if (el === 'plasma') {
     burst(x, y - 3, pal, big ? 36 : 8, big ? 90 : 50);
     if (big) {
       particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, pal, life: 0, max: 0.45 });
@@ -304,8 +497,9 @@ function affect(x, y, el, r, beam) {
       shedLeaves(o, 3);
     } else if (k === 'bramble' || k === 'log') {
       ignite(o, Math.random() * 0.2);
-    } else if (el === 'fire') {
+    } else if (el === 'fire' || el === 'lightning') {
       if (k === 'tree' || k === 'bush') ignite(o, Math.random() * 0.3, true);
+      else if (el === 'lightning') blastApart(o, k);
     } else {
       blastApart(o, k);
     }
@@ -642,6 +836,8 @@ function drawFireballs(cx, cy) {
   ctx.globalCompositeOperation = 'source-over';
   for (const b of fireballs) drawBall(b, Math.round(b.x - cx), Math.round(b.y - b.h - cy));
   drawBeams(cx, cy);
+  drawShocks(cx, cy);
+  drawBolts(cx, cy);
   drawCharge(cx, cy);
 }
 
@@ -762,6 +958,60 @@ function drawSoundBeam(b, pts, fade) {
     strokeRing(x, y, 2 + 2 * u, 5 + 10 * u, b.pal[1], 2, rot);
     strokeRing(x, y, 1 + 2 * u, 3 + 8 * u, b.pal[0], 1, rot);
   }
+}
+
+// A jagged bolt from the mouth to the strike, re-forked every few frames; it flashes, dims, then flashes back
+// down the same channel before it fades.
+function drawBolts(cx, cy) {
+  for (const b of bolts) {
+    const [x0, y0, h0] = boltStart(b);
+    const sx = x0;
+    const sy = y0 - h0;
+    const len = Math.hypot(b.x - sx, b.y - sy);
+    if (!b.pts || Math.random() < 0.3) {
+      b.pts = jag(sx, sy, b.x, b.y, Math.max(4, Math.round(len / 14)), 6 * b.width);
+      b.forkPts = b.forks.map(([fx, fy]) => {
+        const from = b.ring ? [b.x, b.y] : b.pts[Math.max(1, b.pts.length - 2 - Math.floor(Math.random() * 3))];
+        return jag(from[0], from[1], fx, fy, 5, 6);
+      });
+      if (b.ring) b.ringPts = ringJag(b.x, b.y, b.ring);
+    }
+    const u = b.t / (b.life || BOLT_TIME);
+    const on = u < 0.3 || (u > 0.45 && u < 0.6);
+    const bright = on ? 1 : 0.35 * (1 - u);
+    const r = Math.round(16 * b.width);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = bright;
+    ctx.drawImage(glowSprite(r, b.pal[0]), Math.round(b.x - cx) - r, Math.round(b.y - cy) - r);
+    ctx.drawImage(glowSprite(10, b.pal[0]), Math.round(sx - cx) - 10, Math.round(sy - cy) - 10);
+    if (b.width > 1) {
+      ctx.globalAlpha = 0.35 * bright;
+      strokePath(b.pts.map(([x, y]) => [Math.round(x - cx), Math.round(y - cy)]), 7, b.pal[0]);
+    }
+    if (b.ring) {
+      ctx.globalAlpha = 0.25 * bright;
+      ellipse(ctx, Math.round(b.x - cx), Math.round(b.y - cy), b.ring, b.ring, b.pal[2]);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    if (b.ring) strokeJag(b.ringPts, cx, cy, bright * 0.9);
+    strokeJag(b.pts, cx, cy, bright);
+    if (b.width > 1) strokeJag(b.pts.map(([x, y]) => [x + 1, y]), cx, cy, bright * 0.7);
+    for (const f of b.forkPts) strokeJag(f, cx, cy, bright * 0.75);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A closed, jagged ring of lightning of radius `r` round (x, y).
+function ringJag(x, y, r) {
+  const n = Math.max(12, Math.round(r / 4));
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const k = i === n ? 1 : 1 + (Math.random() - 0.5) * 0.12;
+    pts.push([x + Math.cos(a) * r * k, y + Math.sin(a) * r * k]);
+  }
+  pts[n] = pts[0];
+  return pts;
 }
 
 // A ball of breath swelling at the mouth, and a meter over the rider that flashes once the beam is ready.

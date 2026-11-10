@@ -38,10 +38,10 @@ function seamstressHears(n, text) {
   if (id === 'fireJacket') stats.jacketAsked = 1;
   npcSay(n, id === 'fireJacket'
     ? outfit === id ? 'That fireproof jacket will see you right, dear. Fire eel skin: nothing burns it.'
-      : has(id) ? 'Off to the fire mountain? Put on the fireproof jacket I made you first, dear. Open your bag (B) and wear it.'
+      : has(id) ? 'Off to the fire mountain? Put on the fireproof jacket I made you first, dear. Open your equipments (E) and wear it.'
         : `Fire? The volcano?! Not in that tunic, dear. You'll want a fireproof jacket: fire eel skin outside, wool underneath. Bring me 2 fire eels and 2 wool and ask me to make one.${(bag.eel || 0) < 2 ? ' The fisher knows where the eels bite.' : ''}`
     : outfit === id ? 'Snug in that fur coat? The cold won\'t touch you.'
-      : has(id) ? 'Somewhere cold? Put on the fur coat I made you, dear. Open your bag (B) and wear it.'
+      : has(id) ? 'Somewhere cold? Put on the fur coat I made you, dear. Open your equipments (E) and wear it.'
         : `Cold? The frozen isle?! You'd freeze solid in that tunic, dear. Bring me 4 hides and 2 wool and ask me for a thick fur coat.${(bag.hide || 0) < 4 ? ' Deer and boar in the south woods give hides.' : ''}`);
   return true;
 }
@@ -100,7 +100,7 @@ function warnExposure(e) {
   const name = ITEMS[e.outfit].name.toLowerCase();
   const r = RECIPES.find((x) => x.item === e.outfit);
   const start = e.outfit === 'furCoat' ? 'Brrr! It\'s bitter cold here.' : 'Phew! The ground\'s hot enough to cook on.';
-  muse(has(e.outfit) ? `${start} My ${name} is in my bag. I should put it on (B)!`
+  muse(has(e.outfit) ? `${start} My ${name} is in my bag. I should put it on (E)!`
     : `${start} I need a ${name}. The ${r.maker} could sew one from ${listNeeds(r.needs)}.`);
 }
 

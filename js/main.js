@@ -110,6 +110,7 @@ initHens();
 initTrade();
 initCave();
 initRuin();
+initTor();
 initDunes();
 initTinker();
 initBuild();
@@ -861,6 +862,7 @@ const SPECIES_NAMES = {
   lightFury: /\b(light ?fury|fury)\b/i,
   thunderdrum: /\bthunder ?drum\b/i,
   terribleTerror: /\b(terrible ?)?terror\b/i,
+  skrill: /\bskrill\b/i,
 };
 
 const calledBy = (d, text) => new RegExp(`\\b${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
@@ -1021,16 +1023,15 @@ function nearDragon() {
   return best;
 }
 
-// A dragon is only ridden with one of the tanner's saddles on, strapped on from the bag.
+// A dragon is only ridden with one of the tanner's saddles on; SPACE straps one on from the bag first.
 function rideDragon(d) {
   if (d.saddled) return mount(d);
+  if (has('saddle')) return saddleUp(d);
   faceToward(player, d.x - player.x, d.y - player.y);
-  if (has('saddle')) return muse(`${d.name} needs the saddle on first. It's in my bag.`);
   muse(`Bareback? I'd slide right off ${d.name}. The tanner could make me a saddle from 3 hides.`);
 }
 
-function saddleUp() {
-  const d = nearDragon();
+function saddleUp(d = nearDragon()) {
   if (!d) return muse('A saddle. Now I need a grown dragon to put it on.');
   faceToward(player, d.x - player.x, d.y - player.y);
   if (d.saddled) return muse(`${d.name} already has a saddle on.`);
@@ -1051,7 +1052,7 @@ function saddleUp() {
 function mountPrompt(d) {
   if (d.saddled) return `SPACE  Ride ${d.name}`;
   if (!has('saddle')) return `${d.name} needs a saddle before you can ride. The tanner makes one from 3 hides`;
-  return `B  Open your bag to put the saddle on ${d.name}`;
+  return `SPACE  Put the saddle on ${d.name}`;
 }
 
 // A short jump between the ground and the dragon's back; `lift` is visual height.
@@ -1190,6 +1191,7 @@ function updateFlight(dt) {
   if (f.mode === 'dive') {
     f.diveT = Math.min(1, f.diveT + dt / 1.2);
     f.alt = FLY_ALT * (1 - Math.sin(f.diveT * Math.PI) * 0.92);
+    if (f.diveT > 0.35 && f.diveT < 0.65) scoopFish(f);
     if (!f.splashed && f.diveT >= 0.5) {
       f.splashed = true;
       splash(f.x, f.y);
@@ -1317,7 +1319,28 @@ function splashDive() {
   f.mode = 'dive';
   f.diveT = 0;
   f.splashed = false;
+  f.fullSaid = false;
   Sfx.whoosh();
+}
+
+// Stunned fish floating close enough under the dragon for a swoop to reach.
+const SCOOP_REACH = 40;
+const floatersNear = (f, r = SCOOP_REACH) => floaters.filter((o) => o.t >= 0 && Math.hypot(o.x - f.x, o.y - f.y) < r);
+
+// Skimming low over the water, the rider grabs every floating fish the dragon passes over.
+function scoopFish(f) {
+  for (const o of floatersNear(f, 26)) {
+    if (bagFull(o.id)) {
+      if (!f.fullSaid) muse('My pack\'s full! No room for more fish.');
+      f.fullSaid = true;
+      continue;
+    }
+    floaters.splice(floaters.indexOf(o), 1);
+    catchFish({ fish: o.id });
+    popIcon(o.id, o.x, o.y - 10);
+    seaSplash(o.x, o.y - 1, 0.5);
+    Sfx.reward();
+  }
 }
 
 function burst(x, y, colors, n, speed) {
@@ -1415,7 +1438,7 @@ const grounded = () => !player.flying && !player.swimming;
 
 function nearEgg() {
   if (carrying() || !grounded()) return null;
-  return eggs.find((e) => (e.state === 'wild' || e.state === 'down') && !e.hidden && boxDist(e.col) < 14) || null;
+  return eggs.find((e) => (e.state === 'wild' || e.state === 'down') && !e.hidden && !e.storm && boxDist(e.col) < 14) || null;
 }
 
 // F with the egg in hand sets it on the ground just in front, clear of the player's own feet.
@@ -2101,6 +2124,10 @@ function huntFire(b, a) {
   const [mx, my, mh] = MOUTH[b.face || b.dir];
   const x0 = b.x + mx;
   const y0 = b.y + my;
+  if (breathOf(b.species) === 'lightning') {
+    strikeBolt({ x0, y0, h0: b.alt + mh }, a.x, a.y, DRAGON_SPECIES[b.species].breath, true, 1, true);
+    return Sfx.zap(earshot(a.x, a.y));
+  }
   fireballs.push({ x0, y0, h0: b.alt + mh, x1: a.x, y1: a.y, x: x0, y: y0, h: 0, t: 0, dur: 0.45, pal: DRAGON_SPECIES[b.species].breath, el: breathOf(b.species), hunt: true });
   Sfx.breath(breathOf(b.species));
 }
@@ -2116,6 +2143,12 @@ const heldImg = () => (carried ? SPR.heldEgg[carried.species] : SPR.dogHeld);
 
 function drawHeldEgg(x, top) {
   ctx.drawImage(heldImg(), Math.round(x) - 6, Math.round(top) - 11);
+}
+
+// A thing out of the backpack, held up in both hands like an egg.
+function drawCarriedItem(id, x, top) {
+  const img = SPR.icon[id];
+  ctx.drawImage(img, Math.round(x) - Math.round(img.width / 2), Math.round(top) - img.height + 3);
 }
 
 // ---------- sheep ----------
@@ -2427,17 +2460,14 @@ function deckPos() {
   return { x: shipObj.x + d.seat[0] - d.ox, lift: d.oy - d.seat[1] - 5 };
 }
 
-// How far from the hull the player can be to step aboard, or step ashore off it.
-const BOARD_REACH = 16;
-
-function shipDist(x = player.x, y = player.y) {
+function shipDist() {
   const [x0, y0, x1, y1] = shipBox(shipObj.facing, shipObj.x, shipObj.y);
-  const dx = Math.max(x0 - x, 0, x - x1);
-  const dy = Math.max(y0 - y, 0, y - y1);
+  const dx = Math.max(x0 - player.x, 0, player.x - x1);
+  const dy = Math.max(y0 - player.y, 0, player.y - y1);
   return Math.hypot(dx, dy);
 }
 
-const nearShip = () => !sail && !flight && !hop && shipDist() < BOARD_REACH;
+const nearShip = () => !sail && !flight && !hop && shipDist() < 56;
 
 // What SPACE climbs aboard: the ship or a perched dragon, whichever is closer when both are in reach.
 function nearMount() {
@@ -2473,12 +2503,12 @@ function shoreSpot() {
   const cy = (y0 + y1) / 2;
   let best = null;
   let bestD = Infinity;
-  for (let r = 4; r <= BOARD_REACH; r += 3) {
+  for (let r = 8; r <= 50; r += 6) {
     for (let a = 0; a < 24; a++) {
       const ang = (a / 24) * Math.PI * 2;
       const x = cx + Math.cos(ang) * ((x1 - x0) / 2 + r);
       const y = cy + Math.sin(ang) * ((y1 - y0) / 2 + r);
-      if (shipDist(x, y) >= BOARD_REACH || !canStand(player, x, y)) continue;
+      if (!canStand(player, x, y)) continue;
       const d = Math.hypot(x - cx, y - cy);
       if (d < bestD) { bestD = d; best = { x, y }; }
     }
@@ -2675,7 +2705,7 @@ function nearBackpack() {
 function pickUpBackpack() {
   wearBackpack();
   Sfx.pickup();
-  toast('BACKPACK', 'Number keys pick a tool from the hotbar and F uses it. B opens your bag');
+  toast('BACKPACK', 'Number keys pick a tool from the hotbar and F uses it. B opens your backpack, E your equipments');
   faceToward(player, backpack.x - player.x, backpack.y - player.y);
   npcSay(mom, has('toolBelt') ? 'That\'s it! Off you go then, and be back for supper.'
     : 'That\'s it! And take your father\'s old tool belt too, it\'s right beside it.');
@@ -2736,6 +2766,7 @@ function action() {
   if (flight) {
     if (flight.mode !== 'fly') return;
     if (overCrater()) dropInCrater();
+    else if (floatersNear(flight).length && overWater(flight)) splashDive();
     else if (landingSpot()) land();
     else splashDive();
     return;
@@ -2746,12 +2777,14 @@ function action() {
   else if (nurseryLeave()) leaveAtNursery(nurseryLeave());
   else if (carried && nearPool()) throwEgg();
   else if (nearEgg() && !nearBed()) pickUpEgg(nearEgg());
+  else if (nearTorEgg()) touchTorEgg();
   else if (treasureFirst()) takeTreasure(nearTreasure());
   else if (nearMount()) rideDragon(nearMount());
   else if (roostBuildable()) raiseRoost();
   else if (nurseryBuildable()) raiseNursery();
   else if (nearRuneStone()) touchStone(nearRuneStone());
   else if (nearCarving()) readCarving(nearCarving());
+  else if (nearLookout()) readLookout();
   else if (nearSphinx()) speakToSphinx();
   else if (nearTreasure()) takeTreasure(nearTreasure());
   else if (nearLadder()) climbLadder(nearLadder());
@@ -2965,6 +2998,7 @@ function update(dt) {
   if (started && !bagOpen) updateExposure(dt);
   updateSinged(dt);
   updateRuin();
+  updateTor(dt);
   updateDunes(dt);
   updatePeak(dt);
   updateTinker();
@@ -3151,10 +3185,12 @@ function drawEntity(e, cx, cy, lift = 0) {
   if (e.downT > 0) return drawFallen(e, cx, cy);
   const x = Math.round(e.x) - cx;
   const top = Math.round(e.y - lift) - 20 - cy;
-  const carry = e === player && carrying();
+  const item = e === player && !(hop?.climb) && carriedOut();
+  const carry = e === player && (carrying() || !!item);
   const run = e.running && !hop;
   const climb = e === player && hop?.climb && !carry;
-  if (carry) drawHeldEgg(x, top);
+  if (item) drawCarriedItem(item, x, top);
+  else if (carry) drawHeldEgg(x, top);
   drawHeldTool(e, x, top, true);
   const spr = charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run, climb);
   if (e.craft && e.craft.atAnvil) {
@@ -3396,6 +3432,7 @@ function render() {
 
   const visible = objects.filter((o) => !o.hidden && o.x > cx - 90 && o.x < cx + viewW + 90 && o.y > cy - 10 && o.y < cy + viewH + 120);
   const walkers = entities.filter((e) => !e.flying);
+  for (const o of visible) if (SPR[o.key].flat) drawObject(o, cx, cy);
   for (const o of visible) {
     const sh = SPR[o.key].shadow;
     if (sh) drawShadow(o.x - cx, o.y - cy, sh.rx, sh.ry);
@@ -3426,7 +3463,7 @@ function render() {
   const dropItems = drops.filter((d) => onScreen(d.x, d.y, cx, cy, 20)).map((d) => ({ y: d.y - 2, draw: () => drawDrop(d, cx, cy) }));
   const dogItems = dog.state !== 'carried' && !indoors && onScreen(dog.x, dog.y, cx, cy, 20) ? [{ y: dog.y, draw: () => drawDog(cx, cy) }] : [];
   const henItems = indoors ? [] : hens.filter((h) => onScreen(h.x, h.y, cx, cy, 20)).map((h) => ({ y: h.y, draw: () => drawHen(h, cx, cy) }));
-  const list = visible.concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy)).sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
+  const list = visible.filter((o) => !SPR[o.key].flat).concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy)).sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -3455,6 +3492,7 @@ function render() {
   drawWeather(cx, cy);
   drawNight(cx, cy, visible);
   drawLights(cx, cy, visible);
+  drawTorBolts(cx, cy);
   drawLightning();
   if (indoors) maskRoom(cx, cy);
 
@@ -3486,9 +3524,13 @@ function render() {
   }
 
   if (flight && flight.mode === 'fly') {
-    const space = landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
+    const space = floatersNear(flight).length && overWater(flight) ? 'SPACE  Swoop down for the fish'
+      : landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
     const egg = carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '';
-    setPrompt(`${overCrater() ? 'SPACE  Drop the egg into the volcano' : space}  ·  ${flight.charge == null ? 'F  Fireball (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to fire' : 'Full charge! Let go of F for a beam'}  ·  R  Loop  ·  SHIFT  Boost${egg}`);
+    const breath = BREATH === 'lightning'
+      ? (flight.charge == null ? 'F  Lightning (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to strike' : 'Full charge! Let go of F for a storm')
+      : flight.charge == null ? 'F  Fireball (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to fire' : 'Full charge! Let go of F for a beam';
+    setPrompt(`${overCrater() ? 'SPACE  Drop the egg into the volcano' : space}  ·  ${breath}  ·  R  Loop  ·  SHIFT  Boost${egg}`);
   } else if (player.downT > 0) {
     setPrompt('Bitten! You can\'t move until the venom wears off...');
   } else if (sail && player.fishing) {
@@ -3510,6 +3552,8 @@ function render() {
     setPrompt('SPACE or F  Throw the egg into the lava');
   } else if (nearEgg() && !nearBed()) {
     setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
+  } else if (nearTorEgg()) {
+    setPrompt('SPACE  Touch the egg');
   } else if (treasureFirst()) {
     setPrompt(treasurePrompt());
   } else if (nearMount()) {
@@ -3522,6 +3566,8 @@ function render() {
     setPrompt('SPACE  Touch the rune stone');
   } else if (nearCarving()) {
     setPrompt('SPACE  Read the carving');
+  } else if (nearLookout()) {
+    setPrompt('SPACE  Read what\'s scratched on the post');
   } else if (nearSphinx()) {
     setPrompt(sphinxPrompt());
   } else if (nearTreasure()) {
@@ -3560,7 +3606,7 @@ function render() {
     const { item, drops: ds } = pile.find((p) => p.item === nearDrop().item) || { item: nearDrop().item, drops: [nearDrop()] };
     const what = ds.length > 1 ? `${ds.length} ${ITEMS[item].plural || ITEMS[item].name.toLowerCase()}` : ITEMS[item].name.toLowerCase();
     setPrompt(pile.length > 1 ? 'SPACE  Pick from the pile'
-      : bagFull(item) ? 'Your backpack is full. Drop something from your bag (B) first' : `SPACE  Pick up the ${what}`);
+      : bagFull(item) ? 'Your backpack is full. Take something out (B) and drop it (X) first' : `SPACE  Pick up the ${what}`);
   } else if (dogFirst()) {
     setPrompt(dog.state === 'lost' ? `SPACE  Pick up ${dogName()}` : 'SPACE  Pet Fred');
   } else if (dog.state === 'carried' && nearNpc() === dogOwner) {
@@ -3568,7 +3614,7 @@ function render() {
   } else if (signFirst()) {
     setPrompt(`SPACE  See what ${SHOPS[nearSign().shop].who} ${coinShown() ? 'makes and sells' : 'makes'}`);
   } else if (bagHint()) {
-    setPrompt(`B  Open your bag to ${bagHint()}`);
+    setPrompt(`E  Open your equipments to ${bagHint()}`);
   } else if (doorAhead()) {
     setPrompt(`SPACE  Go into ${ROOMS[doorAhead().room].name}`);
   } else if (!nearNpc() && ledgeDrop()) {
@@ -3584,6 +3630,10 @@ function render() {
   } else if (!nearNpc() && nearSheep()) {
     const tool = toolHint();
     setPrompt(`${inPen(nearSheep()) ? 'SPACE  Pet the sheep' : 'SPACE  Pet the sheep   ·   Walk at it to shoo it toward the pen'}${tool ? `   ·   ${tool}` : ''}`);
+  } else if (carriedOut()) {
+    const id = carriedOut();
+    const name = itemName(id);
+    setPrompt(`X  Drop the ${name}${bag[id] > 1 ? `   ·   SHIFT+X  Drop all ${ITEMS[id].plural || name}` : ''}`);
   } else if (toolHint() || takeHint()) {
     setPrompt([toolHint(), takeHint()].filter(Boolean).join('   ·   '));
   } else if (player.swimming) {
@@ -3631,7 +3681,7 @@ function resize() {
 }
 
 // Held down, these keep stepping, a little slower than the keyboard repeats.
-const PICK_KEYS = { Tab: () => cycleSelection(1), KeyQ: () => cycleSelection(-1), KeyE: () => cycleSelection(1) };
+const PICK_KEYS = { Tab: (e) => cycleSelection(e.shiftKey ? -1 : 1) };
 const PICK_REPEAT_MS = 140;
 let pickRepeatAt = 0;
 const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
@@ -3684,6 +3734,7 @@ autoPickBtn.addEventListener('click', () => {
 toggleIcon(hintsBtn, 'hints');
 toggleIcon(autoPickBtn, 'autoPick');
 toggleIcon(soundBtn, 'soundOn');
+toggleIcon(equipBtn, 'equip');
 toggleIcon(journalBtn, 'journal');
 toggleIcon(mapBtn, 'map');
 toggleIcon(fishLogBtn, 'fishLog');
@@ -3710,7 +3761,7 @@ window.addEventListener('keydown', (e) => {
     const now = performance.now();
     if (!e.repeat || now - pickRepeatAt >= PICK_REPEAT_MS) {
       pickRepeatAt = now;
-      cycle();
+      cycle(e);
     }
   }
   if (!e.repeat) {
@@ -3718,7 +3769,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyF') {
       if (flight) chargeBreath();
       else if (carried) setDownEgg();
-      else useTool();
+      else {
+        putAwayItem();
+        useTool();
+      }
     }
     if (e.code === 'KeyR') loopTrick();
     if (e.code === 'KeyP') toggleSound();
@@ -3726,7 +3780,9 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Slash') toggleAutoPick();
     if (e.code === 'KeyM') toggleMap(true);
     if (e.code === 'KeyJ') toggleJournal(true);
-    if (e.code === 'KeyB') toggleBag(true);
+    if (e.code === 'KeyE') toggleBag(true);
+    if (e.code === 'KeyB' && has('backpack')) toggleTray();
+    if (e.code === 'KeyX') dropCarried(e.shiftKey);
     if (e.code === 'KeyL') toggleFishLog(true);
     if (e.code === 'KeyC') toggleTinker(true);
     if (e.code === 'KeyG') takeBack();
