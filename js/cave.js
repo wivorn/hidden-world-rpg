@@ -112,13 +112,13 @@ function updateCave(dt) {
       muse('Gold glinting in the firelight... it\'s a treasure cave!');
     } else if (indoors.fire) {
       muse('Phew, the heat! Steps cut in the rock, climbing up inside the mountain.');
-    } else {
+    } else if (!indoors.sea) {
       stats.caves++;
       muse(torchLit() ? 'Brr... My torch lights the way.' : has('torch') ? 'It\'s pitch dark in here... I should light my torch.' : 'It\'s pitch dark in here... I need a torch.');
     }
   }
   wasInCave = cave && !fade;
-  if (!cave || indoors.sand || indoors.fire) return;
+  if (!cave || indoors.sand || indoors.fire || indoors.sea) return;
   // meltwater dripping from the roof somewhere in view
   if ((dripT -= dt) <= 0) {
     dripT = 0.4 + Math.random() * 0.9;
@@ -142,6 +142,7 @@ function playerLights(x, y) {
   }
   else if (cave) out.push({ x, y, r: 30, k: 0.5 });
   if (player.glowT > 0) out.push({ x, y, r: 64, k: 0.9 * Math.min(1, player.glowT / 5), glow: 16, color: '#5affd8' });
-  if (cave) out.push({ x: (indoors.door + 0.5) * TILE, y: indoors.doorY * TILE + 8, r: 72, k: 1 });
+  if (cave && indoors.sea) out.push(...grottoLights());
+  else if (cave) out.push({ x: (indoors.door + 0.5) * TILE, y: indoors.doorY * TILE + 8, r: 72, k: 1 });
   return out;
 }

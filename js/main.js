@@ -925,6 +925,7 @@ const SPECIES_NAMES = {
   thunderdrum: /\b(jungle ?)?bellows?\b/i,
   terribleTerror: /\b(dune ?)?sparks?\b/i,
   skrill: /\b(storm ?)?strikers?\b/i,
+  tideGlider: /\b(tide ?)?gliders?\b/i,
 };
 
 const calledBy = (d, text) => new RegExp(`\\b${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
@@ -1525,6 +1526,7 @@ function setDownEgg() {
 }
 
 function pickUpEgg(e) {
+  if (e === grottoEgg() && e.state === 'wild') wakeJet();
   if (torchLit()) toggleTorch();
   e.hidden = true;
   e.col.off = true;
@@ -2145,6 +2147,7 @@ function settleLeader(b) {
 
 // Flies over the ship or a swimming player; on land it touches down beside the player and waits.
 function grownLeader(b) {
+  if (inGrotto()) return maelstromWait();
   if (sail) {
     const [sx, sy] = sternPos();
     return { x: sx, y: sy, alt: 52 };
@@ -2942,7 +2945,10 @@ function sternPos() {
   return [x, y + 2];
 }
 
+// The ship goes where it's sailed plus wherever the water under it is running (see seaCurrent), and turns to face
+// the way it's going.
 function updateSail(dt) {
+  if (whirlSail(dt)) return;
   const s = sail;
   const o = shipObj;
   const [ix, iy] = readInput();
@@ -2951,17 +2957,21 @@ function updateSail(dt) {
   const k = 1 - Math.exp(-dt * (ix || iy ? 1.1 : 0.6));
   s.vx += (ix * max - s.vx) * k;
   s.vy += (iy * max - s.vy) * k;
+  const grip = seaCurrent(s, o, dt);
+  if (whirl.sink) return;
+  const gx = s.vx * grip + s.cx;
+  const gy = s.vy * grip + s.cy;
 
-  const nx = o.x + s.vx * dt;
+  const nx = o.x + gx * dt;
   if (!shipBlocked(o.facing, nx, o.y)) o.x = nx;
-  else s.vx *= -0.2;
-  const ny = o.y + s.vy * dt;
+  else [s.vx, s.cx] = [s.vx * -0.2, s.cx * -0.2];
+  const ny = o.y + gy * dt;
   if (!shipBlocked(o.facing, o.x, ny)) o.y = ny;
-  else s.vy *= -0.2;
+  else [s.vy, s.cy] = [s.vy * -0.2, s.cy * -0.2];
 
-  if (Math.hypot(s.vx, s.vy) > 15) {
+  if (Math.hypot(gx, gy) > 15) {
     const step = Math.PI / 4;
-    const a = Math.atan2(s.vy, s.vx);
+    const a = Math.atan2(gy, gx);
     const off = Math.abs(((a - SHIP_FACINGS.indexOf(o.facing) * step + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
     // hold the current facing a bit past its sector edge so near-diagonal courses don't flicker
     if (off > step / 2 + 0.2) {
@@ -2975,7 +2985,7 @@ function updateSail(dt) {
   player.x = o.x;
   player.y = o.y;
 
-  const speed = Math.hypot(s.vx, s.vy);
+  const speed = Math.hypot(gx, gy);
   s.wakeT -= dt;
   if (speed > 20 && s.wakeT <= 0) {
     s.wakeT = full ? 0.025 : 0.045;
@@ -3016,7 +3026,8 @@ const doorX = (b) => b.x + SPR[b.key].door.dx;
 const inRoom = (r, e) => e.x > r.px.x0 && e.x < r.px.x1 && e.y > r.px.y0 && e.y < r.px.y1;
 // Whether the player could see or hear `e`: both outdoors, or both in the same room.
 const sameSpace = (e) => (indoors ? inRoom(indoors, e) : e.y < MAP_H * TILE);
-const outsideDoor = (r) => standSpotNear(player, doorX(r.building), r.building.y + 12);
+// The grotto has no door: the way out of it is the maelstrom.
+const outsideDoor = (r) => (r.building ? standSpotNear(player, doorX(r.building), r.building.y + 12) : { x: WHIRL.x, y: WHIRL.y });
 // Where the player's grown dragon waits: by the door while they are inside.
 const leadSpot = () => (indoors ? outsideDoor(indoors) : player);
 
@@ -3244,7 +3255,7 @@ function updateCamera(dt, snap) {
   }
   const mw = MAP_W * TILE;
   const mh = MAP_H * TILE;
-  const focusY = flight ? flight.y - flight.alt - 12 : sail ? player.y - 30 : player.y - 10;
+  const focusY = flight ? flight.y - flight.alt - 12 : sail ? player.y - 30 - (shipObj.lift || 0) * 0.6 : player.y - 10;
   let tx = player.x - viewW / 2;
   let ty = focusY - viewH / 2;
   // Indoors the view frames the room, following the player only if it doesn't fit.
@@ -3342,7 +3353,7 @@ function updateAmbience(dt) {
     seaShare = wet / 48;
   }
   const air = flight ? (flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) : 0;
-  if (indoors) Sfx.ambience(0.04, 0);
+  if (indoors) Sfx.ambience(indoors.sea ? 0.6 : 0.04, 0);
   else Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
   Sfx.music(started ? musicArea() : null, indoors ? 0.6 : 1);
 }
@@ -3356,6 +3367,7 @@ function musicArea() {
   if (indoors) {
     if (indoors === ROOMS.cave) musicHere = 'snow';
     else if (indoors === ROOMS.fireCave) musicHere = 'volcano';
+    else if (indoors.sea) musicHere = 'sea';
     else if (!indoors.cave) musicHere = 'village';
     return musicHere;
   }
@@ -3403,6 +3415,7 @@ function update(dt) {
   updateSinged(dt);
   updateRuin();
   updateTor(dt);
+  updateWhirlpool(dt);
   updateDunes(dt);
   updatePeak(dt);
   updateTinker();
@@ -3914,6 +3927,7 @@ function render() {
   drawGround(ctx, cx, cy, viewW, viewH);
   drawAnimatedTiles(cx, cy);
   drawRapids(cx, cy);
+  drawWhirlpool(cx, cy);
   drawParticles(cx, cy, 'water');
   drawMarks(cx, cy);
   drawSeaUnder(cx, cy);
@@ -3980,6 +3994,7 @@ function render() {
   drawParticles(cx, cy, 'sky');
   drawWeather(cx, cy);
   drawNight(cx, cy, visible);
+  drawCurrents(cx, cy);
   drawLights(cx, cy, visible);
   drawTorBolts(cx, cy);
   drawLightning();

@@ -16,7 +16,7 @@ const GENES = {
   wings: ['mid', 'short', 'big'],
   tailLen: ['mid', 'short', 'long'],
   build: ['mid', 'stocky', 'lean'],
-  breath: ['fire', 'sonic', 'frost', 'plasma', 'lightning'],
+  breath: ['fire', 'sonic', 'frost', 'plasma', 'lightning', 'water'],
 };
 // What each shape gene's alleles multiply in drawDragon's proportions (see DRAGON_AGES).
 const SHAPE_GENES = {
@@ -36,9 +36,10 @@ const WILD_CARRIES = {
   thunderdrum: { neck: 'long', horns: 'frill', marks: 'bubbles' },
   terribleTerror: { head: 'big', build: 'lean', tail: 'fan' },
   skrill: { wings: 'big', snout: 'long' },
+  tideGlider: { horns: 'frill', wings: 'big' },
 };
 // Breath colours bred dragons get for each element: a hue range round the wheel.
-const BREATH_HUES = { fire: [345, 45], sonic: [70, 165], frost: [180, 240], plasma: [255, 320], lightning: [190, 215] };
+const BREATH_HUES = { fire: [345, 45], sonic: [70, 165], frost: [180, 240], plasma: [255, 320], lightning: [190, 215], water: [195, 220] };
 
 const shownAllele = (gene, [a, b]) => (GENES[gene].indexOf(a) <= GENES[gene].indexOf(b) ? a : b);
 const hiddenAllele = (gene, pair) => (pair[0] === shownAllele(gene, pair) ? pair[1] : pair[0]);

@@ -166,6 +166,14 @@ const QUESTS = [
       { id: 'torHatched', text: 'Find a way to crack the egg', done: () => torEgg.state === 'hatched' },
     ],
   },
+  {
+    id: 'maelstrom', title: 'Down the Maelstrom', start: () => POIS.find((p) => p.id === 'maelstrom').learned || stats.maelstrom > 0,
+    steps: [
+      { id: 'maelstromIn', text: 'Sail into the maelstrom, far out in the south-eastern sea', done: () => stats.maelstrom > 0 },
+      { id: 'grottoEgg', text: 'Ride the currents of the drowned grotto to the dragon egg', done: () => grottoEgg().state !== 'wild' },
+      { id: 'jetOut', text: 'Find a way back up to the sea', done: () => stats.jetRides > 0 },
+    ],
+  },
 ];
 
 const questDone = (q) => q.steps.every((s) => journal.done[s.id]);

@@ -27,6 +27,7 @@ const POIS = [
   { id: 'speck', name: 'Dune Isle', icon: 'isle', x: 262, y: 324, words: /\b(dune isle|sphinx|speck of sand|far isles)\b/i },
   { id: 'hawk', name: 'Hawk Rock', icon: 'mountain', x: 60, y: 178, r: 12, words: /\b(hawk rock|bjorn)\b/i },
   { id: 'tor', name: 'Stormcrown Tor', icon: 'storm', x: TOR_AT.x, y: TOR_AT.y, r: 14, words: /\b(stormcrown|the tor)\b/i },
+  { id: 'maelstrom', name: 'The Maelstrom', icon: 'whirl', x: MAELSTROM.x, y: MAELSTROM.y, r: 18, words: /\b(maelstrom|whirlpool)\b/i },
   ...[['isletNorth', 'Frost Skerry'], ['isletEast', 'Pine Skerry'], ['isletWest', 'Oak Skerry'], ['isletSouth', 'Palm Skerry'], ['isletFar', 'Far Skerry']].map(([id, name]) => {
     const i = isle(id);
     return { id, name, icon: 'isle', x: i.x, y: i.y, words: /\bskerr(y|ies)\b/i };
@@ -255,6 +256,7 @@ const MAP_ICONS = {
   cave: (g) => { ellipse(g, 6, 7, 6, 4, '#7a7a80'); ellipse(g, 6, 4.5, 5, 2, '#f4f6fa'); poly(g, [[3, 11], [3, 7], [6, 5], [9, 7], [9, 11]], MAP_INK); px(g, 6, 9, '#5affd8'); },
   frozen: (g) => { poly(g, [[1, 9], [4, 3], [7, 9]], '#c3d0e3'); poly(g, [[5, 9], [8, 1], [11, 9]], '#e6edf6'); rect(g, 2, 9, 9, 2, '#bfe2f2'); px(g, 8, 1, '#ffffff'); },
   storm: (g) => { ellipse(g, 4, 4, 3, 2, '#5a6070'); ellipse(g, 7, 3, 4, 3, '#6a7080'); rect(g, 1, 5, 10, 1, '#4a5060'); poly(g, [[6, 6], [4, 9], [6, 9], [5, 12], [8, 8], [6, 8], [7, 6]], '#ffd23a'); },
+  whirl: (g) => { ellipse(g, 6, 6, 5.5, 4.5, '#3f8fb4'); ellipse(g, 6, 6, 3.5, 2.8, '#2a6f94'); for (const [x, y] of [[2, 4], [3, 3], [5, 2], [8, 3], [9, 5], [9, 7], [7, 9], [4, 8], [5, 5], [7, 6]]) px(g, x, y, '#e8faff'); ellipse(g, 6, 6, 1.2, 1, '#0d2a3a'); },
   jungle: (g) => { ellipse(g, 6, 9, 5, 2, '#e8d49a'); rect(g, 6, 3, 1, 6, '#8a5a3a'); poly(g, [[1, 4], [6, 1], [11, 4], [6, 3]], '#2f7d3a'); poly(g, [[2, 6], [6, 2], [10, 6], [6, 4]], '#4fa648'); },
 };
 let mapIcons = null;

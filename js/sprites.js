@@ -1799,6 +1799,14 @@ const DRAGON_SPECIES = {
     egg: { base: '#3a3f66', light: '#555c8c', speck: '#bfe8ff', speckDark: '#22264a', shine: '#ffffff', gloss: '#8fa6e0', glow: '#9fdcff' },
     breath: ['#8fdcff', '#ffffff', '#3f7fff'],
   },
+  tideGlider: {
+    name: 'Tide Glider', defaultName: 'Ripple',
+    body: '#2a7fa0', dark: '#16506a', light: '#6fc8d8', wing: '#2f9ab0', eye: '#ffe27a', fin: '#58e0c8', glint: '#e8fffa',
+    belly: '#9fe0d8', spot: '#bff4ec', shape: { neck: 1.35, snout: 1.15, tail: 1.25, chub: 0.88 },
+    look: { horns: 'fins', spines: 'none', tail: 'fins', marks: 'spots', tips: true },
+    egg: { base: '#2a6f94', light: '#3f8fb4', speck: '#bff4ec', speckDark: '#174a66', shine: '#ffffff', gloss: '#7fd0e8', glow: '#7ff0ff' },
+    breath: ['#4fb8ff', '#e8f8ff', '#1f6fd0'],
+  },
 };
 
 // The tanner's dragon saddle: leather on a red blanket, buckled on with a girth strap.

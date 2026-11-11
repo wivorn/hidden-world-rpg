@@ -28,8 +28,13 @@ const DRAGON_LORE = {
     where: 'On the barrow at the top of Stormcrown Tor. It only shows in the rain.',
     about: 'Rides the storm. Its lightning strikes the moment it\'s breathed.',
   },
+  tideGlider: {
+    rumour: 'Sailors tell of a maelstrom far out in the south-eastern sea that swallows ships whole. What lies at the bottom, nobody knows.',
+    where: 'On an islet in a grotto under the maelstrom, through a maze of currents.',
+    about: 'Swims as well as it flies. Its breath is a jet of water: it puts out fires, cools lava and bowls animals over.',
+  },
 };
-const BREATH_NAMES = { plasma: 'Plasma blast', fire: 'Fire', frost: 'Frost', sonic: 'Sonic roar', lightning: 'Lightning' };
+const BREATH_NAMES = { plasma: 'Plasma blast', fire: 'Fire', frost: 'Frost', sonic: 'Sonic roar', lightning: 'Lightning', water: 'Water jet' };
 const AGE_NAMES = ['HATCHLING', 'YOUNGLING', 'JUVENILE', 'GROWN'];
 // How each shown allele reads in a bred kind's list of traits; shape genes at 'mid' go unmentioned.
 const TRAIT_WORDS = {

@@ -37,7 +37,7 @@ const LURE_IDS = Object.keys(LURES);
 const fishLog = { caught: {}, told: {} };
 
 function fishZone(x, y) {
-  if (inCave()) return 'cave';
+  if (inCave()) return indoors.sea ? 'deep' : 'cave';
   const tx = Math.floor(x / TILE);
   const ty = Math.floor(y / TILE);
   if (tileAt(tx, ty) === T.HOLE) return 'ice';

@@ -408,7 +408,7 @@ const REPLIES = {
       'Leave two grown dragons at a roost for three days, and an egg turns up. A kind nobody has ever seen.',
       'Other eggs sleep on the far isles... the frozen isle to the north-west, the jungle isle to the south-east, and the dune isle far to the south, where a sphinx guards a cave of treasure.',
     ],
-    places: ['The fire mountain, the frozen isle, the jungle... I have seen them all. Each one keeps a secret.', 'Look for nests. Dragons like the wild places.', 'Under the frozen isle runs an ice cave. A ring of ice seals its mouth; only fire gets you through. Gold in its walls, mushrooms that glow... and at the very end, something precious. Wrap up warm: the cold there bites to the bone.', 'Far to the south lies the dune isle. A sphinx of stone guards a cave of treasure there, and lets by only those who answer its riddles.', 'The jungle isle\'s heart is a maze of vine trees, and snakes lie in wait in it. One bite and you\'ll lie stiff as a log. A Jungle Bellow nests at the very middle.', 'Old Bjorn hid his hoard in a cairn on Hawk Rock, west of your village. Cliffs, rapids, thorns... he never made anything easy. Bring tools, and your wits.'],
+    places: ['The fire mountain, the frozen isle, the jungle... I have seen them all. Each one keeps a secret.', 'Look for nests. Dragons like the wild places.', 'Under the frozen isle runs an ice cave. A ring of ice seals its mouth; only fire gets you through. Gold in its walls, mushrooms that glow... and at the very end, something precious. Wrap up warm: the cold there bites to the bone.', 'Far to the south lies the dune isle. A sphinx of stone guards a cave of treasure there, and lets by only those who answer its riddles.', 'The jungle isle\'s heart is a maze of vine trees, and snakes lie in wait in it. One bite and you\'ll lie stiff as a log. A Jungle Bellow nests at the very middle.', 'Old Bjorn hid his hoard in a cairn on Hawk Rock, west of your village. Cliffs, rapids, thorns... he never made anything easy. Bring tools, and your wits.', 'Far to the south-east the sea turns round and round in a great maelstrom. Let it take you: below lies a drowned grotto, where currents run one way only. A Tide Glider nests there. Take its egg, and the grotto lets you go.'],
     dragon: ['Dragons... I once saw an egg in the ancient ruin, far to the south-west.'],
     tor: [
       'On Stormcrown Tor, far to the east of here, an egg sleeps on an old barrow. Only the rain brings it out.',
@@ -432,7 +432,7 @@ const REPLIES = {
     fish: ['Cod and fire eels pay best. A golden fish? I\'d give two gold and five silver!'],
     eel: ['Fire eels! I\'ll pay well for them. Or have the seamstress sew them into a jacket, if you fancy the volcano.'],
     hunt: ['Raw meat, three silver a cut. Sailors get hungry!'],
-    places: ['The ice cave on the frozen isle has gold in its walls. Bring me some!', 'I sail all of Numina. Three days round, then back here.'],
+    places: ['The ice cave on the frozen isle has gold in its walls. Bring me some!', 'I sail all of Numina. Three days round, then back here.', 'Steer clear of the maelstrom, far out to the south-east. It swallows ships whole! Though a friend of mine swears he came back up out of it on a fountain...'],
     follow: ['And leave my ship? Never!'],
     joke: ['How do Vikings send secret messages? By Norse code!'],
     bye: ['Fair winds! I\'ll be back in three days.'],

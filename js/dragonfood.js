@@ -16,6 +16,7 @@ const KIND_TASTES = {
   thunderdrum: { favorite: 'pineapple', dislike: 'pufferfish' },
   terribleTerror: { favorite: 'cherries', dislike: 'cod' },
   skrill: { favorite: 'roast', dislike: 'banana' },
+  tideGlider: { favorite: 'mackerel', dislike: 'coconut' },
 };
 // Foods a bred kind can take to or against: nothing too rare to find.
 const TASTE_POOL = [...FISH_IDS.filter((id) => FISH[id].rarity === 'common' || FISH[id].rarity === 'uncommon'), 'grilledFish', 'meat', 'roast', ...DRAGON_FRUIT];

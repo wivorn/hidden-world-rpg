@@ -262,6 +262,9 @@ const Sfx = (() => {
       } else if (el === 'sonic') {
         tone({ type: 'square', f0: 120, f1: 55, dur: 0.35, vol: 0.1 });
         tone({ f0: 240, f1: 90, dur: 0.3, vol: 0.08 });
+      } else if (el === 'water') {
+        noise({ dur: 0.4, vol: 0.16, f0: 1800, f1: 700, type: 'bandpass', q: 1, attack: 0.02 });
+        tone({ f0: 300, f1: 700, dur: 0.12, vol: 0.06 });
       } else {
         tone({ type: 'square', f0: 1100, f1: 180, dur: 0.28, vol: 0.06 });
         noise({ dur: 0.35, vol: 0.14, f0: 2400, f1: 500, type: 'bandpass', q: 1.2, attack: 0.01 });
@@ -279,6 +282,9 @@ const Sfx = (() => {
         tone({ type: 'square', f0: 70, f1: 55, dur: 0.9, vol: 0.12, attack: 0.02 });
         tone({ type: 'sawtooth', f0: 140, f1: 100, dur: 0.9, vol: 0.05 });
         noise({ dur: 0.9, vol: 0.14, f0: 400, f1: 200, type: 'bandpass', q: 0.9, attack: 0.02 });
+      } else if (el === 'water') {
+        noise({ dur: 1.2, vol: 0.18, f0: 1400, f1: 900, type: 'bandpass', q: 0.8, attack: 0.04 });
+        noise({ dur: 1.2, vol: 0.08, f0: 4000, f1: 3000, type: 'highpass', attack: 0.04 });
       } else {
         tone({ type: 'sawtooth', f0: 150, f1: 230, dur: 1.1, vol: 0.08, attack: 0.02 });
         tone({ type: 'square', f0: 620, f1: 980, dur: 1.0, vol: 0.03 });
@@ -295,6 +301,9 @@ const Sfx = (() => {
       } else if (el === 'sonic') {
         tone({ f0: 90, f1: 35, dur: 0.6, vol: 0.25 * k });
         noise({ dur: 0.7, vol: 0.22 * k, f0: 600, f1: 80 });
+      } else if (el === 'water') {
+        noise({ dur: 0.5, vol: 0.2 * k, f0: 1600, f1: 300, attack: 0.01 });
+        for (let i = 0; i < 4; i++) tone({ f0: rand(700, 1300), f1: rand(1400, 2200), dur: 0.05, vol: 0.04 * k, delay: 0.06 + i * rand(0.03, 0.07) });
       } else if (el === 'lightning') {
         noise({ dur: 0.08, vol: 0.26 * k, f0: 8000, f1: 2000, type: 'highpass' });
         noise({ dur: 0.5, vol: 0.18 * k, f0: 1800, f1: 120, delay: 0.02 });
@@ -309,6 +318,14 @@ const Sfx = (() => {
       noise({ dur: 0.3, vol: 0.06 * k, f0: 6000, type: 'highpass' });
     },
     hiss(k = 1) { noise({ dur: 0.9, vol: 0.1 * k, f0: 5000, f1: 2500, type: 'highpass', attack: 0.05 }); },
+    churn(k = 1) {
+      noise({ dur: 1.6, vol: 0.14 * k, f0: 260, f1: 180, type: 'bandpass', q: 0.7, attack: 0.5 });
+      noise({ dur: 1.4, vol: 0.05 * k, f0: 1400, f1: 900, type: 'bandpass', q: 1.2, attack: 0.4, delay: 0.2 });
+    },
+    gush() {
+      noise({ dur: 1.3, vol: 0.28, f0: 300, f1: 2600, type: 'bandpass', q: 0.8, attack: 0.08 });
+      tone({ f0: 70, f1: 140, dur: 1, vol: 0.18, attack: 0.05 });
+    },
     whoosh() {
       noise({ dur: 0.45, vol: 0.16, f0: 300, f1: 1800, type: 'bandpass', q: 1.5, attack: 0.15 });
       noise({ dur: 0.5, vol: 0.16, f0: 1800, f1: 250, type: 'bandpass', q: 1.5, delay: 0.42, attack: 0.05 });

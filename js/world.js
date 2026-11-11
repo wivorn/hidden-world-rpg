@@ -150,6 +150,9 @@ const TOR_AT = {
   sockets: [0, 1, 2, 3, 4, 5].map((i) => [Math.cos((i * Math.PI) / 3) * 3.6, Math.sin((i * Math.PI) / 3) * 2.4 + 0.2]),
 };
 
+// The maelstrom's eye, in tiles, out in the open sea to the far south-east.
+const MAELSTROM = { x: 520, y: 395 };
+
 // The dragon roost's ground point on the hermit's isle, and the box of tiles cleared around it.
 const ROOST_AT = { x: isle('hermit').x + 14, y: isle('hermit').y - 1 };
 const inRoostSite = (x, y) => Math.abs(x - ROOST_AT.x) < 7 && y > ROOST_AT.y - 3.5 && y < ROOST_AT.y + 6.5;
@@ -607,6 +610,8 @@ const ROOMS = {
     rugs: [[2.2, 2.2, 2.4, 1.5, '#3b5c6c']],
     furniture: [['bed', 0.9, 2.1], ['barrel', 5.4, 3.7], ['barrel', 4.5, 3.9], ['sacks', 5.3, 1.4], ['stool', 3.4, 2.6]],
   },
+  // reached only by being swallowed by the maelstrom, and left only on the jet (see whirlpool.js)
+  grotto: { name: 'the drowned grotto', cave: true, sea: true, w: 76, h: 62, wall: [], rugs: [], furniture: [] },
 };
 
 // The ice cave is a maze of cells `pitch` tiles apart; the mouth opens under the `entry` cell of the bottom row,
@@ -615,13 +620,42 @@ const MAZE = { cols: 11, rows: 8, pitch: 6, x0: 5.5, y0: 15.5, entry: 5, seed: 4
 const mazeX = (c) => MAZE.x0 + c * MAZE.pitch;
 const mazeY = (r) => MAZE.y0 + r * MAZE.pitch;
 
+// The drowned grotto under the maelstrom, in tiles from its top-left: calm basins joined by channels whose current
+// runs one way only, from the first point of each to its last. The ship drops into the `arrive` basin; the egg lies
+// on the islet in the `egg` basin, and the jet that throws the ship back up to the sea rises in the `jet` basin.
+const GROTTO = {
+  basins: {
+    arrive: [38, 52, 9, 5.5], left: [18, 36, 6, 4.5], leftTop: [18, 14, 6, 4.5], egg: [38, 10, 10, 6.5],
+    jet: [38, 32, 5.5, 4.5], right: [58, 36, 6, 4.5], rightTop: [58, 14, 6, 4.5],
+  },
+  channels: [
+    [[31, 48], [22, 43], [18, 40]],
+    [[18, 32], [18, 18]],
+    [[24, 13], [29, 11]],
+    [[13, 11], [5, 17], [5, 49], [13, 57.5], [29, 56.5]],
+    [[38, 17], [38, 27]],
+    [[33, 33], [24, 35]],
+    [[45, 48], [54, 43], [58, 40]],
+    [[58, 32], [58, 18]],
+    [[63, 11], [71, 17], [71, 49], [63, 57.5], [47, 56.5]],
+  ],
+  width: 3.6,
+  islet: [38, 9.6, 3.8, 2.5],
+  egg: [38, 9.4],
+};
+
 // Lay the rooms out left to right: walls take one column each side, two rows on top, one below.
 {
   let x = 2;
   for (const r of Object.values(ROOMS)) {
     r.rx = x;
     r.ry = ROOM_Y;
-    if (r.cave) {
+    if (r.sea) {
+      // no door: its `door` spot is where the ship comes down, under the eye of the maelstrom
+      r.door = r.rx + GROTTO.basins.arrive[0];
+      r.doorY = r.ry + GROTTO.basins.arrive[1];
+      r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w) * TILE, y1: (r.ry + r.h) * TILE };
+    } else if (r.cave) {
       r.door = r.rx + Math.floor(r.sand || r.fire ? r.w / 2 : mazeX(MAZE.entry));
       r.doorY = r.ry + r.h - 1;
       r.px = { x0: r.rx * TILE, y0: r.ry * TILE, x1: (r.rx + r.w) * TILE, y1: (r.ry + r.h) * TILE };
@@ -637,6 +671,15 @@ const inCave = () => !!indoors?.cave;
 const caveSpot = (x, y) => [ROOMS.cave.rx + x, ROOMS.cave.ry + y];
 const sandSpot = (x, y) => [ROOMS.sandCave.rx + x, ROOMS.sandCave.ry + y];
 const fireSpot = (x, y) => [ROOMS.fireCave.rx + x, ROOMS.fireCave.ry + y];
+const grottoSpot = (x, y) => [ROOMS.grotto.rx + x, ROOMS.grotto.ry + y];
+
+// Basins and channels flooded, and a sandy islet in the egg's basin.
+function carveGrotto(r) {
+  const at = (t) => (x, y) => { if (x > 0 && y > 0 && x < r.w - 1 && y < r.h - 1) setTile(r.rx + x, r.ry + y, t); };
+  Object.values(GROTTO.basins).forEach(([x, y, rx, ry], i) => inBlob(x, y, rx, ry, 4701 + i, 0.2, at(T.WATER)));
+  for (const pts of GROTTO.channels) alongLine(pts, GROTTO.width, at(T.WATER));
+  inBlob(...GROTTO.islet, 4720, 0.15, at(T.CAVE));
+}
 
 // The fire cave inside the volcano: from the mouth a tunnel climbs in switchbacks, stairs on every rise, past lava
 // seeping out of the walls, to the chamber at the top and its pool of lava. `r.steps` holds the stair tiles.
@@ -783,6 +826,7 @@ function buildRooms() {
       for (let y = r.ry; y < r.ry + r.h; y++) for (let x = r.rx; x < r.rx + r.w; x++) setTile(x, y, T.WALL);
       if (r.sand) carveSandCave(r);
       else if (r.fire) carveFireCave(r);
+      else if (r.sea) carveGrotto(r);
       else carveCave(r);
       continue;
     }
@@ -960,6 +1004,51 @@ function sandCaveTile(g, x, y) {
     let edge = false;
     for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]) if (caveOpen(tileAt(x + dx, y + dy))) edge = true;
     rect(g, X, Y, 16, 16, edge ? '#2a1808' : '#0c0602');
+  }
+}
+
+// Deep green-blue water flecked with light; pale sand on the islet; dark wet rock above, grown over with kelp and
+// coral where it meets the water.
+const GROTTO_CORAL = ['#e0607a', '#f0a050', '#c86ad8', '#5ad8c0'];
+function grottoTile(g, x, y) {
+  const X = x * TILE;
+  const Y = y * TILE;
+  const t = tileAt(x, y);
+  if (t === T.WATER) {
+    rect(g, X, Y, 16, 16, '#0d3444');
+    if (hash(x, y, 101) < 0.5) rect(g, X + 1 + Math.floor(hash(x, y, 102) * 10), Y + 2 + Math.floor(hash(x, y, 103) * 12), 4, 1, '#1c5466');
+    if (hash(x, y, 104) < 0.15) px(g, X + Math.floor(hash(x, y, 105) * 15), Y + Math.floor(hash(x, y, 106) * 15), '#4fb8c8');
+    if (!caveOpen(tileAt(x, y - 1))) rect(g, X, Y, 16, 2, '#1a3038');
+  } else if (t === T.CAVE) {
+    speckle(g, x, y, X, Y, '#b8ae88', '#cfc49c', '#9a9070', 12);
+    if (hash(x, y, 107) < 0.2) {
+      const sx = X + 3 + Math.floor(hash(x, y, 108) * 9);
+      const sy = Y + 4 + Math.floor(hash(x, y, 109) * 8);
+      rect(g, sx, sy, 3, 2, '#f4e8d4');
+      px(g, sx + 1, sy, '#e0a8a0');
+    }
+  } else if (caveOpen(tileAt(x, y + 1))) {
+    rect(g, X, Y, 16, 16, '#1e3a40');
+    rect(g, X, Y, 16, 4, '#081418');
+    rect(g, X, Y + 13, 16, 3, '#14282c');
+    for (let i = 0; i < 2; i++) {
+      const kx = X + 2 + Math.floor(hash(x, y, 110 + i) * 12);
+      const h = 4 + Math.floor(hash(x, y, 112 + i) * 7);
+      for (let k = 0; k < h; k++) px(g, kx + (k % 4 < 2 ? 0 : 1), Y + 16 - k, k % 3 ? '#2f7a4a' : '#4fa060');
+    }
+    if (hash(x, y, 114) < 0.45) {
+      const c = GROTTO_CORAL[Math.floor(hash(x, y, 115) * 4)];
+      const cx = X + 3 + Math.floor(hash(x, y, 116) * 10);
+      rect(g, cx - 1, Y + 12, 3, 4, c);
+      px(g, cx - 2, Y + 11, c);
+      px(g, cx + 2, Y + 10, c);
+      px(g, cx, Y + 12, shade(c, 0.4));
+    }
+  } else {
+    let edge = false;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]) if (caveOpen(tileAt(x + dx, y + dy))) edge = true;
+    rect(g, X, Y, 16, 16, edge ? '#0c1c20' : '#03080a');
+    if (edge && hash(x, y, 117) < 0.3) px(g, X + Math.floor(hash(x, y, 118) * 15), Y + Math.floor(hash(x, y, 119) * 15), GROTTO_CORAL[Math.floor(hash(x, y, 120) * 4)]);
   }
 }
 
@@ -1525,7 +1614,7 @@ function paintChunk(c, ci, cj) {
       if (!(r.px.x1 > x0 * TILE && r.px.x0 < (x0 + CHUNK) * TILE && r.px.y1 > top * TILE && r.px.y0 < (y0 + CHUNK) * TILE)) continue;
       if (r.cave) {
         for (let y = Math.max(top, r.ry); y < Math.min(y0 + CHUNK, r.ry + r.h); y++) {
-          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) (r.sand ? sandCaveTile : r.fire ? fireCaveTile : caveTile)(g, x, y);
+          for (let x = Math.max(x0, r.rx); x < Math.min(x0 + CHUNK, r.rx + r.w); x++) (r.sand ? sandCaveTile : r.fire ? fireCaveTile : r.sea ? grottoTile : caveTile)(g, x, y);
         }
       } else {
         drawRoom(g, r);
@@ -2266,6 +2355,10 @@ function placeIslands() {
   for (const [x, y] of [[t.x - 15, t.y + 4], [t.x + 14, t.y + 8], [t.x + 6, t.y - 9], [t.x - 8, t.y - 8]]) plant('boulder', x, y);
   const clearOf = (x, y) => Math.hypot((x + OX - m.x) / 8, (y + OY - m.y) / 6) > 1 && Math.hypot(x + OX - (t.x - 9), y + OY - (t.y + 4.5)) > 3;
   woods(t.x - t.rx, t.y - t.ry, t.x + t.rx, t.y + t.ry, 2.8, 1409, 0.5, (r) => (r < 0.55 ? 'splitTree' : 'pine2'), clearOf);
+
+  // the drowned grotto under the maelstrom: a tide glider's nest on the islet, ringed with glowing crystals
+  nest('tideGlider', ...grottoSpot(...GROTTO.egg));
+  for (const [x, y] of [[-3, -1], [3.2, -0.6], [-2.2, 1.6], [2.6, 1.5]]) addAbs('caveCrystal', ...grottoSpot(GROTTO.egg[0] + x, GROTTO.egg[1] + y));
 }
 
 const colliders = [];

@@ -280,7 +280,7 @@ function restorePlayer(s) {
   indoors = p.room ? ROOMS[p.room] || null : null;
   Object.assign(player, { x: p.x, y: p.y, dir: p.dir, fedT: p.fedT, swimming: false, flying: false });
   // a spot saved in an older layout of the cave may now be solid rock
-  if (indoors?.cave && !canStand(player, p.x, p.y)) Object.assign(player, { x: (indoors.door + 0.5) * TILE, y: indoors.doorY * TILE - 2, dir: 'up' });
+  if (indoors?.cave && !indoors.sea && !canStand(player, p.x, p.y)) Object.assign(player, { x: (indoors.door + 0.5) * TILE, y: indoors.doorY * TILE - 2, dir: 'up' });
   // and one out on the mountain may now be inside a rock face
   else if (!indoors && tierAt(tileX(p.x), tileY(p.y)) && !canStand(player, p.x, p.y)) Object.assign(player, standSpotNear(player, p.x, p.y));
   if (!p.sail) return;

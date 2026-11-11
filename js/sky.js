@@ -349,7 +349,7 @@ function drawNight(cx, cy, visible) {
     const g = nightLayer.getContext('2d');
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, viewW, viewH);
-    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : indoors.fire ? 'rgba(18,4,0,0.7)' : 'rgba(2,4,10,0.96)') : `rgba(6,10,36,${0.7 * n})`;
+    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : indoors.fire ? 'rgba(18,4,0,0.7)' : indoors.sea ? 'rgba(1,10,20,0.7)' : 'rgba(2,4,10,0.96)') : `rgba(6,10,36,${0.7 * n})`;
     g.fillRect(0, 0, viewW, viewH);
     g.globalCompositeOperation = 'destination-out';
     const lights = nightLights(cx, cy, visible);

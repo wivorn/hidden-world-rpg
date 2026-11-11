@@ -46,7 +46,7 @@ body {
   --ink: #3a2414;
   --paper: rgba(255, 248, 231, 0.8);
   --tail: 10px;
-  --lift: 10px;
+  --lift: 4px;
   position: absolute;
   transform: translate(-50%, calc(-100% - var(--lift)));
   padding: 8px 10px;

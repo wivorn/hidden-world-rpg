@@ -5,9 +5,10 @@
 // catches and boils fish up out of the sea, and its beam fans out wide, starting grass fires that creep on from
 // where it lands. Frost turns the ground to ice for a while, snows over trees, freezes animals and puts fires
 // out, the Thunderdrum's roar is a wall of sound that knocks things flat and shakes the fruit off trees, and the
-// Skrill's lightning strikes the moment it's breathed, setting trees alight and blasting the rest.
-// Bred dragons inherit theirs as a gene (see genes.js).
-const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning' };
+// Skrill's lightning strikes the moment it's breathed, setting trees alight and blasting the rest. The Tide Glider's
+// water puts fires out, cools lava to a crust, washes the snow off trees and bowls animals over, and its beam is a
+// long jet like a fire-hose's. Bred dragons inherit theirs as a gene (see genes.js).
+const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning', tideGlider: 'water' };
 
 // `reach`, `speed` and `size` scale the fireball, and `radius` is how far its blast reaches. A beam runs out to
 // `len`, strikes the ground every `step` along its sweep from `tilt[0]` to `tilt[1]` radians below level over
@@ -18,6 +19,7 @@ const BREATHS = {
   fire: { reach: 0.75, speed: 0.85, size: 1.2, radius: 24, beam: { len: 210, step: 14, time: 1, tilt: [0.85, -0.1], width: 1.6, fan: 30 } },
   frost: { reach: 1.25, speed: 1.3, size: 0.85, radius: 22, beam: { len: 380, step: 14, time: 1.3, tilt: [0.6, -0.15], width: 0.7 } },
   sonic: { reach: 1, speed: 1.15, size: 1.1, radius: 34, beam: { len: 260, step: 24, time: 0.9, tilt: [0.75, -0.2], width: 2.2 } },
+  water: { reach: 1.1, speed: 1.05, size: 1.1, radius: 28, beam: { len: 320, step: 16, time: 1.2, tilt: [0.7, -0.15], width: 1.2 } },
   // no beam: a tap strikes `bolt.tap` ahead, nearer to farther with the charge; let go at the full, the storm's
   // ring spans from halfway to the farthest tap, `bolt.lift` up the screen, striking up to `bolt.targets` things
   // in it and `bolt.strikes` more round it.
@@ -322,6 +324,9 @@ function trail(el, pal, x, y, spread) {
     particles.push({ type: 'flake', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 10, vy: 6 + Math.random() * 10, pal, life: 0, max: 0.6 + Math.random() * 0.4 });
   } else if (el === 'sonic') {
     if (Math.random() < 0.35) particles.push({ type: 'ring', layer: 'sky', x, y, vx: 0, vy: 0, r: 2, grow: 12, flat: 1, pal, life: 0, max: 0.35 });
+  } else if (el === 'water') {
+    if (Math.random() < 0.6) particles.push({ type: 'drop', layer: 'sky', big: true, x, y, vx: (Math.random() - 0.5) * 24, vy: -10 - Math.random() * 20, life: 0, max: 0.35 + Math.random() * 0.2 });
+    else particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 16, vy: 4 + Math.random() * 10, pal, life: 0, max: 0.3 });
   } else {
     particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 30, vy: -10 - Math.random() * 20, pal, life: 0, max: 0.3 + Math.random() * 0.2 });
   }
@@ -416,6 +421,13 @@ function hitWater(x, y, el, big, near, beam) {
     shockWater(x, y, big ? SHOCK_REACH : SHOCK_REACH / 2);
     return;
   }
+  if (el === 'water') {
+    seaSplash(x, y - 2, big ? 1.8 : 0.8);
+    if (big) splash(x, y);
+    particles.push({ type: 'ring', layer: 'water', x, y, vx: 0, vy: 0, r: 3, grow: big ? 26 : 14, flat: 0.45, pal: [PAL.foam], life: 0, max: 0.5 });
+    if (big) Sfx.splash(near);
+    return;
+  }
   if (el === 'sonic') {
     seaSplash(x, y - 2, big ? 2.2 : 1);
     if (big) splash(x, y);
@@ -440,7 +452,7 @@ function hitGround(x, y, el, pal, big, tile, beam) {
     for (let i = 0; i < n; i++) particles.push({ type: 'steam', x: x + (Math.random() - 0.5) * 12, y: y - 4, vx: (Math.random() - 0.5) * 8, vy: -14 - Math.random() * 10, life: 0, max: 1.2 });
   };
   if (tile === T.LAVA) {
-    if (el === 'frost') {
+    if (el === 'frost' || el === 'water') {
       addMark('crust', x, y, big ? 14 : 9);
       steam(big ? 8 : 2);
       if (big) Sfx.hiss(earshot(x, y));
@@ -450,6 +462,17 @@ function hitGround(x, y, el, pal, big, tile, beam) {
     return;
   }
   const cold = tile === T.SNOW || tile === T.ICE;
+  if (el === 'water') {
+    for (let i = 0; i < (big ? 14 : 4); i++) {
+      const a = Math.random() * Math.PI * 2;
+      particles.push({ type: 'drop', big: true, x, y: y - 2, vx: Math.cos(a) * (30 + Math.random() * 40), vy: -40 - Math.random() * 50, life: 0, max: 0.5 + Math.random() * 0.2 });
+    }
+    particles.push({ type: 'ring', layer: 'water', x, y: y - 1, vx: 0, vy: 0, r: 3, grow: big ? 22 : 12, flat: 0.45, pal: [PAL.foam], life: 0, max: 0.45 });
+    const r = BREATHS.water.radius * (big ? 1 : 0.7);
+    for (let i = marks.length - 1; i >= 0; i--) if (marks[i].kind === 'flames' && Math.hypot(marks[i].x - x, marks[i].y - y) < r + marks[i].r) marks.splice(i, 1);
+    if (!cold) addMark('melt', x, y, big ? 13 : 8);
+    return;
+  }
   if (el !== 'frost' && el !== 'sonic') thawGround(x, y, BREATHS[el].radius * (big ? 1 : 0.7));
   if (el === 'lightning') {
     sparksAt(x, y, big ? 22 : 8);
@@ -498,6 +521,9 @@ function affect(x, y, el, r, beam) {
     if (el === 'frost') {
       if (o.burnT !== undefined) douse(o);
       else if (k === 'tree') snowOver(o);
+    } else if (el === 'water') {
+      if (o.burnT !== undefined) douse(o);
+      else if (o.snowy > 0) unsnow(o);
     } else if (el === 'sonic') {
       if (o.snowy > 0) unsnow(o);
       knockOver(o, k);
@@ -515,7 +541,7 @@ function affect(x, y, el, r, beam) {
       blastApart(o, k);
     }
   }
-  if (el === 'frost') {
+  if (el === 'frost' || el === 'water') {
     for (const o of [...burning]) if (Math.hypot(o.x - x, o.y - y) < r) douse(o);
   } else {
     meltAt(x, y + 4, r);
@@ -526,8 +552,8 @@ function affect(x, y, el, r, beam) {
     const wild = animals.includes(a);
     if (el === 'frost') {
       if (wild && d < r) freeze(a);
-    } else if (el === 'sonic') {
-      if (wild && d < r + 10) blowBack(a, x, y);
+    } else if (el === 'sonic' || el === 'water') {
+      if (wild && d < r + (el === 'sonic' ? 10 : 0)) blowBack(a, x, y);
     } else if (d < 18 && huntable(a)) {
       if (el === 'fire') a.roasted = true;
       hurtAnimal(a, 99);
@@ -927,6 +953,14 @@ function drawBall(b, x, y) {
     }
     ctx.globalAlpha = 1;
     ellipse(ctx, x, y, 2.5 * s, 2.5 * s, pal[1]);
+  } else if (b.el === 'water') {
+    // a wobbling ball of water, a tail of spray behind it
+    for (let i = 3; i >= 1; i--) ellipse(ctx, x - ux * i * 3.5 * s, y - uy * i * 3.5 * s, (4.5 - i) * s * 0.8, (4.5 - i) * s * 0.8, pal[2]);
+    const wob = Math.sin(time * 26) * 0.8;
+    ellipse(ctx, x, y, 5 * s + wob, 5 * s - wob, pal[2]);
+    ellipse(ctx, x, y, 4 * s + wob, 4 * s - wob, pal[0]);
+    ellipse(ctx, x - 1.5 * s, y - 1.5 * s, 1.6 * s, 1.2 * s, pal[1]);
+    px(ctx, x - 2 * s, y - 2 * s, '#ffffff');
   } else {
     ellipse(ctx, x, y, 5 * s + pulse, 5 * s + pulse, pal[2]);
     ellipse(ctx, x, y, 4 * s, 4 * s, pal[0]);
@@ -957,8 +991,10 @@ function drawBeams(cx, cy) {
   ctx.globalAlpha = 1;
 }
 
-// Plasma and frost: a solid ray with a white-hot core; frost's is thinner, glinting with ice.
+// Plasma, frost and water: a solid ray with a white-hot core; frost's is thinner, glinting with ice, and water's
+// ripples, beaded with spray rushing along it.
 function drawRayBeam(b, pts, fade, w, ground, k) {
+  if (b.el === 'water') return drawWaterBeam(b, pts, fade, ground, k);
   const [ex, ey] = pts[1];
   strokePath(pts, (6 + w) * fade * k, b.pal[2]);
   strokePath(pts, (4 + w) * fade * k, b.pal[0]);
@@ -976,6 +1012,34 @@ function drawRayBeam(b, pts, fade, w, ground, k) {
     }
   }
   if (ground) ellipse(ctx, ex, ey, 5 + w, 3 + w, b.pal[1]);
+}
+
+function drawWaterBeam(b, pts, fade, ground, k) {
+  const [x0, y0] = pts[0];
+  const [x1, y1] = pts[1];
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const n = Math.max(2, Math.floor(len / 4));
+  ctx.globalAlpha = fade;
+  for (const [c, s] of [[b.pal[2], 1], [b.pal[0], 0.7], [b.pal[1], 0.3]]) {
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      const r = (2.5 + 2 * u + Math.sin(time * 30 - u * 22) * 1.1) * s * k;
+      ellipse(ctx, x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, r, r, c);
+    }
+  }
+  const beads = Math.floor(len / 10);
+  for (let i = 0; i < beads; i++) {
+    const u = (i / beads + time * 3) % 1;
+    const side = (hash(i, 7, 131) - 0.5) * 8 * k;
+    const x = Math.round(x0 + (x1 - x0) * u - ((y1 - y0) / len) * side);
+    const y = Math.round(y0 + (y1 - y0) * u + ((x1 - x0) / len) * side);
+    px(ctx, x, y, '#ffffff');
+  }
+  ctx.globalAlpha = 1;
+  if (ground) {
+    ellipse(ctx, x1, y1, 7, 4, b.pal[0]);
+    ellipse(ctx, x1, y1, 4, 2, '#ffffff');
+  }
 }
 
 // Fire: a roaring stream of flame that billows wider and wobbles the further it goes.
