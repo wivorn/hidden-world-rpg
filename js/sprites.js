@@ -633,6 +633,58 @@ function buildCoconut() {
   });
 }
 
+function buildCherries() {
+  return sprite(11, 12, (g) => {
+    line(g, 6, 1, 3, 7, PAL.woodDark);
+    line(g, 6, 1, 8, 8, PAL.woodDark);
+    rect(g, 6, 1, 2, 1, PAL.leaf);
+    for (const [x, y] of [[3, 8], [8, 9]]) {
+      ellipse(g, x, y, 2, 2, '#a01830');
+      px(g, x - 1, y - 1, '#e05068');
+    }
+  });
+}
+
+function buildPlum() {
+  return sprite(11, 12, (g) => {
+    ellipse(g, 5, 7, 3.5, 4, '#5a2466');
+    ellipse(g, 4, 6, 1.5, 2, '#7a4288');
+    rect(g, 6, 4, 1, 6, '#46184e');
+    px(g, 3, 5, '#b48ac0');
+    rect(g, 5, 1, 1, 2, PAL.woodDark);
+  });
+}
+
+function buildPeach() {
+  return sprite(11, 11, (g) => {
+    ellipse(g, 5, 6, 4, 3.5, '#f09a5a');
+    ellipse(g, 6, 7, 2.5, 2, '#e0704a');
+    rect(g, 5, 3, 1, 6, '#d8583e');
+    px(g, 3, 4, '#fcd0a0');
+    rect(g, 5, 1, 1, 2, PAL.woodDark);
+    rect(g, 6, 1, 2, 1, PAL.leaf);
+  });
+}
+
+function buildOrange() {
+  return sprite(11, 11, (g) => {
+    ellipse(g, 5, 6, 4, 4, '#ee8a1a');
+    ellipse(g, 4, 5, 2, 2, '#f8a83a');
+    px(g, 3, 4, '#fcd090');
+    for (const [x, y] of [[7, 7], [5, 9], [8, 5]]) px(g, x, y, '#d0700e');
+    rect(g, 5, 1, 2, 1, PAL.leafDark);
+  });
+}
+
+function buildLemon() {
+  return sprite(12, 9, (g) => {
+    ellipse(g, 6, 5, 4.5, 3, '#e8d02a');
+    px(g, 1, 5, '#d8bc1a');
+    px(g, 11, 4, '#d8bc1a');
+    ellipse(g, 5, 4, 2, 1, '#fbf090');
+  });
+}
+
 function buildPineapple() {
   return sprite(11, 16, (g) => {
     poly(g, [[5, 0], [7, 5], [3, 5]], PAL.leaf);
@@ -903,20 +955,21 @@ function buildUiIcons() {
       '.....###....',
       '............',
     ], { '#': '#ffd36b' }),
+    // a hand grabbing a gem between finger and thumb
     autoPick: pixmap([
-      '.....AA.....',
-      '.....AA.....',
-      '.....AA.....',
-      '...AAAAAA...',
-      '....AAAA....',
-      '.....AA.....',
-      '............',
-      '.#........#.',
-      '.##......##.',
-      '.##########.',
-      '..########..',
-      '............',
-    ], { ...ink, A: '#ffd36b' }),
+      'CC..........',
+      'CCCS........',
+      '.CSSSS......',
+      '..SSSSSS....',
+      '..SSSSSSSs..',
+      '...SSSSSSSs.',
+      '...SSs..SSs.',
+      '...SS....Ss.',
+      '...S.AAA.S..',
+      '....AAAAA...',
+      '.....aAa....',
+      '......a.....',
+    ], { C: '#e8f4ff', S: '#f2c79a', s: '#c98f62', A: '#ffd36b', a: '#c8902a' }),
     soundOn: pixmap(withSide(['....#.', '..#..#', '...#.#', '.#.#.#', '.#.#.#', '.#.#.#', '...#.#', '..#..#', '....#.']), ink),
     soundOff: pixmap(withSide(['......', '......', '.#...#', '..#.#.', '...#..', '..#.#.', '.#...#', '......', '......']), ink),
     journal: pixmap([
@@ -976,6 +1029,71 @@ function buildUiIcons() {
       '............',
       '............',
     ], { B: '#6aa8d8', b: '#d8e8f0', '#': '#4a7aa8', W: '#1d3263' }),
+    dragonLog: pixmap([
+      '............',
+      '.H..H.......',
+      '.HH.HH......',
+      '..DDDDD.....',
+      '.DDDDDDD....',
+      '.DDEDDDDDDD.',
+      '.DDDDDDDDDDD',
+      '..DDDddddd..',
+      '..DDDd......',
+      '..DDDd.F....',
+      '...DDDd.F...',
+      '....DD......',
+    ], { D: '#4fa86a', d: '#2f6a44', H: '#f0e4b0', E: '#ffd23a', F: '#ff8a2a' }),
+    menu: pixmap([
+      '............',
+      '............',
+      '.##########.',
+      '.##########.',
+      '............',
+      '.##########.',
+      '.##########.',
+      '............',
+      '.##########.',
+      '.##########.',
+      '............',
+      '............',
+    ], ink),
+    chat: pixmap([
+      '............',
+      '............',
+      '..########..',
+      '.##########.',
+      '.#oo#oo#oo#.',
+      '.##########.',
+      '..########..',
+      '..###.......',
+      '..##........',
+      '..#.........',
+      '............',
+      '............',
+    ], { '#': '#e8f4ff', o: '#1d3263' }),
+    stick: pixmap([
+      '....RRRR....',
+      '...RRRRRR...',
+      '...RRRRRR...',
+      '....RRRR....',
+      '.....##.....',
+      '.....##.....',
+      '.....##.....',
+      '..########..',
+      '.##########.',
+      '.##########.',
+      '..########..',
+      '............',
+    ], { '#': '#e8f4ff', R: '#e05a4a' }),
+    // points down; turned over while what it folds is open
+    fold: pixmap([
+      '#........#',
+      '##......##',
+      '.##....##.',
+      '..##..##..',
+      '...####...',
+      '....##....',
+    ], ink),
   };
 }
 
@@ -1090,6 +1208,102 @@ function buildOak() {
   });
 }
 
+// How each orchard tree looks: its fruit's colour and highlight, the crown's half-width and half-height, and the
+// fruit's shape (round, a pear drop, or cherries hanging in pairs). Citrus keeps darker, glossier leaves.
+const FRUIT_LOOK = {
+  apple: { c: ['#c8322a', '#f08070'], crown: [12, 10], shape: 'round' },
+  pear: { c: ['#b6c23e', '#e4ea8a'], crown: [10, 12], shape: 'drop' },
+  cherry: { c: ['#a01830', '#e05068'], crown: [12, 9], shape: 'pair' },
+  plum: { c: ['#5a2466', '#9a62a8'], crown: [11, 10], shape: 'round' },
+  peach: { c: ['#f09a5a', '#fcd0a0'], crown: [12, 10], shape: 'round', blush: '#d8583e' },
+  orange: { c: ['#ee8a1a', '#fcc060'], crown: [11, 11], shape: 'round', glossy: true },
+  lemon: { c: ['#e8d02a', '#fbf090'], crown: [10, 11], shape: 'drop', glossy: true },
+};
+
+// A small orchard tree, 32x38, hung with fruit while `bearing`.
+function buildFruitTree(kind, bearing = true) {
+  const L = FRUIT_LOOK[kind];
+  const [rx, ry] = L.crown;
+  const [leaf, light, deep] = L.glossy ? [PAL.leafDark, PAL.leaf, PAL.leafDeep] : [PAL.leaf, PAL.leafLight, PAL.leafDeep];
+  const seed = Object.keys(FRUIT_LOOK).indexOf(kind) + 40;
+  return sprite(32, 38, (g) => {
+    const cx = 16;
+    const cy = ry + 2;
+    rect(g, 14, cy + 4, 4, 36 - cy - 4, PAL.woodDark);
+    rect(g, 14, cy + 4, 1, 36 - cy - 4, PAL.wood);
+    const blobs = [[cx, cy, rx, ry], [cx - rx * 0.6, cy + ry * 0.45, rx * 0.5, ry * 0.5], [cx + rx * 0.6, cy + ry * 0.45, rx * 0.5, ry * 0.5]];
+    for (const [x, y, a, b] of blobs) ellipse(g, x, y + 1, a, b, deep);
+    for (const [x, y, a, b] of blobs) ellipse(g, x, y, a, b - 1, leaf);
+    ellipse(g, cx - rx * 0.3, cy - ry * 0.4, rx * 0.5, ry * 0.35, light);
+    for (let i = 0; i < 10; i++) px(g, cx - rx + 3 + hash(i, 3, seed) * (rx * 2 - 6), cy - ry + 3 + hash(i, 4, seed) * (ry * 2 - 4), i % 2 ? deep : light);
+    if (!bearing) return;
+    const spots = [];
+    for (let i = 0; spots.length < 8 && i < 60; i++) {
+      const a = hash(i, 1, seed) * Math.PI * 2;
+      const r = 0.25 + Math.sqrt(hash(i, 2, seed)) * 0.6;
+      const x = Math.round(cx + Math.cos(a) * r * rx);
+      const y = Math.round(cy + 1 + Math.sin(a) * r * ry);
+      if (!spots.some(([sx, sy]) => Math.hypot(sx - x, sy - y) < 5)) spots.push([x, y]);
+    }
+    for (const [x, y] of spots) {
+      const [c, hi] = L.c;
+      if (L.shape === 'pair') {
+        px(g, x, y - 2, PAL.woodDark);
+        rect(g, x - 2, y, 2, 2, c);
+        rect(g, x + 1, y, 2, 2, c);
+        px(g, x - 2, y, hi);
+        px(g, x + 1, y, hi);
+      } else if (L.shape === 'drop') {
+        px(g, x, y - 1, c);
+        rect(g, x - 1, y, 3, 2, c);
+        px(g, x - 1, y, hi);
+      } else {
+        rect(g, x - 1, y - 1, 3, 3, c);
+        px(g, x - 1, y - 1, hi);
+        if (L.blush) px(g, x + 1, y + 1, L.blush);
+      }
+    }
+  });
+}
+
+// A banana plant, 34x40: a soft green stem under a fan of broad drooping leaves, with a bunch hanging below them.
+function buildBananaPlant(bearing = true) {
+  return sprite(34, 40, (g) => {
+    rect(g, 15, 14, 4, 24, '#6f8a36');
+    rect(g, 15, 14, 1, 24, '#9ab84e');
+    rect(g, 18, 14, 1, 24, '#4f6a26');
+    const [tx, ty] = [17, 14];
+    // each blade arcs out `hx` across and `rise` up from the top of the stem, its tip drooping by `droop`
+    const blade = (hx, rise, droop, w) => {
+      const mid = (t) => [tx + hx * t, ty - rise * Math.sin(t * Math.PI * 0.7) + droop * t * t];
+      const side = [];
+      const other = [];
+      for (let t = 0; t <= 1.001; t += 0.1) {
+        const [x, y] = mid(t);
+        const [x1, y1] = mid(Math.min(1, t + 0.05));
+        const [x0, y0] = mid(Math.max(0, t - 0.05));
+        const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+        const k = w * Math.sin(Math.PI * Math.min(0.95, t * 0.9 + 0.08));
+        side.push([x - ((y1 - y0) / len) * k, y + ((x1 - x0) / len) * k]);
+        other.unshift([x + ((y1 - y0) / len) * k, y - ((x1 - x0) / len) * k]);
+      }
+      const outline = [...side, ...other];
+      poly(g, outline.map(([x, y]) => [x, y + 1]), PAL.leafDark);
+      poly(g, outline, PAL.leaf);
+      for (let t = 0.1; t < 0.95; t += 0.1) line(g, ...mid(t), ...mid(t + 0.1), PAL.leafLight);
+    };
+    for (const [hx, rise, droop, w] of [[-15, 3, 6, 2.6], [14, 3, 7, 2.6], [-14, 11, 4, 3], [15, 10, 4, 3], [-4, 13, -1, 2.6], [6, 12, 2, 2.6]]) blade(hx, rise, droop, w);
+    if (!bearing) return;
+    rect(g, 19, 15, 1, 3, '#4f6a26');
+    for (let r = 0; r < 3; r++) {
+      for (let k = 0; k < 3 - (r > 1 ? 1 : 0); k++) {
+        rect(g, 17 + k * 2 + r, 17 + r * 2, 2, 2, (k + r) % 2 ? '#d4a828' : '#f2cf3a');
+      }
+    }
+    ellipse(g, 20, 24, 1.5, 2, '#7a2a4a');
+  });
+}
+
 function buildStump(w) {
   return sprite(w + 6, 9, (g) => {
     const x = 3;
@@ -1156,6 +1370,61 @@ function buildPalm(nuts = true) {
     if (!nuts) return;
     ellipse(g, 20, 15, 2, 2, '#6b4a2a');
     ellipse(g, 23, 16, 2, 2, '#5a3d22');
+  });
+}
+
+// Desert cacti: a saguaro with two arms, a taller one with a single arm and a flower on top, and a squat barrel cactus.
+const CACTUS = { green: '#4f8a3c', dark: '#2f5e2a', light: '#7ab45a', spine: '#f0ead0' };
+
+function cactusLimb(g, x, y, w, h) {
+  rect(g, x, y + 1, w, h - 1, CACTUS.green);
+  rect(g, x + 1, y, w - 2, 1, CACTUS.green);
+  rect(g, x, y + 1, 1, h - 1, CACTUS.light);
+  rect(g, x + w - 1, y + 1, 1, h - 1, CACTUS.dark);
+  for (let i = x + 2; i < x + w - 1; i += 2) rect(g, i, y + 2, 1, h - 3, CACTUS.dark);
+  for (let yy = y + 2; yy < y + h - 1; yy += 3) {
+    px(g, x - 1, yy, CACTUS.spine);
+    px(g, x + w, yy + 1, CACTUS.spine);
+  }
+}
+
+function buildSaguaro(tall) {
+  const H = tall ? 36 : 30;
+  return sprite(22, H, (g) => {
+    const top = tall ? 2 : 4;
+    if (tall) {
+      cactusLimb(g, 14, 9, 4, 8);
+      rect(g, 12, 15, 4, 3, CACTUS.green);
+      rect(g, 12, 17, 4, 1, CACTUS.dark);
+    } else {
+      cactusLimb(g, 2, 8, 4, 10);
+      rect(g, 4, 16, 5, 3, CACTUS.green);
+      rect(g, 4, 18, 5, 1, CACTUS.dark);
+      cactusLimb(g, 16, 5, 4, 9);
+      rect(g, 13, 12, 5, 3, CACTUS.green);
+      rect(g, 13, 14, 5, 1, CACTUS.dark);
+    }
+    cactusLimb(g, 8, top, 6, H - top - 1);
+    rect(g, 8, H - 2, 6, 1, CACTUS.dark);
+    if (tall) {
+      px(g, 10, top - 1, '#f27aa8');
+      px(g, 11, top - 2, '#ffb0cc');
+      px(g, 12, top - 1, '#f27aa8');
+      px(g, 11, top - 1, '#ffe27a');
+    }
+  });
+}
+
+function buildBarrelCactus() {
+  return sprite(12, 11, (g) => {
+    ellipse(g, 6, 6, 5, 4.5, CACTUS.green);
+    ellipse(g, 4.5, 5.5, 2, 3.5, CACTUS.light);
+    for (const x of [4, 6, 8]) rect(g, x, 3, 1, 6, CACTUS.dark);
+    rect(g, 2, 10, 8, 1, CACTUS.dark);
+    for (const [x, y] of [[1, 4], [11, 5], [3, 1], [9, 2], [0, 7], [11, 8]]) px(g, x, y, CACTUS.spine);
+    px(g, 5, 1, '#f2c94a');
+    px(g, 6, 0, '#f27a4a');
+    px(g, 7, 1, '#f2c94a');
   });
 }
 
@@ -1306,16 +1575,43 @@ function buildTorMound() {
   }, false);
 }
 
-// Burnt black where a bolt found metal once, with a bead of glass and a fleck of rust at its heart.
-function buildTorScorch() {
-  return sprite(26, 12, (g) => {
-    ellipse(g, 13, 6, 12, 5, '#3c3a2c');
-    ellipse(g, 13, 6, 8, 3, '#262218');
-    const r = mulberry32(73);
-    for (let i = 0; i < 5; i++) glassVein(g, 13, 6, (i / 5) * Math.PI * 2 + r(), 6 + r() * 4, 0, r);
-    rect(g, 12, 5, 3, 2, '#8a4a2e');
-    px(g, 13, 5, '#b0603a');
+// A six-sided stone socket set in the turf round the barrow, a rusty hole in the middle for a lightning rod.
+function buildRodSocket() {
+  const hex = (cx, cy, rx, ry) => [0, 1, 2, 3, 4, 5].map((i) => [cx + Math.cos((i * Math.PI) / 3) * rx, cy + Math.sin((i * Math.PI) / 3) * ry]);
+  return sprite(22, 13, (g) => {
+    poly(g, hex(11, 7, 10, 5.5), '#3a3d44');
+    poly(g, hex(11, 6, 10, 5.5), '#6a6f78');
+    poly(g, hex(11, 6, 7, 3.8), '#7a808a');
+    const face = hex(11, 6, 7, 3.8);
+    poly(g, [...face.slice(3), face[0]], '#949aa4');
+    poly(g, hex(11, 6, 3, 1.8), '#8a4a2e');
+    poly(g, hex(11, 6.3, 2, 1.1), '#14161c');
+    for (const [x, y] of [[3, 5], [18, 7], [9, 2]]) px(g, x, y, '#a8aeb8');
   }, false);
+}
+
+// A lightning rod standing in its socket: a pointed iron spike with a copper collar.
+function buildRodSet() {
+  return sprite(9, 33, (g) => {
+    poly(g, [[4.5, 0], [6, 5], [3, 5]], '#c9ccd4');
+    rect(g, 3, 5, 3, 26, '#6e7480');
+    rect(g, 3, 5, 1, 26, '#b8c0cc');
+    rect(g, 5, 5, 1, 26, '#4a4e58');
+    ellipse(g, 4.5, 9, 2, 1, '#9aa2ae');
+    rect(g, 2, 24, 5, 2, '#b06a3a');
+    rect(g, 2, 24, 5, 1, '#e09a5a');
+    rect(g, 2, 30, 5, 2, '#3a3d44');
+  });
+}
+
+function buildRodIcon() {
+  return sprite(8, 16, (g) => {
+    poly(g, [[3.5, 0], [5, 4], [2, 4]], '#e8eaf0');
+    rect(g, 3, 4, 2, 11, '#7a7f8c');
+    rect(g, 3, 4, 1, 11, '#c9ccd4');
+    rect(g, 2, 11, 4, 2, '#c87a42');
+    rect(g, 2, 15, 4, 1, '#4a4d58');
+  });
 }
 
 // Sand and soil fused to glass along a strike's path, forking as it ran.
@@ -2332,7 +2628,7 @@ function buildFish() {
 }
 
 // The other catches, all facing left like the herring: `len` stretches the body, `spots` speckle the back.
-function buildFishKind({ body, belly, fin, len = 5, tall = 3, spots, stripe, eye = true, shine }) {
+function buildFishKind({ body, belly, fin, len = 5, tall = 3, spots, spotColor = fin, stripe, eye = true, shine }) {
   const w = len * 2 + 6;
   const h = tall * 2 + 3;
   const cy = tall + 1;
@@ -2342,7 +2638,7 @@ function buildFishKind({ body, belly, fin, len = 5, tall = 3, spots, stripe, eye
     ellipse(g, len + 1, cy + tall * 0.5, len * 0.7, Math.max(1, tall * 0.4), belly);
     rect(g, 3, cy - tall + 1, len + 1, 1, fin);
     if (stripe) rect(g, 3, cy, len * 2 - 3, 1, stripe);
-    for (const [x, y] of spots || []) px(g, x, y, fin);
+    for (const [x, y] of spots || []) px(g, x, y, spotColor);
     if (shine) for (const [x, y] of [[4, cy - 1], [len, cy - tall + 2], [len + 3, cy - 1]]) px(g, x, y, shine);
     if (eye) px(g, 3, cy - 1, '#10141c');
   });
@@ -2836,19 +3132,19 @@ function buildStoneCache(empty) {
 
 function buildTinkerIcon() {
   return pixmap([
-    '............',
-    '.HHHH.......',
-    '.HHHHH......',
-    '..HHH.H.....',
-    '.....H.H....',
-    '......W.H...',
-    '.......W..S.',
-    '........W.S.',
-    '.........W..',
     '..........W.',
-    '...SS.......',
-    '............',
-  ], { H: '#c9ccd4', W: '#bd8148', S: '#ffd36b' });
+    '.........W..',
+    '..HG....W...',
+    '..HHG..W....',
+    '...HHGW.....',
+    '....HHG...S.',
+    '.....HG..S..',
+    '..LLLLLLLLL.',
+    'AAAAAAAAAAA.',
+    '....DAAAA...',
+    '....DAAAA...',
+    '..DDAAAAAAA.',
+  ], { H: '#e8eef6', G: '#a4aab6', W: '#bd8148', S: '#ffd36b', L: '#c9ccd4', A: '#8a909e', D: '#5c6270' });
 }
 
 // Pale cave mushrooms with glowing caps; `picked` leaves only the stubs.
@@ -3307,6 +3603,109 @@ function buildSnake() {
     }
   });
   return sides(['a', 'b', 'coil', 'strike'].map(frame));
+}
+
+// A javelina: a small, bristly brown desert pig with a pale collar, in the boar's frames.
+function buildJavelina() {
+  const HIDE = '#6e4a32';
+  const BRISTLE = '#3e2a1c';
+  const BELLY = '#8a6448';
+  const COLLAR = '#d8c8a8';
+  const frame = (pose) => sprite(19, 12, (g) => {
+    g.translate(1, 1);
+    const legs = {
+      stand: [[3, 3], [5, 5], [10, 10], [12, 12]],
+      step: [[2, 4], [6, 5], [9, 11], [13, 12]],
+      root: [[3, 3], [5, 5], [10, 10], [12, 12]],
+      run: [[2, 0], [5, 3], [10, 13], [12, 15]],
+    }[pose];
+    for (const [top, foot] of legs) {
+      line(g, top, 7, foot, 9, BRISTLE);
+      px(g, foot, 10, '#22160f');
+    }
+    ellipse(g, 7.5, 5, 6, 3.5, HIDE);
+    ellipse(g, 7.5, 7, 4.5, 1, BELLY);
+    for (let x = 3; x <= 11; x += 2) rect(g, x, 1 + (x % 4 === 1 ? 0 : 1), 1, 2, BRISTLE);
+    px(g, 1, 4, HIDE);
+    const dy = pose === 'root' ? 2 : pose === 'run' ? 1 : 0;
+    poly(g, [[10, 2], [12, 2 + dy], [12, 8], [10, 8]], COLLAR);
+    poly(g, [[12, 2 + dy], [15, 4 + dy], [16, 7 + dy], [12, 8]], HIDE);
+    rect(g, 15, 5 + dy, 2, 2, '#9a7262');
+    px(g, 16, 5 + dy, '#4a2418');
+    px(g, 14, 7 + dy, '#f4ead8');
+    px(g, 13, 4 + dy, '#10141c');
+    poly(g, [[11, 3 + dy], [12, 0 + dy], [13, 3 + dy]], BRISTLE);
+  });
+  return sides(['stand', 'step', 'root', 'run'].map(frame));
+}
+
+// A desert scorpion facing right, in the snake's frames: two scuttling, tail reared to sting, and the sting.
+function buildScorpion() {
+  const SHELL = '#b0702e';
+  const DARK = '#6e3e18';
+  const LIGHT = '#dca05a';
+  const TAILS = {
+    a: [[4, 7], [3, 5], [3, 3], [4, 1], [6, 1]],
+    b: [[4, 7], [3, 5], [3, 3], [4, 1], [6, 1]],
+    coil: [[4, 7], [3, 4], [4, 1], [6, -1], [8, -1]],
+    strike: [[4, 7], [5, 4], [8, 2], [11, 2], [13, 3]],
+  };
+  const frame = (pose) => sprite(20, 15, (g) => {
+    g.translate(1, 3);
+    for (let i = 0; i < 4; i++) {
+      const x = 6 + i * 2;
+      const kick = pose === 'b' ? (i % 2 ? 1 : -1) : pose === 'a' ? (i % 2 ? -1 : 1) : 0;
+      line(g, x, 9, x - 1 + kick, 11, DARK);
+    }
+    ellipse(g, 9, 8.5, 4.5, 2, SHELL);
+    for (const x of [6, 8, 10, 12]) px(g, x, 7, LIGHT);
+    const up = pose === 'coil' || pose === 'strike' ? -2 : 0;
+    line(g, 13, 9, 15, 8 + up, SHELL);
+    rect(g, 15, 7 + up, 3, 1, SHELL);
+    rect(g, 15, 9 + up, 2, 1, SHELL);
+    px(g, 17, 9 + up, DARK);
+    const tail = TAILS[pose];
+    tail.forEach(([x, y], i) => {
+      rect(g, x, y, 2, 2, SHELL);
+      px(g, x, y + 1, DARK);
+      if (i % 2) px(g, x + 1, y, LIGHT);
+    });
+    const [sx, sy] = tail[tail.length - 1];
+    px(g, sx + 2, sy + 1, DARK);
+    px(g, sx + 2, sy + 2, '#2a1a10');
+    px(g, 13, 7, '#101010');
+  });
+  return sides(['a', 'b', 'coil', 'strike'].map(frame));
+}
+
+// Frames: standing, mid-waddle, and flat on its belly for sliding over the ice.
+function buildPenguin() {
+  const BACK = '#1d2230';
+  const BELLY = '#f4f6fa';
+  const BEAK = '#f0a030';
+  const stand = (step) => sprite(12, 15, (g) => {
+    g.translate(1, 0);
+    rect(g, step ? 3 : 4, 13, 2, 1, BEAK);
+    rect(g, step ? 7 : 6, 13, 2, 1, BEAK);
+    ellipse(g, 5, 8.5, 4, 4.8, BACK);
+    ellipse(g, 6.5, 9.5, 2.4, 3.6, BELLY);
+    ellipse(g, 6, 3.5, 2.5, 2.4, BACK);
+    px(g, 7, 3, '#ffffff');
+    rect(g, 8, 4, 2, 1, BEAK);
+    poly(g, step ? [[3, 6], [0, 9], [2, 10]] : [[3, 6], [1, 10], [3, 11]], BACK);
+  });
+  const slide = sprite(19, 9, (g) => {
+    g.translate(0, 1);
+    rect(g, 0, 5, 2, 1, BEAK);
+    rect(g, 1, 6, 2, 1, BEAK);
+    ellipse(g, 9, 4.5, 6.5, 2.6, BACK);
+    ellipse(g, 9.5, 6, 5.5, 1.2, BELLY);
+    poly(g, [[8, 4], [5, 1], [7, 4]], BACK);
+    ellipse(g, 15, 4, 2.3, 2.2, BACK);
+    px(g, 16, 3, '#ffffff');
+    rect(g, 17, 4, 2, 1, BEAK);
+  });
+  return sides([stand(false), stand(true), slide]);
 }
 
 // ---------- night animals ----------
@@ -4448,6 +4847,7 @@ function buildSprites() {
   SPR.icon = {
     backpack: buildBackpack(), axe: SPR.axe, wood: buildLog(),
     apple: buildApple(), pear: buildPear(), banana: buildBanana(), pineapple: buildPineapple(),
+    cherries: buildCherries(), plum: buildPlum(), peach: buildPeach(), orange: buildOrange(), lemon: buildLemon(),
     berries: buildBerries(), coconut: buildCoconut(), stone: buildPebble(), iceCube: buildIceCube(), wool: buildWool(),
     bow: buildBow(), sword: buildSword(), shield: buildShield(), spear: buildSpear(),
     rod: buildRod(), fish: buildFish(), pickaxe: buildPickaxe(), iron: buildIron(), string: buildString(),
@@ -4462,6 +4862,9 @@ function buildSprites() {
     anglerfish: buildAnglerfish(),
     emberKoi: buildFishKind({ body: '#ff7a2a', belly: '#ffe0a0', fin: '#c83a14', len: 5, tall: 3, spots: [[5, 2], [8, 3], [10, 2]], shine: '#fff0c0' }),
     crystalFish: buildFishKind({ body: '#bfe8f4', belly: '#f4ffff', fin: '#7ac8e0', len: 5, tall: 2.5, shine: '#ffffff' }),
+    arcticChar: buildFishKind({ body: '#4e6470', belly: '#f0844e', fin: '#e85a3a', len: 6, tall: 2.5, spots: [[5, 2], [7, 3], [9, 2], [11, 3]], spotColor: '#f4d8c8' }),
+    frostPike: buildFishKind({ body: '#7aa6bc', belly: '#eef8fc', fin: '#3e6a84', len: 9, tall: 2, spots: [[6, 2], [9, 2], [12, 2], [15, 2]], spotColor: '#e0f4ff', shine: '#ffffff' }),
+    glacierSturgeon: buildFishKind({ body: '#4a6a82', belly: '#cfe2ee', fin: '#233a4c', len: 9, tall: 3, spots: [[4, 2], [7, 1], [10, 1], [13, 1], [16, 2], [6, 4], [11, 4]], spotColor: '#e9f8ff', shine: '#bfe2f2' }),
     featherLure: buildLureKind('feather'), spinner: buildLureKind('spinner'), glowLure: buildLureKind('glow'), goldenLure: buildLure(),
     bread: buildBread(), honeyCake: buildHoneyCake(),
     arrow: buildArrowIcon(), feather: buildFeather(), torch: buildTorchIcon(), gold: buildGoldNugget(), mushroom: buildGlowcapIcon(),
@@ -4469,7 +4872,7 @@ function buildSprites() {
     hide: buildHide(), satchel: buildSatchel(), pouch: buildPouch(), toolBelt: buildToolBelt(), saddle: buildSaddleIcon(),
     ruby: buildGem('#d8322a', '#ff7a6a', '#8a1a14'), emerald: buildGem('#2fae5a', '#7ae89a', '#1a6a34'),
     goblet: buildGoblet(), crown: buildCrown(),
-    plank: buildPlank(), rope: buildRope(), ladder: buildLadderIcon(), bridge: buildBridgeKit(),
+    plank: buildPlank(), rope: buildRope(), ladder: buildLadderIcon(), bridge: buildBridgeKit(), lightningRod: buildRodIcon(),
     campfire: buildCampfireKit(), tent: buildTentIcon(), grapple: buildGrapple(),
     mapPiece: buildMapPieceIcon(), runeNote: buildNoteIcon(),
     furCoat: buildCoatIcon(COATS.furCoat), fireJacket: buildCoatIcon(COATS.fireJacket),
@@ -4513,6 +4916,7 @@ function buildSprites() {
     fox: buildFox({ fur: '#d8642a', light: '#f4e6d0', legs: '#3a2414' }),
     arcticFox: buildFox({ fur: '#f4f4f8', light: '#ffffff', legs: '#9aa4b8' }),
     hedgehog: buildHedgehog(), badger: buildBadger(), wolf: buildWolf(), owl: buildOwl(), bat: buildBat(),
+    penguin: buildPenguin(), scorpion: buildScorpion(), javelina: buildJavelina(),
   };
   SPR.heldFront = { axe: buildAxeFront() };
   def('bushCut', { img: buildBushCut() });
@@ -4570,6 +4974,12 @@ function buildSprites() {
   const palm = buildPalm();
   const bare = buildPalm(false);
   def('palm', { img: palm, pick: (t, o) => (o.shaken ? bare : palm), foot: { w: 6, h: 4 }, shadow: { rx: 9, ry: 3 } });
+  for (const kind of Object.keys(FRUIT_LOOK)) {
+    const [full, picked] = [buildFruitTree(kind), buildFruitTree(kind, false)];
+    def(`${kind}Tree`, { img: full, pick: (t, o) => (o.shaken ? picked : full), foot: { w: 8, h: 5 }, shadow: { rx: 11, ry: 3 } });
+  }
+  const [bananas, bananaBare] = [buildBananaPlant(), buildBananaPlant(false)];
+  def('bananaTree', { img: bananas, pick: (t, o) => (o.shaken ? bananaBare : bananas), foot: { w: 6, h: 4 }, shadow: { rx: 9, ry: 3 } });
   def('menhir', { img: buildMenhir(), foot: { w: 10, h: 5 }, shadow: { rx: 6, ry: 2 }, light: { dx: 0, dy: -14, r: 14, color: '#6fb6ff' }, after: (g, x, y, t, o) => drawStoneRune(g, x, y, t, o) });
   const altar = buildAltar(false);
   const altarOpen = buildAltar(true);
@@ -4589,11 +4999,14 @@ function buildSprites() {
   def('boulderDark', { img: buildBoulder('dark'), foot: { w: 24, h: 8 }, shadow: { rx: 13, ry: 3 } });
   def('deadTree', { img: buildDeadTree(), foot: { w: 6, h: 4 }, shadow: { rx: 8, ry: 2 } });
   def('column', { img: buildColumn(), foot: { w: 12, h: 5 }, shadow: { rx: 7, ry: 2 } });
+  def('cactus', { img: buildSaguaro(false), foot: { w: 6, h: 4 }, shadow: { rx: 7, ry: 2 } });
+  def('cactusTall', { img: buildSaguaro(true), foot: { w: 6, h: 4 }, shadow: { rx: 7, ry: 2 } });
+  def('barrelCactus', { img: buildBarrelCactus(), foot: { w: 8, h: 4 }, shadow: { rx: 6, ry: 2 } });
   // flat things lie on the ground under everything else, whichever side of them it stands
   const mound = buildTorMound();
   def('torMound', { img: mound, oy: 17, flat: true });
-  const scorch = buildTorScorch();
-  def('torScorch', { img: scorch, oy: 6, flat: true });
+  def('rodSocket', { img: buildRodSocket(), oy: 6, flat: true });
+  def('lightningRodSet', { img: buildRodSet(), foot: { w: 5, h: 3 }, shadow: { rx: 3, ry: 1 } });
   const streak = buildGlassStreak();
   def('glassStreak', { img: streak, ox: 6, oy: 7, flat: true });
   def('splitTree', { img: buildSplitTree(), foot: { w: 8, h: 4 }, shadow: { rx: 9, ry: 3 } });

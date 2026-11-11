@@ -2,8 +2,8 @@
 
 // Every kind of dragon breathes its own element. Plasma blasts things apart and its beam burns through trees, fire
 // sets things alight, frost turns the ground to ice for a while, snows over trees, freezes animals and puts fires
-// out, the Thunderdrum's roar is a wall of sound that knocks things flat, and the Skrill's lightning strikes the
-// moment it's breathed, setting trees alight and blasting the rest.
+// out, the Thunderdrum's roar is a wall of sound that knocks things flat and shakes the fruit off trees, and the
+// Skrill's lightning strikes the moment it's breathed, setting trees alight and blasting the rest.
 // Bred dragons take theirs from the colour of their breath.
 const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning' };
 
@@ -533,10 +533,11 @@ function blastApart(o, k) {
   else if (k === 'tree') shedLeaves(o, 4);
 }
 
-const KNOCK = { tree: fell, boulder: breakBoulder, crystal: breakCrystal, barrel: smash, fence: breakFence, bush: cutBush, bramble: cutBramble, log: chopLog, target: hitTarget };
+// What a sonic blast does to each kind of thing. Trees stand: it only rattles them and shakes their fruit down.
+const KNOCK = { tree: shakeFruit, boulder: breakBoulder, crystal: breakCrystal, barrel: smash, fence: breakFence, bush: cutBush, bramble: cutBramble, log: chopLog, target: hitTarget };
 
 function knockOver(o, k) {
-  o.shakeT = 0.35;
+  o.shakeT = k === 'tree' ? 0.7 : 0.35;
   if (k === 'tree') shedLeaves(o, 6);
   if (KNOCK[k]) KNOCK[k](o);
 }
@@ -567,7 +568,7 @@ function blowBack(a, x, y) {
   const [ux, uy] = awayFrom(a, x, y);
   for (let i = 0; i < 4; i++) move(a, ux * 5, uy * 5);
   a.hurtT = 0.3;
-  if (a.kind === 'boar' || a.kind === 'snake') Object.assign(a, { state: 'stun', timer: 1.2 });
+  if (WILD[a.kind].charge || WILD[a.kind].lunge) Object.assign(a, { state: 'stun', timer: 1.2 });
 }
 
 // ---------- marks left on the ground ----------

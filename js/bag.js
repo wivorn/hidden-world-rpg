@@ -1,4 +1,5 @@
-// The hotbar along the top holds every tool carried, in TOOLS order, and F uses the selected one. The backpack button
+// The hotbar down the left holds every tool carried, in TOOLS order. Unfolded, a press on a slot takes that tool in
+// hand and folds the bar (Q) to show only it; F, or a press on it then, uses it. The backpack button
 // at the bottom left (B) folds out the backpack's slots, where picking a thing takes it out to carry and X drops it;
 // the equipments (E) show everything carried: what's worn, the tools and the backpack, and use what's in it.
 
@@ -16,10 +17,18 @@ const packTray = document.getElementById('pack-tray');
 const packSlotsEl = document.getElementById('pack-slots');
 const packRoom = document.getElementById('pack-room');
 const equipBtn = document.getElementById('equip-btn');
+const hotbarFold = document.getElementById('hotbar-fold');
 let trayOpen = localStorage.getItem('hw-tray') === '1';
+let toolsFolded = localStorage.getItem('hw-tools-folded') === '1';
 const iconUrls = {};
 const iconOf = (id) => SPR.icon[id] || SPR.ui[id];
 const iconUrl = (id) => (iconUrls[id] ||= iconOf(id).toDataURL());
+// Every button round the screen is the same size, its pixel art blown up a whole number of times to about hudArt px
+// (--hud-art). Phones blow it up a whole number of screen pixels instead, as whole CSS pixels are too coarse a step
+// at their size.
+let hudArt = 36;
+let hudPixel = 1;
+const hudScale = (s) => Math.max(1, Math.floor((hudArt * hudPixel) / Math.max(s.width, s.height))) / hudPixel;
 const keyOf = (i) => String(i + 1);
 const primary = () => (hand && has(hand) ? hand : null);
 
@@ -81,7 +90,8 @@ function renderInventory(changed) {
   syncPack();
   hotbarEl.hidden = !worn || !hotbar.length;
   if (!worn) return;
-  if (!bagBtn.querySelector('img').src) bagBtn.querySelector('img').replaceWith(iconImg('backpack', 2));
+  if (!bagBtn.querySelector('img').src) bagBtn.querySelector('img').replaceWith(iconImg('backpack', hudScale(iconOf('backpack'))));
+  renderFold();
   hotbarSlots.replaceChildren(...hotbar.map((id, i) => {
     const li = document.createElement('li');
     const live = id === hand;
@@ -93,11 +103,12 @@ function renderInventory(changed) {
     btn.type = 'button';
     btn.dataset.slot = i;
     btn.dataset.item = id;
-    btn.append(iconImg(id));
+    btn.append(iconImg(id, hudScale(iconOf(id))));
     const n = countTag(id);
     if (n) btn.append(n);
     if (id === 'torch') btn.append(Object.assign(document.createElement('em'), { className: 'burn' }));
-    btn.setAttribute('aria-label', `${keyOf(i)}, ${itemLabel(id)}${live ? ', used with F' : ''}`);
+    btn.title = ITEMS[id].name;
+    btn.setAttribute('aria-label', `${keyOf(i)}, ${itemLabel(id)}${live ? ', in hand' : ''}. Press to ${picking() ? 'take it in hand' : 'use it'}`);
     btn.setAttribute('aria-pressed', String(live));
     li.append(key, btn);
     if (id === changed || (id === 'bow' && changed === 'arrow')) li.classList.add('bump');
@@ -175,13 +186,69 @@ function dropCarried(all) {
   if (!has(id)) putAwayItem();
 }
 
+// Folded, the bar shows only the tool in hand; the number keys and Tab still pick any of them.
+function renderFold() {
+  hotbarEl.classList.toggle('folded', toolsFolded);
+  hotbarFold.hidden = hotbar.length < 2;
+  hotbarFold.setAttribute('aria-expanded', String(!toolsFolded));
+  hotbarFold.setAttribute('aria-label', toolsFolded ? 'Show every tool' : 'Show only the tool in hand');
+}
+
+function toggleToolsFold(folded = !toolsFolded) {
+  toolsFolded = folded;
+  localStorage.setItem('hw-tools-folded', toolsFolded ? '1' : '0');
+  renderInventory();
+  Sfx.drop();
+}
+
+// Unfolded, pressing a tool's slot takes it in hand and folds the rest away. Folded, pressing the one left uses it,
+// as F does, and letting go looses the arrow or the cast, as letting go of F does.
+const picking = () => !toolsFolded && hotbar.length > 1;
+
+function pickSlot(btn) {
+  hand = hotbar[+btn.dataset.slot] || hand;
+  toggleToolsFold(true);
+}
+
+function releaseSlot() {
+  loose();
+  releaseCast();
+}
+
+function useSlot(btn) {
+  selectHand(+btn.dataset.slot);
+  putAwayItem();
+  useTool();
+}
+
+hotbarSlots.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || e.button) return;
+  e.preventDefault();
+  if (picking()) {
+    pickSlot(btn);
+    return;
+  }
+  useSlot(btn);
+  window.addEventListener('pointerup', releaseSlot, { once: true });
+  window.addEventListener('pointercancel', releaseSlot, { once: true });
+});
+// Enter or Space on a focused slot; pointer presses were dealt with on the way down.
 hotbarSlots.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (!btn) return;
-  selectHand(+btn.dataset.slot);
-  btn.blur();
+  if (!btn || e.detail) return;
+  if (picking()) {
+    pickSlot(btn);
+    hotbarSlots.querySelector('li.primary button')?.focus();
+    return;
+  }
+  useSlot(btn);
+  releaseSlot();
 });
-
+hotbarFold.addEventListener('click', () => {
+  toggleToolsFold();
+  hotbarFold.blur();
+});
 bagBtn.addEventListener('click', () => {
   toggleTray();
   bagBtn.blur();
@@ -207,6 +274,7 @@ const bagGear = document.getElementById('bag-gear');
 const bagTools = document.getElementById('bag-tools');
 const bagItems = document.getElementById('bag-items');
 const bagRoom = document.getElementById('bag-room');
+const bagPurse = document.getElementById('bag-purse');
 const bagWhat = document.getElementById('bag-what');
 const bagActions = document.getElementById('bag-actions');
 let bagOpen = false;
@@ -219,7 +287,7 @@ const tunicId = () => `tunic_${player.look.id}`;
 
 // Opens on `pick` if given, else on the first tool or item.
 function toggleBag(open = !bagOpen, pick = null) {
-  if (open && (!has('backpack') || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || pileOpen)) return;
+  if (open && (!has('backpack') || naming || mapOpen || journalOpen || fishLogOpen || dragonLogOpen || tradeOpen || chestOpen || tinkerOpen || pileOpen)) return;
   bagOpen = open;
   bagEl.hidden = !open;
   equipBtn.setAttribute('aria-expanded', String(open));
@@ -312,6 +380,8 @@ function emptySlot() {
 
 function renderBag() {
   if (bagPick && !bagHas(bagPick)) bagPick = null;
+  bagPurse.replaceChildren(document.createTextNode('PURSE '), coinsEl(coins));
+  bagPurse.setAttribute('aria-label', `Purse: ${coinWords(coins)}`);
   const g = bagHero.getContext('2d');
   g.clearRect(0, 0, bagHero.width, bagHero.height);
   g.drawImage(charSprite(player.look, 'down', Math.floor(time * 4) % 4 === 1 ? 1 : 0), 0, 0);
@@ -358,7 +428,7 @@ function renderPick() {
     else if (outfit === id) btn('TAKE OFF', () => wear(null));
   } else {
     const where = ITEMS[id].worn ? 'Worn, so it takes no backpack slot.'
-      : ITEMS[id].tool ? `On the hotbar: press ${slotKey(id)} to ready it, F to use it. Tools take no backpack slot.` : '';
+      : ITEMS[id].tool ? `On the hotbar: ${touchScreen.matches ? 'tap it there to take it in hand, and again to use it' : `press ${slotKey(id)} to ready it, F to use it`}. Tools take no backpack slot.` : '';
     bagWhat.textContent = `${itemLabel(id)}. ${where}`.trim();
     // what's done out in the world closes the bag first
     const out = (label, act) => btn(label, () => { toggleBag(false); act(); });
@@ -381,6 +451,7 @@ function renderPick() {
     if (inPack(id) && has(id)) btn('DROP', () => dropItem(id), false);
     if (inPack(id) && bag[id] > 1) btn('DROP ALL', () => dropAll(id), false);
   }
+  bagWhat.textContent = touchWords(bagWhat.textContent);
 }
 
 bagEl.addEventListener('click', (e) => {

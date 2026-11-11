@@ -17,7 +17,12 @@ let time = 0;
 const cam = { x: 0, y: 0 };
 const keys = new Set();
 let pointer = null;
+let pointerId = null;
 let pointerDownAt = 0;
+// The touch joystick while a thumb is on it: where it went down and how far it's pushed.
+let stick = null;
+// The RUN button held down, standing in for SHIFT.
+let touchBoost = false;
 
 buildSprites();
 generateMap();
@@ -191,22 +196,25 @@ function faceToward(e, dx, dy) {
 
 // ---------- input ----------
 
-const boosting = () => keys.has('ShiftLeft') || keys.has('ShiftRight');
+const boosting = () => keys.has('ShiftLeft') || keys.has('ShiftRight') || touchBoost;
 
 // Sprinting with SHIFT, on foot or in the water, wears the player out: a full bar lasts STAMINA_RUN seconds.
 // Walking gets the breath back slowly and standing still faster. Run it right down and there's no more sprinting
-// until the bar is back to WINDED.
+// until the bar is back to WINDED. A soak in the hot spring fills a second bar on top, spent first, that resting
+// doesn't bring back.
 const STAMINA_RUN = 7;
 const STAMINA_WALK = 9;
 const STAMINA_REST = 4;
 const WINDED = 0.35;
 const staminaEl = document.getElementById('stamina');
+const staminaLine = document.getElementById('stamina-line');
+const staminaExtra = document.getElementById('stamina-extra');
 const canSprint = () => boosting() && !player.winded;
 let staminaShown = -1;
 
 function updateStamina(dt, sprinting, moving) {
   if (sprinting) player.stamina = Math.max(0, player.stamina - dt / STAMINA_RUN);
-  else player.stamina = Math.min(1, player.stamina + dt / (moving ? STAMINA_WALK : STAMINA_REST));
+  else if (player.stamina < 1) player.stamina = Math.min(1, player.stamina + dt / (moving ? STAMINA_WALK : STAMINA_REST));
   if (player.stamina <= 0 && !player.winded) {
     player.winded = true;
     muse('Phew... I need to catch my breath.');
@@ -215,20 +223,38 @@ function updateStamina(dt, sprinting, moving) {
   renderStamina();
 }
 
-function restStamina(k) {
-  player.stamina = Math.min(1, player.stamina + k);
+// Up by `k`, as far as `cap`: the one bar, or with the hot spring's second, two.
+function restStamina(k, cap = 1) {
+  player.stamina = Math.max(player.stamina, Math.min(cap, player.stamina + k));
   if (player.stamina >= WINDED) player.winded = false;
   renderStamina();
+}
+
+// Yellow down to about half, turning orange there and red as it runs out; red too while winded.
+const STAMINA_COLORS = [[0.15, [224, 52, 42]], [0.3, [242, 132, 48]], [0.45, [242, 132, 48]], [0.6, [242, 194, 48]]];
+
+function staminaColor(s) {
+  const last = STAMINA_COLORS.length - 1;
+  if (player.winded || s <= STAMINA_COLORS[0][0]) return `rgb(${STAMINA_COLORS[0][1]})`;
+  if (s >= STAMINA_COLORS[last][0]) return `rgb(${STAMINA_COLORS[last][1]})`;
+  const i = STAMINA_COLORS.findIndex(([at]) => s < at);
+  const [[s0, c0], [s1, c1]] = [STAMINA_COLORS[i - 1], STAMINA_COLORS[i]];
+  const k = (s - s0) / (s1 - s0);
+  return `rgb(${c0.map((v, j) => Math.round(v + (c1[j] - v) * k))})`;
 }
 
 function renderStamina() {
   const v = Math.round(player.stamina * 100);
   if (v === staminaShown && staminaEl.classList.contains('winded') === player.winded) return;
   staminaShown = v;
-  staminaEl.style.setProperty('--stamina', player.stamina.toFixed(3));
+  const base = Math.min(1, player.stamina);
+  const extra = Math.max(0, player.stamina - 1);
+  staminaEl.setAttribute('aria-valuemax', extra > 0 ? 200 : 100);
   staminaEl.setAttribute('aria-valuenow', v);
   staminaEl.classList.toggle('winded', player.winded);
-  staminaEl.classList.toggle('full', v >= 100);
+  staminaLine.setAttribute('stroke-dasharray', `${(base * 100).toFixed(1)} 100`);
+  staminaLine.style.setProperty('--stamina-color', staminaColor(base));
+  staminaExtra.setAttribute('stroke-dasharray', `${(extra * 100).toFixed(1)} 100`);
 }
 
 function readInput() {
@@ -238,6 +264,10 @@ function readInput() {
   if (keys.has('ArrowRight') || keys.has('KeyD')) ix += 1;
   if (keys.has('ArrowUp') || keys.has('KeyW')) iy -= 1;
   if (keys.has('ArrowDown') || keys.has('KeyS')) iy += 1;
+  if (stick && !ix && !iy && Math.hypot(stick.dx, stick.dy) > 8) {
+    ix = stick.dx;
+    iy = stick.dy;
+  }
   if (pointer && !ix && !iy) {
     const oy = flight ? flight.y - flight.alt - 12 : sail ? player.y - 30 : player.y - 8;
     const dx = pointer.x / zoom + Math.round(cam.x) - player.x;
@@ -272,6 +302,7 @@ function jump() {
   const spot = diveSpot();
   if (!spot) {
     player.jumpT = 0;
+    if (onIce()) iceSkid();
     for (const n of npcs) if (n.followT > 0 && n.jumpT < 0) n.jumpDelay = 0.12 + Math.random() * 0.1;
     const f = follower;
     if (f && f.stage < GROWN && !f.flying && f.jumpT < 0) f.jumpDelay = 0.15;
@@ -481,7 +512,15 @@ function updatePlayer(dt) {
   const speed = (running ? 115 : 68) * fedBoost();
   const ice = onIce();
   if (ice) slideOnIce(dt, ix * speed, iy * speed);
-  else player.glide = { vx: ix * speed, vy: iy * speed, t: time };
+  else {
+    if (player.glide?.skid) dust(player.x, player.y);
+    player.glide = { vx: ix * speed, vy: iy * speed, t: time };
+  }
+  if (ice && player.glide.skid) {
+    player.anim = 0;
+    player.frame = 0;
+    return;
+  }
   if (!ix && !iy) {
     player.anim = 0;
     player.frame = 0;
@@ -519,14 +558,35 @@ const ICE_GLIDE = 2.2;
 const RUN_SLIDE = 3;
 const onIce = () => !indoors && tileAt(Math.floor(player.x / TILE), Math.floor((player.y - 1) / TILE)) === T.ICE;
 
+// A jump on the ice lands in a long skid, the way the player was sliding or else facing, that no steering checks:
+// it carries on to the far edge of the ice or the first thing in the way.
+const SKID_SPEED = 150;
+const SKID_DRAG = 0.12;
+const SKID_END = 25;
+
+function iceSkid() {
+  const g = player.glide && time - player.glide.t < 0.1 ? player.glide : null;
+  const gs = g ? Math.hypot(g.vx, g.vy) : 0;
+  const [fx, fy] = gs > 20 ? [g.vx / gs, g.vy / gs] : { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[player.dir];
+  const sp = Math.max(SKID_SPEED, gs * 1.2);
+  player.glide = { vx: fx * sp, vy: fy * sp, t: time, run: 0, skid: true };
+}
+
 function slideOnIce(dt, tx, ty) {
   if (!player.glide || time - player.glide.t > 0.1) player.glide = { vx: 0, vy: 0 };
   const g = player.glide;
   g.t = time;
-  if (tx || ty) g.run = player.runT;
-  const k = 1 - Math.exp(-dt * (tx || ty ? ICE_GRIP : ICE_GLIDE / (1 + (g.run || 0) * 0.8)));
-  g.vx += (tx - g.vx) * k;
-  g.vy += (ty - g.vy) * k;
+  if (g.skid) {
+    const drag = Math.exp(-dt * SKID_DRAG);
+    g.vx *= drag;
+    g.vy *= drag;
+    if (Math.hypot(g.vx, g.vy) < SKID_END) g.skid = false;
+  } else {
+    if (tx || ty) g.run = player.runT;
+    const k = 1 - Math.exp(-dt * (tx || ty ? ICE_GRIP : ICE_GLIDE / (1 + (g.run || 0) * 0.8)));
+    g.vx += (tx - g.vx) * k;
+    g.vy += (ty - g.vy) * k;
+  }
   const x = player.x;
   const y = player.y;
   move(player, g.vx * dt, g.vy * dt);
@@ -804,6 +864,8 @@ function npcSay(n, text) {
     bubbleLayer.appendChild(n.bubble);
   }
   const pet = follower || dragons[dragons.length - 1];
+  text = touchWords(text);
+  if (!text) return;
   text = text
     .replace(/\{name\}/g, player.name)
     .replace(/\{lad\}/g, player.look.id === 'female' ? 'lass' : 'lad')
@@ -979,6 +1041,7 @@ function say(text) {
 
 // The player thinking aloud: shown over their head, but nobody hears it.
 function muse(text) {
+  text = touchWords(text);
   playerBubble.textContent = text;
   playerBubble.classList.add('show');
   playerSayT = 2.5 + text.length * 0.05;
@@ -1806,7 +1869,7 @@ function drawBaby(b, cx, cy) {
 // ---------- feeding & growing up ----------
 
 const GROWN = DRAGON_SCALES.length;
-const BIG_FISH = new Set(['cod', 'salmon', 'eel', 'anglerfish', 'emberKoi', 'goldenFish']);
+const BIG_FISH = new Set(['cod', 'salmon', 'eel', 'anglerfish', 'emberKoi', 'frostPike', 'glacierSturgeon', 'goldenFish']);
 
 // The young follower out at sea, free to take a fish reeled in from the longship.
 const hungryDragon = () => (sail && follower && follower.stage < GROWN && !follower.swoop && follower.catchT <= 0 ? follower : null);
@@ -2705,7 +2768,8 @@ function nearBackpack() {
 function pickUpBackpack() {
   wearBackpack();
   Sfx.pickup();
-  toast('BACKPACK', 'Number keys pick a tool from the hotbar and F uses it. B opens your backpack, E your equipments');
+  toast('BACKPACK', touchScreen.matches ? 'Tap a tool to take it in hand, and tap it again to use it. The backpack button opens your backpack, the tunic your equipments'
+    : 'Number keys or Tab pick a tool and F uses it, or click a tool to pick it and again to use it. B opens your backpack, E your equipments');
   faceToward(player, backpack.x - player.x, backpack.y - player.y);
   npcSay(mom, has('toolBelt') ? 'That\'s it! Off you go then, and be back for supper.'
     : 'That\'s it! And take your father\'s old tool belt too, it\'s right beside it.');
@@ -2732,6 +2796,7 @@ function wearBackpack() {
   renderInventory();
   player.look = { ...player.look, pack: true };
   journalBtn.hidden = false;
+  dragonLogBtn.hidden = false;
   setMomLines();
 }
 
@@ -2776,8 +2841,9 @@ function action() {
   else if (roostLeave()) leaveAtRoost(roostLeave());
   else if (nurseryLeave()) leaveAtNursery(nurseryLeave());
   else if (carried && nearPool()) throwEgg();
-  else if (nearEgg() && !nearBed()) pickUpEgg(nearEgg());
+  else if (nearEgg() && !(nearBed() && sleepy())) pickUpEgg(nearEgg());
   else if (nearTorEgg()) touchTorEgg();
+  else if (nearRodSocket()) useRodSocket(nearRodSocket());
   else if (treasureFirst()) takeTreasure(nearTreasure());
   else if (nearMount()) rideDragon(nearMount());
   else if (roostBuildable()) raiseRoost();
@@ -2794,7 +2860,7 @@ function action() {
   else if (nearBed()) sleep();
   else if (nearTent()) napInTent();
   else if (inHotSpring()) chillInHotSpring();
-  else if (nearChest()) toggleChest(true);
+  else if (nearChest()) toggleChest(true, nearChest());
   else if (nearWallMap()) takeMap();
   else if (nearGlowcap()) pickGlowcap(nearGlowcap());
   else if (nearDrop()) takeFromPile();
@@ -3002,6 +3068,7 @@ function update(dt) {
   updateDunes(dt);
   updatePeak(dt);
   updateTinker();
+  updateActions();
   updateBuild(dt);
   updateIce(dt);
   updateRoost(dt);
@@ -3402,14 +3469,61 @@ function drawParticles(cx, cy, layer) {
   ctx.globalAlpha = 1;
 }
 
+// ---------- touch screens ----------
+
+// With no keyboard, a tap on the world does what SPACE does, a press on a tool's slot what F does, and the buttons
+// stand in for their letter keys. Hints that name a key are reworded to match. Prompts for SHIFT, G, R and X go, as
+// the action buttons at the bottom right come and go with them and say the same.
+const touchScreen = matchMedia('(hover: none) and (pointer: coarse)');
+const KEY_BUTTONS = { B: 'backpack', C: 'craft', E: 'equipments', H: 'hints', J: 'journal', L: 'fish log', M: 'map', P: 'sound' };
+const PROMPT_KEY = /^((?:SPACE|SHIFT|ENTER|[A-Z]|\d+)(?:\s*(?:\+|or)\s*(?:SPACE|SHIFT|ENTER|[A-Z]))*) {2,}(.+)$/;
+const NO_TOUCH_KEY = /SHIFT|^[GRX]$/;
+// `word` capitalised if the `p` of the "Press" it replaces was.
+const likeCase = (p, word) => (p === p.toUpperCase() ? cap(word) : word);
+const TOUCH_WORDS = [
+  [/\b([Hh])old Shift for full sail\b/g, '$1old FULL SAIL'],
+  [/\b([Ll])et go of F\b/g, '$1et go'],
+  [/\b([Hh]old|[Tt]ap) F\b/g, '$1 the tool'],
+  [/\b([Pp])ress F\b/g, (m, p) => likeCase(p, 'tap the tool')],
+  [/\bthen F to\b/g, 'then tap it to'],
+  [/,? and F again\b/g, ' and again'],
+  [/\b([Pp])ress SPACE\b/g, (m, p) => likeCase(p, 'tap')],
+  [/\bwith SPACE\b/g, 'with a tap'],
+  [/\b([Pp])ress ENTER\b/g, (m, p) => likeCase(p, 'use the chat')],
+  [/\b([Pp])ress ([A-Z])\b/g, (m, p, k) => (KEY_BUTTONS[k] ? likeCase(p, `tap the ${KEY_BUTTONS[k]} button`) : m)],
+  [/(^|[.!?] )([A-Z]) opens\b/g, (m, s, k) => (KEY_BUTTONS[k] ? `${s}The ${KEY_BUTTONS[k]} button opens` : m)],
+  [/ \([A-Z/]\)/g, ''],
+];
+
+// Text for the player to read, as it should read on a touch screen.
+function touchWords(text) {
+  if (!touchScreen.matches) return text;
+  const worded = TOUCH_WORDS.reduce((t, [re, to]) => t.replace(re, to), text);
+  return worded.split(/(?<=[.!?])\s+/).filter((s) => !/\bshift\b/i.test(s)).join(' ');
+}
+
+// A prompt is `KEY  action` parts strung together with dots; each loses its key, or goes if it has no stand-in.
+function touchPrompt(text) {
+  if (!touchScreen.matches) return text;
+  return text.split(/\s+·\s+/).flatMap((part) => {
+    const m = part.match(PROMPT_KEY);
+    if (m && m[1] === 'SHIFT + SPACE') return [`Hold RUN, then tap, to ${m[2][0].toLowerCase()}${m[2].slice(1)}`];
+    if (m && NO_TOUCH_KEY.test(m[1])) return [];
+    const words = touchWords(m ? m[2] : part);
+    return words ? [words] : [];
+  }).join('   ·   ');
+}
+
+if (touchScreen.matches) chatInput.placeholder = 'Tap here to chat';
+
 let promptText = null;
 let hintsOn = false;
 
 function setPrompt(text) {
   if (text === promptText) return;
   promptText = text;
-  promptEl.textContent = text;
-  promptEl.classList.toggle('show', !!text && hintsOn);
+  promptEl.textContent = touchPrompt(text);
+  promptEl.classList.toggle('show', !!promptEl.textContent && hintsOn);
 }
 
 function render() {
@@ -3528,8 +3642,8 @@ function render() {
       : landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
     const egg = carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '';
     const breath = BREATH === 'lightning'
-      ? (flight.charge == null ? 'F  Lightning (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to strike' : 'Full charge! Let go of F for a storm')
-      : flight.charge == null ? 'F  Fireball (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to fire' : 'Full charge! Let go of F for a beam';
+      ? (flight.charge == null ? 'F  Beam (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to strike' : 'Full charge! Let go of F for a storm')
+      : flight.charge == null ? 'F  Beam (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to fire' : 'Full charge! Let go of F for a beam';
     setPrompt(`${overCrater() ? 'SPACE  Drop the egg into the volcano' : space}  ·  ${breath}  ·  R  Loop  ·  SHIFT  Boost${egg}`);
   } else if (player.downT > 0) {
     setPrompt('Bitten! You can\'t move until the venom wears off...');
@@ -3550,10 +3664,12 @@ function render() {
     setPrompt(`SPACE  Leave ${nurseryLeave().name} at the nursery`);
   } else if (carried && nearPool()) {
     setPrompt('SPACE or F  Throw the egg into the lava');
-  } else if (nearEgg() && !nearBed()) {
+  } else if (nearEgg() && !(nearBed() && sleepy())) {
     setPrompt(`SPACE  Pick up the ${DRAGON_SPECIES[nearEgg().species].name} egg`);
   } else if (nearTorEgg()) {
     setPrompt('SPACE  Touch the egg');
+  } else if (nearRodSocket()) {
+    setPrompt(rodSocketPrompt());
   } else if (treasureFirst()) {
     setPrompt(treasurePrompt());
   } else if (nearMount()) {
@@ -3589,14 +3705,16 @@ function render() {
   } else if (nearHomeBelt()) {
     setPrompt('SPACE  Pick up the tool belt');
   } else if (nearBed()) {
-    setPrompt(indoors === ROOMS.hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning');
+    const hut = indoors === ROOMS.hut;
+    setPrompt(sleepy() ? (hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning')
+      : hut ? 'SPACE  Nap at the hermit\'s until nightfall' : 'SPACE  Nap until nightfall');
   } else if (nearTent()) {
     const pack = primary() === 'tent' ? '   ·   F  Pack up the tent' : '';
     setPrompt(`SPACE  ${isNight() ? 'Sleep in the tent until morning' : 'Nap in the tent until nightfall'}${pack}`);
   } else if (inHotSpring()) {
-    setPrompt('SPACE  Chill in the hot spring for 4 hours');
+    setPrompt('SPACE  Chill in the hot spring for 2 hours');
   } else if (nearChest()) {
-    setPrompt('SPACE  Open the chest');
+    setPrompt(nearChest().room === 'hut' ? 'SPACE  Open the hermit\'s chest' : 'SPACE  Open the chest');
   } else if (nearWallMap()) {
     setPrompt('SPACE  Take the map');
   } else if (nearGlowcap()) {
@@ -3678,6 +3796,20 @@ function resize() {
   zoom = zoomTarget();
   applyView();
   updateCamera(0, true);
+  fitHud();
+}
+
+// Turning a phone or tablet can change the button size; the pixel art is blown up again to match.
+function fitHud() {
+  const art = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-art')) || 36;
+  const pixel = art < 36 ? dpr : 1;
+  if (art === hudArt && pixel === hudPixel) return;
+  hudArt = art;
+  hudPixel = pixel;
+  for (const btn of document.querySelectorAll('[data-icon]')) toggleIcon(btn, btn.dataset.icon);
+  const bagImg = bagBtn.querySelector('img');
+  if (bagImg.src) bagImg.style.width = `${iconOf('backpack').width * hudScale(iconOf('backpack'))}px`;
+  renderInventory();
 }
 
 // Held down, these keep stepping, a little slower than the keyboard repeats.
@@ -3688,11 +3820,46 @@ const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
 
 const soundBtn = document.getElementById('sound');
 
-function toggleIcon(btn, key) {
+// `scale`, if given, stays fixed; otherwise the art follows the button size.
+function toggleIcon(btn, key, scale) {
+  btn.dataset.icon = key;
+  if (scale) btn.dataset.iconScale = scale;
   const img = btn.querySelector('img');
   img.src = iconUrls[`ui-${key}`] ||= SPR.ui[key].toDataURL();
-  img.style.width = `${SPR.ui[key].width * 2}px`;
+  img.style.width = `${SPR.ui[key].width * (+btn.dataset.iconScale || hudScale(SPR.ui[key]))}px`;
 }
+
+// The menu down the right folds away behind its top button (O). While folded, that button bumps for whatever
+// inside it wants noticing.
+const menuBtn = document.getElementById('menu-btn');
+const menuItems = document.getElementById('menu-items');
+let menuFolded = localStorage.getItem('hw-menu-folded') === '1';
+
+function renderMenu() {
+  menuItems.hidden = menuFolded;
+  menuBtn.setAttribute('aria-expanded', String(!menuFolded));
+  menuBtn.setAttribute('aria-label', menuFolded ? 'Open the menu' : 'Fold the menu away');
+}
+
+function toggleMenu() {
+  menuFolded = !menuFolded;
+  localStorage.setItem('hw-menu-folded', menuFolded ? '1' : '0');
+  renderMenu();
+  Sfx.drop();
+}
+
+function flashMenu() {
+  if (!menuFolded) return;
+  menuBtn.classList.remove('bump');
+  void menuBtn.offsetWidth;
+  menuBtn.classList.add('bump');
+}
+
+menuBtn.addEventListener('click', () => {
+  toggleMenu();
+  menuBtn.blur();
+});
+renderMenu();
 
 function toggleSound() {
   Sfx.init();
@@ -3711,7 +3878,7 @@ const hintsBtn = document.getElementById('hints');
 function toggleHints() {
   hintsOn = !hintsOn;
   hintsBtn.setAttribute('aria-pressed', String(hintsOn));
-  promptEl.classList.toggle('show', !!promptText && hintsOn);
+  promptEl.classList.toggle('show', !!promptEl.textContent && hintsOn);
 }
 
 const autoPickBtn = document.getElementById('autopick');
@@ -3722,7 +3889,7 @@ function toggleAutoPick() {
   try {
     localStorage.setItem('hw-autopick', autoPick ? '1' : '0');
   } catch (e) { /* storage unavailable */ }
-  toast('AUTO PICK UP', autoPick ? 'On: walk over things to pick them up' : 'Off: press SPACE to pick things up');
+  toast('AUTO PICK UP', autoPick ? 'On: walk over things to pick them up' : 'Off: press SPACE to pick things up', true);
 }
 
 autoPickBtn.setAttribute('aria-pressed', String(autoPick));
@@ -3738,6 +3905,9 @@ toggleIcon(equipBtn, 'equip');
 toggleIcon(journalBtn, 'journal');
 toggleIcon(mapBtn, 'map');
 toggleIcon(fishLogBtn, 'fishLog');
+toggleIcon(dragonLogBtn, 'dragonLog');
+toggleIcon(menuBtn, 'menu');
+toggleIcon(hotbarFold, 'fold', 2);
 
 hintsBtn.addEventListener('click', () => {
   toggleHints();
@@ -3747,7 +3917,7 @@ window.addEventListener('pointerdown', () => Sfx.init());
 
 window.addEventListener('keydown', (e) => {
   Sfx.init();
-  if (!started || naming || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen || tinkerOpen || bagOpen || noteOpen || pileOpen || lurePickOpen || (flight && flight.warp) || document.activeElement === chatInput) return;
+  if (!started || naming || mapOpen || journalOpen || fishLogOpen || dragonLogOpen || tradeOpen || chestOpen || tinkerOpen || bagOpen || noteOpen || pileOpen || lurePickOpen || (flight && flight.warp) || document.activeElement === chatInput) return;
   if ((hotbarEl.contains(document.activeElement) || packEl.contains(document.activeElement)) && ['Enter', 'NumpadEnter', 'Space'].includes(e.code)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
@@ -3764,32 +3934,48 @@ window.addEventListener('keydown', (e) => {
       cycle(e);
     }
   }
-  if (!e.repeat) {
-    if (e.code === 'Space') action();
-    if (e.code === 'KeyF') {
-      if (flight) chargeBreath();
-      else if (carried) setDownEgg();
-      else {
-        putAwayItem();
-        useTool();
-      }
-    }
-    if (e.code === 'KeyR') loopTrick();
-    if (e.code === 'KeyP') toggleSound();
-    if (e.code === 'KeyH') toggleHints();
-    if (e.code === 'Slash') toggleAutoPick();
-    if (e.code === 'KeyM') toggleMap(true);
-    if (e.code === 'KeyJ') toggleJournal(true);
-    if (e.code === 'KeyE') toggleBag(true);
-    if (e.code === 'KeyB' && has('backpack')) toggleTray();
-    if (e.code === 'KeyX') dropCarried(e.shiftKey);
-    if (e.code === 'KeyL') toggleFishLog(true);
-    if (e.code === 'KeyC') toggleTinker(true);
-    if (e.code === 'KeyG') takeBack();
-    if (/^Digit\d$/.test(e.code)) pickTool(+e.code[5] || 10);
-  }
+  if (!e.repeat) pressKey(e.code, e.shiftKey);
   keys.add(e.code);
 });
+
+// What a key does going down, from the keyboard or from a touch screen's action buttons.
+function pressKey(code, shift) {
+  if (code === 'Space') action();
+  if (code === 'KeyF') {
+    if (flight) chargeBreath();
+    else if (carried) setDownEgg();
+    else {
+      putAwayItem();
+      useTool();
+    }
+  }
+  if (code === 'KeyR') loopTrick();
+  if (code === 'KeyP') toggleSound();
+  if (code === 'KeyH') toggleHints();
+  if (code === 'Slash') toggleAutoPick();
+  if (code === 'KeyM') toggleMap(true);
+  if (code === 'KeyJ') toggleJournal(true);
+  if (code === 'KeyE') toggleBag(true);
+  if (code === 'KeyB' && has('backpack')) toggleTray();
+  if (code === 'KeyX') dropCarried(shift);
+  if (code === 'KeyL') toggleFishLog(true);
+  if (code === 'KeyK') toggleDragonLog(true);
+  if (code === 'KeyC') toggleTinker(true);
+  if (code === 'KeyG') takeBack();
+  if (code === 'KeyO') toggleMenu();
+  if (code === 'KeyQ' && hotbar.length > 1) toggleToolsFold();
+  if (/^Digit\d$/.test(code)) pickTool(+code[5] || 10);
+}
+
+// And letting go: F charges, draws and winds up while held.
+function releaseKey(code) {
+  keys.delete(code);
+  if (code === 'KeyF') {
+    releaseBreath();
+    loose();
+    releaseCast();
+  }
+}
 
 chatInput.addEventListener('focus', () => keys.clear());
 chatInput.addEventListener('keydown', (e) => {
@@ -3804,24 +3990,284 @@ chatForm.addEventListener('submit', (e) => {
   chatInput.value = '';
   chatInput.blur();
 });
-window.addEventListener('keyup', (e) => {
-  keys.delete(e.code);
-  if (e.code === 'KeyF') {
-    releaseBreath();
-    loose();
-    releaseCast();
-  }
-});
+window.addEventListener('keyup', (e) => releaseKey(e.code));
 window.addEventListener('blur', () => {
   keys.clear();
   player.nock = player.windup = null;
+  touchBoost = false;
+  endStick();
 });
 window.addEventListener('resize', resize);
+
+// ---------- touch controls ----------
+
+// Touch screens have no keys, so along the bottom right, beside the chat button, there's a button for every key that
+// would do something right now: RUN, standing in for SHIFT, and whatever else the player could do where they are.
+// With the joystick on, a thumb on the left half steers.
+const actionsEl = document.getElementById('actions');
+const runBtn = document.getElementById('act-run');
+const chatBtn = document.getElementById('chat-btn');
+const stickBtn = document.getElementById('stick-btn');
+const stickEl = document.getElementById('stick');
+const stickKnob = stickEl.querySelector('i');
+const STICK_R = 40;
+let stickOn = touchScreen.matches && localStorage.getItem('hw-stick') === '1';
+let actionsShown = '';
+
+// The key a prompt names, as pressed: its code and whether with SHIFT. SHIFT on its own is the RUN button's.
+const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], X: ['KeyX'], 'SHIFT+X': ['KeyX', true], G: ['KeyG'], ENTER: ['Enter'] };
+// A button's name is the verb of what it does, and the little word after it, or after "it", if there is one: "Climb
+// up the ladder" is CLIMB UP, "Take it down" TAKE DOWN. These read better by another name.
+const ACT_NAMES = [[/^Ride\b/, 'MOUNT'], [/^Put the saddle\b/, 'SADDLE'], [/^See what\b/, 'SHOP'], [/^Splash dive\b/, 'DIVE'],
+  [/^Open your equipments\b/, 'GEAR'], [/alight\b|^Light your torch\b/, 'BURN'], [/^Pick from\b/, 'PICK UP'], [/^Drop all\b/, 'DROP ALL'],
+  [/^Sleep\b/, 'SLEEP']];
+const ACT_PARTICLES = new Set(['up', 'down', 'in', 'into', 'out', 'over', 'on', 'off', 'back', 'ashore', 'again']);
+
+function actName(label) {
+  const named = ACT_NAMES.find(([re]) => re.test(label));
+  if (named) return named[1];
+  const [verb, ...rest] = label.replace(/\(.*?\)|[!.,]/g, '').trim().split(/\s+/);
+  const next = rest[0] === 'it' ? rest[1] : rest[0];
+  return (ACT_PARTICLES.has(next) ? `${verb} ${next}` : verb).toUpperCase();
+}
+
+// In the saddle the buttons hold still, whatever the dragon is over or doing: SPACE for what it does here, F the breath
+// and R the loop, each greyed out while it can't be used, as through a dive.
+function flightActions() {
+  const f = flight;
+  const free = f.mode === 'fly' && f.loop < 0;
+  const act = (code, name, label, on) => ({ code, shift: false, name, label, off: !on });
+  const space = overCrater() ? ['DROP EGG', 'Drop the egg into the volcano']
+    : floatersNear(f).length && overWater(f) ? ['SWOOP', 'Swoop down for the fish']
+    : landingSpot() ? ['LAND', 'Land'] : overWater(f) ? ['DIVE', 'Splash dive'] : null;
+  return [
+    act('Space', ...(space || ['LAND', 'Find open ground to land']), free && !!space),
+    act('KeyF', 'BEAM', 'Breathe (hold to charge)', canBreathe(f) && (f.fireCd <= 0 || f.charge != null)),
+    act('KeyR', 'LOOP', 'Loop', free),
+  ];
+}
+
+// What the prompt offers with a key, then what it may be too busy to mention: dropping what's carried and taking up
+// what was set down.
+function touchActions() {
+  if (flight) return flightActions();
+  const acts = [];
+  const add = (key, label) => {
+    const digit = /^\d+$/.test(key);
+    const [code, shift = false] = digit ? [`Digit${key}`] : ACT_KEYS[key] || [];
+    if (!code || acts.some((a) => a.code === code && a.shift === shift)) return;
+    const name = digit && hotbar[key - 1] ? `READY ${ITEMS[hotbar[key - 1]].name.toUpperCase()}` : actName(label);
+    acts.push({ code, shift, label, name });
+  };
+  for (const part of (promptText || '').split(/\s+·\s+/)) {
+    const m = part.match(PROMPT_KEY);
+    if (m) add(m[1], m[2]);
+  }
+  const id = carriedOut();
+  if (id) {
+    add('X', `Drop the ${itemName(id)}`);
+    if (bag[id] > 1) add('SHIFT+X', `Drop all ${ITEMS[id].plural || itemName(id)}`);
+  }
+  const t = takeable();
+  if (t) add('G', t.label);
+  return acts;
+}
+
+function updateActions() {
+  if (!touchScreen.matches || !started) return;
+  const run = flight ? 'BOOST' : sail ? 'FULL SAIL' : 'RUN';
+  const acts = touchActions();
+  const shown = [run, ...acts.map((a) => `${a.code}${a.shift}${a.name}${a.label}${!!a.off}`)].join('|');
+  if (shown !== actionsShown) {
+    actionsShown = shown;
+    runBtn.textContent = run;
+    placeActs(acts);
+  }
+  renderBreathCharge();
+}
+
+// A button that's still wanted stays where it is and only takes on its new look, so one held down isn't swapped out
+// from under the thumb.
+function placeActs(acts) {
+  const old = new Map([...actionsEl.children].filter((b) => b !== runBtn).map((b) => [b.dataset.act, b]));
+  const btns = acts.map((a) => {
+    const key = `${a.code}${a.shift}`;
+    const btn = old.get(key) || actButton();
+    old.delete(key);
+    btn.dataset.act = key;
+    btn.act = a;
+    if (btn.textContent !== a.name) btn.textContent = a.name;
+    btn.disabled = !!a.off;
+    btn.setAttribute('aria-label', touchWords(a.label));
+    return btn;
+  });
+  for (const btn of old.values()) btn.remove();
+  btns.forEach((btn, i) => {
+    const at = actionsEl.children[i + 1] || null;
+    if (at !== btn) actionsEl.insertBefore(btn, at);
+  });
+}
+
+// Holding BEAM fills it from the left as the breath charges, and lights it up once it's full.
+function renderBreathCharge() {
+  const btn = actionsEl.querySelector('[data-act="KeyFfalse"]');
+  if (!btn) return;
+  const c = flight && flight.charge != null ? Math.round(flight.charge * 20) / 20 : null;
+  if (btn.charge === c) return;
+  btn.charge = c;
+  btn.classList.toggle('charging', c != null);
+  btn.classList.toggle('charged', c === 1);
+  btn.style.setProperty('--charge', c ?? 0);
+}
+
+function actButton() {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'act';
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (btn.act.code !== 'Enter' && !btn.act.off) pressAct(btn.act, e.pointerId);
+  });
+  // The chat only takes the keyboard on a click; Enter or Space on a focused button also comes this way.
+  btn.addEventListener('click', (e) => {
+    if (btn.act.code === 'Enter') {
+      showChat(true);
+      chatInput.focus();
+    } else if (!e.detail && !btn.act.off) {
+      pressAct(btn.act);
+      releaseKey(btn.act.code);
+    }
+  });
+  return btn;
+}
+
+// Held like the key, so F still charges, draws and winds up, until the finger that pressed it lets go, whatever the
+// other fingers do; the button may be gone by then.
+function pressAct(a, pointerId) {
+  pressKey(a.code, a.shift);
+  keys.add(a.code);
+  if (pointerId == null) return;
+  const up = (e) => {
+    if (e.pointerId !== pointerId) return;
+    releaseKey(a.code);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+  };
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+
+function holdRun(on) {
+  touchBoost = on;
+  runBtn.classList.toggle('held', on);
+}
+
+runBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  runBtn.setPointerCapture(e.pointerId);
+  holdRun(true);
+});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) runBtn.addEventListener(type, () => holdRun(false));
+
+// The button opens the chat and closes it again. Pressing it can blur the chat, which closes it before the click
+// lands, so whether it was open is taken on the way down.
+let chatWasOpen = false;
+
+function showChat(open) {
+  chatForm.classList.toggle('open', open);
+  chatBtn.setAttribute('aria-expanded', String(open));
+}
+
+chatBtn.addEventListener('pointerdown', (e) => {
+  chatWasOpen = chatForm.classList.contains('open');
+  e.preventDefault();
+});
+chatBtn.addEventListener('mousedown', (e) => e.preventDefault());
+chatBtn.addEventListener('click', (e) => {
+  const open = e.detail ? chatWasOpen : chatForm.classList.contains('open');
+  if (open) {
+    chatInput.blur();
+    showChat(false);
+    return;
+  }
+  showChat(true);
+  chatInput.focus();
+});
+chatInput.addEventListener('blur', () => {
+  showChat(false);
+  window.scrollTo(0, 0);
+});
+// The chat bar rides on top of the on-screen keyboard.
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  vv.addEventListener('resize', () => {
+    document.documentElement.style.setProperty('--kb', `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`);
+  });
+}
+
+function renderStickBtn() {
+  stickBtn.hidden = !touchScreen.matches;
+  stickBtn.setAttribute('aria-pressed', String(stickOn));
+}
+
+stickBtn.addEventListener('click', () => {
+  stickOn = !stickOn;
+  localStorage.setItem('hw-stick', stickOn ? '1' : '0');
+  renderStickBtn();
+  stickBtn.blur();
+  toast('JOYSTICK', stickOn ? 'On: drag on the left half to walk, tap anywhere to act' : 'Off: hold a finger where you want to go', true);
+});
+toggleIcon(stickBtn, 'stick');
+toggleIcon(chatBtn, 'chat');
+renderStickBtn();
+
+function startStick(e, p) {
+  stick = { id: e.pointerId, x0: p.x, y0: p.y, dx: 0, dy: 0, t: time };
+  stickEl.style.left = `${p.x}px`;
+  stickEl.style.top = `${p.y}px`;
+  stickKnob.style.transform = '';
+  stickEl.hidden = false;
+}
+
+function moveStick(p) {
+  let dx = p.x - stick.x0;
+  let dy = p.y - stick.y0;
+  const d = Math.hypot(dx, dy);
+  if (d > STICK_R) {
+    dx *= STICK_R / d;
+    dy *= STICK_R / d;
+  }
+  stick.dx = dx;
+  stick.dy = dy;
+  stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+function endStick() {
+  stick = null;
+  stickEl.hidden = true;
+}
 
 const pointerPos = (e) => {
   const r = screenCanvas.getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 };
+
+// A tap on something lying about picks it up, and on a notice board reads it.
+function tapWorld(p) {
+  const [wx, wy] = [p.x / zoom + Math.round(cam.x), p.y / zoom + Math.round(cam.y)];
+  const d = started && !naming && dropAt(wx, wy);
+  if (d) {
+    pickUp(d);
+    return true;
+  }
+  const board = started && !naming && !flight && !sail && signAt(wx, wy);
+  if (board) {
+    openBoard(board.shop);
+    return true;
+  }
+  return false;
+}
+
 screenCanvas.addEventListener('pointerdown', (e) => {
   if (pileOpen) {
     e.preventDefault();
@@ -3829,25 +4275,36 @@ screenCanvas.addEventListener('pointerdown', (e) => {
     return;
   }
   const p = pointerPos(e);
-  const [wx, wy] = [p.x / zoom + Math.round(cam.x), p.y / zoom + Math.round(cam.y)];
-  const d = started && !naming && dropAt(wx, wy);
-  if (d) {
-    pickUp(d);
+  if (stickOn && started && !naming && !stick && p.x < window.innerWidth / 2) {
+    screenCanvas.setPointerCapture(e.pointerId);
+    startStick(e, p);
     return;
   }
-  const board = started && !naming && !flight && !sail && signAt(wx, wy);
-  if (board) {
+  if (tapWorld(p)) {
     e.preventDefault();
-    openBoard(board.shop);
     return;
   }
+  if (pointer) return;
   pointer = p;
+  pointerId = e.pointerId;
   pointerDownAt = time;
   screenCanvas.setPointerCapture(e.pointerId);
 });
-screenCanvas.addEventListener('pointermove', (e) => { if (pointer) pointer = pointerPos(e); });
-const endPointer = () => {
-  if (pointer && time - pointerDownAt < 0.2) action();
+screenCanvas.addEventListener('pointermove', (e) => {
+  if (stick && e.pointerId === stick.id) moveStick(pointerPos(e));
+  else if (pointer && e.pointerId === pointerId) pointer = pointerPos(e);
+});
+// A quick tap that didn't drag acts, as SPACE does, on either half.
+const endPointer = (e) => {
+  if (stick && e.pointerId === stick.id) {
+    const tap = time - stick.t < 0.2 && Math.hypot(stick.dx, stick.dy) < 10;
+    const p = { x: stick.x0, y: stick.y0 };
+    endStick();
+    if (tap && !tapWorld(p)) action();
+    return;
+  }
+  if (!pointer || e.pointerId !== pointerId) return;
+  if (time - pointerDownAt < 0.2) action();
   pointer = null;
 };
 screenCanvas.addEventListener('pointerup', endPointer);

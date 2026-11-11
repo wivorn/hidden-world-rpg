@@ -12,7 +12,7 @@ function coinWords(c) {
 }
 
 // What Ottar pays for one of each, in copper.
-const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600 };
+const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, arcticChar: 30, frostPike: 90, glacierSturgeon: 300, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600 };
 const WARES = [
   { id: 'torch', price: 35, text: 'Burns six hours once lit. For caves and dark nights.' },
   { id: 'arrow', n: 10, price: 60, text: 'A bundle of ten arrows.' },
@@ -55,6 +55,7 @@ const SHOPS = {
       shopWare('shield', 180, 'Iron-rimmed. Raise it to block.'),
       shopWare('sword', 250, 'The finest blade this side of the sea.', { name: 'Sword' }),
       { id: 'torch', price: 40, text: 'Burns six hours once lit.' },
+      { id: 'lightningRod', price: 100, text: 'An iron spike that draws the lightning down.' },
       ...tierWares('axe'), ...tierWares('pickaxe'), ...tierWares('sword'), ...tierWares('spear'),
     ],
     browse: 'Bring me the makings and I\'ll forge any of it. Already got a tool? Ask me to upgrade it.',
@@ -226,7 +227,6 @@ function updateMerchant(dt) {
   if (merchant.state === 'away' && due) {
     setMerchant('arriving');
     o.y = dock + MERCHANT_OFFING;
-    toast('A SHIP!', 'The merchant Ottar is sailing into the bay');
     Sfx.horn(0.8);
   } else if (merchant.state === 'arriving') {
     const d = o.y - dock;
@@ -419,6 +419,7 @@ function sellItem(id, k) {
   renderInventory();
   Sfx.coin();
   if (id === 'goldenFish') npcSay(merchant.npc, 'A golden fish! By the gods, I\'ll hang it over my bunk!');
+  if (id === 'glacierSturgeon') npcSay(merchant.npc, 'The glacier sturgeon?! I\'ll need a bigger bunk. Sailors will come from every isle to see it!');
   renderTrade();
 }
 
@@ -451,7 +452,7 @@ function buyWare(w) {
 }
 
 function toggleTrade(open = !tradeOpen) {
-  if (open && (naming || mapOpen || journalOpen || fishLogOpen)) return;
+  if (open && (naming || mapOpen || journalOpen || fishLogOpen || dragonLogOpen)) return;
   tradeOpen = open;
   tradeEl.hidden = !open;
   keys.clear();

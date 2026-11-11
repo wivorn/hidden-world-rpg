@@ -1,3 +1,14 @@
+/* Every button round the edge of the screen is one size, kept clear of notches, rounded corners and the home bar. */
+:root {
+  --hud: 48px;
+  /* About how big the pixel art on those buttons is drawn, blown up a whole number of times. */
+  --hud-art: 36;
+  --top: calc(14px + env(safe-area-inset-top));
+  --right: calc(14px + env(safe-area-inset-right));
+  --bottom: calc(16px + env(safe-area-inset-bottom));
+  --left: calc(14px + env(safe-area-inset-left));
+}
+
 html,
 body {
   margin: 0;
@@ -6,6 +17,9 @@ body {
   background: #1d3263;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #game {
@@ -61,7 +75,7 @@ body {
 #prompt {
   position: fixed;
   left: 50%;
-  bottom: 76px;
+  bottom: calc(var(--bottom) + 60px);
   transform: translateX(-50%);
   padding: 10px 14px;
   background: rgba(20, 24, 40, 0.85);
@@ -78,73 +92,68 @@ body {
   opacity: 1;
 }
 
-/* Bottom right: how much sprint the player has left, a bare bar. */
-#stamina {
+/* Top middle: the clock, its border showing how much sprint the player has left. */
+#daybar {
   position: fixed;
-  right: 16px;
-  bottom: 18px;
+  top: var(--top);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
   pointer-events: none;
-  transition: opacity 0.4s;
 }
 
-#stamina i {
-  position: relative;
-  display: block;
-  width: 120px;
-  height: 10px;
-  background: rgba(26, 18, 10, 0.75);
-  box-shadow: 0 0 0 2px rgba(26, 18, 10, 0.5);
-}
-
-#stamina i::after {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: calc(var(--stamina, 1) * 100%);
-  background: linear-gradient(#fff0a0, #f2c230);
-}
-
-#stamina.full {
-  opacity: 0.55;
-}
-
-#stamina.winded i::after {
-  background: linear-gradient(#ff9a6a, #d6421a);
-}
-
-body.title #stamina {
+body.title #daybar {
   display: none;
+}
+
+/* Read out as a meter; what's seen is the clock's border. */
+#stamina {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Top right: the menu button, and under it the rest of the menu unless it's folded away. */
+#toggles,
+#menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 #toggles {
   position: fixed;
-  top: 14px;
-  right: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  top: var(--top);
+  right: var(--right);
 }
 
 body.title #toggles {
   display: none;
 }
 
-.toggle[hidden] {
+.toggle[hidden],
+#menu-items[hidden] {
   display: none;
 }
 
 #map.bump,
-#journal-btn.bump {
+#journal-btn.bump,
+#menu-btn.bump {
   animation: bump 0.35s ease-out 2;
 }
 
-/* Top right, level with the first menu button and just left of the column (a 44px button and a gap). */
+/* Top right, level with the menu button and just left of the column (a button and a gap). */
 #purse {
   position: fixed;
-  top: 14px;
-  right: 66px;
+  top: var(--top);
+  right: calc(var(--right) + var(--hud) + 8px);
   box-sizing: border-box;
-  height: 44px;
+  height: var(--hud);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -185,20 +194,48 @@ body.title #toggles {
 }
 
 #clock {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 7px 12px 7px 9px;
   background: rgba(40, 24, 12, 0.8);
-  border: 3px solid #e1a03c;
+  border: 3px solid rgba(138, 101, 52, 0.7);
   font: 11px/1 'Press Start 2P', monospace;
   color: #f6e7c1;
   white-space: pre;
   pointer-events: none;
+}
+
+/* The sprint left, as the border: a line from the top left corner round clockwise, drawing back as it's used, yellow
+   going orange from half way down and red as it runs out. The stroke's outer half falls outside and is cut off. */
+#clock svg {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  overflow: hidden;
+}
+
+#clock rect {
+  fill: none;
+  stroke: var(--stamina-color, #f2c230);
+  stroke-width: 6px;
+  shape-rendering: crispEdges;
+}
+
+/* The second bar a soak in the hot spring gives, as a second border just outside the first, in a paler, glowing yellow. */
+#clock svg.extra {
+  top: -6px;
+  left: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  filter: drop-shadow(0 0 2px rgba(255, 236, 120, 0.95)) drop-shadow(0 0 5px rgba(255, 214, 80, 0.6));
+}
+
+#clock #stamina-extra {
+  stroke: #fff27a;
 }
 
 #clock img {
@@ -214,20 +251,63 @@ body.title #toggles {
   color: #e1a03c;
 }
 
-body.title #clock {
-  display: none;
-}
-
 #purse img,
 .coins img,
 #trade img,
-#fishlog img {
+#fishlog img,
+#dragonlog img {
   image-rendering: pixelated;
+}
+
+#dragonlog-close {
+  align-self: center;
+}
+
+#dragonlog-sum {
+  margin: -6px 0 0;
+  font-size: 8px;
+  color: #c8b48a;
+  text-align: center;
+}
+
+#dragonlog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+}
+
+.log-head {
+  margin: 0 0 8px;
+  font: 9px/1.4 'Press Start 2P', monospace;
+  color: #e1a03c;
+}
+
+.log-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log-grid .quest.empty {
+  grid-column: 1 / -1;
+}
+
+.fish.dragon-kind img,
+.fish.dragon-mine img {
+  height: auto !important;
+  max-width: 100%;
+  object-fit: contain;
+  background: radial-gradient(ellipse closest-side, rgba(255, 228, 180, 0.2), transparent);
 }
 
 .panel.log-panel {
   width: min(640px, calc(100vw - 48px));
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
   align-items: stretch;
 }
 
@@ -378,17 +458,22 @@ body.title #clock {
 
 .panel.trade-panel {
   width: min(760px, calc(100vw - 48px));
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
   align-items: stretch;
 }
 
-#trade-purse {
+#trade-purse,
+#bag-purse {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 6px;
   font-size: 10px;
   color: #e8eaf0;
+}
+
+#bag-purse {
+  margin: -6px 0 0;
 }
 
 .trade-cols {
@@ -595,12 +680,13 @@ body.title #clock {
 
 @media (prefers-reduced-motion: reduce) {
   #map.bump,
-  #journal-btn.bump { animation: none; }
+  #journal-btn.bump,
+  #menu-btn.bump { animation: none; }
 }
 
 #toast {
   position: fixed;
-  top: 132px;
+  top: calc(var(--top) + 118px);
   left: 50%;
   transform: translate(-50%, -12px);
   padding: 10px 16px;
@@ -631,7 +717,7 @@ body.title #toast {
 
 .journal-panel {
   width: min(560px, calc(100vw - 48px));
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
   align-items: stretch;
 }
 
@@ -750,24 +836,33 @@ body.title #toast {
   position: relative;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  box-sizing: border-box;
+  width: var(--hud);
+  height: var(--hud);
   padding: 0;
   background: rgba(20, 24, 40, 0.6);
   border: 3px solid rgba(232, 244, 255, 0.35);
   cursor: pointer;
 }
 
-.toggle img {
+.toggle img,
+.fold img {
   image-rendering: pixelated;
 }
 
-/* The shortcut key, tagged on the top left corner. */
-.toggle[data-key]::before {
+/* The shortcut key, tagged on the top right corner of every button and tool slot. */
+.toggle[data-key]::before,
+.fold[data-key]::before {
   content: attr(data-key);
+}
+
+.toggle[data-key]::before,
+.fold[data-key]::before,
+#hotbar-slots li > b {
   position: absolute;
   top: -7px;
-  left: -7px;
+  right: -7px;
+  z-index: 2;
   padding: 2px 3px;
   font: 6px/1 'Press Start 2P', monospace;
   color: #3a2414;
@@ -776,8 +871,21 @@ body.title #toast {
   pointer-events: none;
 }
 
-.toggle:hover {
-  border-color: rgba(232, 244, 255, 0.7);
+/* Only under a mouse: a finger leaves the last button it tapped hovered. */
+@media (hover: hover) {
+  .toggle:hover {
+    border-color: rgba(232, 244, 255, 0.7);
+  }
+}
+
+/* Turned off, a setting is struck through from corner to corner; sound's own icon shows that already. */
+.toggle[aria-pressed='false']:not(#sound)::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background: linear-gradient(45deg, transparent calc(50% - 2.5px), rgba(20, 24, 40, 0.8) 0 calc(50% - 1.5px),
+    #a8b0c0 0 calc(50% + 1.5px), rgba(20, 24, 40, 0.8) 0 calc(50% + 2.5px), transparent 0);
+  pointer-events: none;
 }
 
 .toggle[aria-pressed='false'] img {
@@ -799,11 +907,11 @@ body.title #toast {
   border-top-color: #1d3263;
 }
 
-/* Centred, unless that would run it into the hotbar at the bottom left (14px + 6 slots + gaps, a gap, half the bar). */
+/* Centred along the bottom. */
 #chat {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: var(--bottom);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -841,26 +949,60 @@ body.title #toast {
   color: rgba(232, 244, 255, 0.5);
 }
 
-/* Along the top, under the clock: a slot for each tool carried, up to nine; F uses the lit one. */
+/* Down the left: a slot for each tool carried, wrapping into a second column on short screens; F or a press uses
+   the lit one. Folded, only the lit one shows, over the tab that folds it. */
 #hotbar {
   position: fixed;
-  top: 14px;
-  left: 14px;
-  --slot: 52px;
+  top: var(--top);
+  left: var(--left);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  --slot: var(--hud);
 }
 
-#hotbar[hidden] {
+#hotbar[hidden],
+#hotbar-fold[hidden] {
   display: none;
 }
 
-/* Bottom left: the backpack button, and over it the backpack's slots once folded out. */
+#hotbar.folded #hotbar-slots li:not(.primary) {
+  display: none;
+}
+
+.fold {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--hud);
+  height: 20px;
+  padding: 0;
+  background: rgba(40, 24, 12, 0.8);
+  border: 3px solid rgba(225, 160, 60, 0.6);
+  cursor: pointer;
+}
+
+.fold:hover {
+  border-color: #e1a03c;
+}
+
+.fold:focus-visible {
+  outline: 3px solid #7cf05a;
+  outline-offset: 2px;
+}
+
+.fold[aria-expanded='true'] img {
+  transform: rotate(180deg);
+}
+
+/* Bottom left: the backpack button, and beside it the backpack's slots once folded out. */
 #pack {
   position: fixed;
-  left: 14px;
-  bottom: 16px;
+  left: var(--left);
+  bottom: var(--bottom);
   display: flex;
-  flex-direction: column-reverse;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 8px;
 }
 
@@ -870,13 +1012,12 @@ body.title #toast {
 }
 
 #bag-btn {
-  width: 52px;
-  height: 52px;
   background: rgba(40, 24, 12, 0.8);
   border-color: #e1a03c;
 }
 
-#bag-btn[aria-expanded='true'] {
+#bag-btn[aria-expanded='true'],
+#menu-btn[aria-expanded='true'] {
   border-color: #fff0a0;
   background: rgba(92, 56, 18, 0.92);
 }
@@ -995,7 +1136,7 @@ body.title #toast {
 #pile {
   position: fixed;
   left: 50%;
-  bottom: 130px;
+  bottom: calc(var(--bottom) + 114px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -1079,7 +1220,10 @@ body.title #toast {
 
 #hotbar-slots {
   display: flex;
-  gap: 5px;
+  flex-flow: column wrap;
+  align-content: flex-start;
+  gap: 6px;
+  max-height: calc(100dvh - var(--top) - 26px - var(--bottom) - var(--hud) - 24px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1100,7 +1244,7 @@ body.title #toast {
   border-color: rgba(138, 101, 52, 0.7);
 }
 
-/* The slot F works from is lit and wears a little F. */
+/* The slot F works from is lit and wears a little F on the corner opposite its number. */
 #hotbar-slots li.primary {
   border-color: #fff0a0;
   background: rgba(92, 56, 18, 0.92);
@@ -1110,11 +1254,11 @@ body.title #toast {
 #hotbar-slots li.primary::after {
   content: 'F';
   position: absolute;
-  top: -10px;
-  right: -9px;
+  top: -7px;
+  left: -7px;
   z-index: 2;
-  padding: 3px 4px;
-  font: 8px/1 'Press Start 2P', monospace;
+  padding: 2px 3px;
+  font: 6px/1 'Press Start 2P', monospace;
   color: #3a2414;
   background: #ffd36b;
   border: 2px solid #3a2414;
@@ -1125,11 +1269,10 @@ body.title #toast {
   content: none;
 }
 
-#hotbar-slots li > b,
 #bag .bag-grid button b {
   position: absolute;
   top: 2px;
-  left: 3px;
+  right: 3px;
   z-index: 1;
   font: 7px/1 'Press Start 2P', monospace;
   color: #c99a4a;
@@ -1234,17 +1377,16 @@ body.title #toast {
   #bag-btn.bump { animation: none; }
 }
 
-@media (max-width: 760px) {
-  #hotbar { --slot: 42px; }
-  #hotbar-slots { gap: 3px; }
-  #hotbar img { transform: scale(0.8); }
+@media (max-width: 760px), (max-height: 560px) {
+  :root { --hud: 42px; }
+  #hotbar-slots { gap: 4px; }
 }
 
-/* Over the stamina bar: how long before the cold or heat drives the player back. */
+/* Bottom right: how long before the cold or heat drives the player back. */
 #exposure {
   position: fixed;
-  right: 14px;
-  bottom: 40px;
+  right: var(--right);
+  bottom: calc(var(--bottom) + 2px);
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1296,7 +1438,7 @@ body.hot .vignette {
 /* The bag: what's worn, the tools, and the backpack grouped by kind. */
 .bag-panel {
   width: min(880px, calc(100vw - 48px));
-  max-height: calc(100vh - 60px);
+  max-height: calc(100dvh - 60px);
   box-sizing: border-box;
   overflow-y: auto;
   align-items: stretch;
@@ -1418,8 +1560,11 @@ body.hot .vignette {
   align-self: center;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 600px) {
   .bag-cols { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
   .bag-detail { flex-direction: column; align-items: stretch; }
 }
 
@@ -1429,6 +1574,9 @@ body.title #pile,
 body.title #exposure,
 body.title #purse,
 body.title #chat,
+body.title #chat-btn,
+body.title #act-run,
+body.title #actions,
 body.title #prompt {
   display: none;
 }
@@ -1436,6 +1584,8 @@ body.title #prompt {
 .overlay {
   position: fixed;
   inset: 0;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: grid;
   place-items: center;
   background: rgba(14, 20, 38, 0.55);
@@ -1618,4 +1768,324 @@ body.title #prompt {
   line-height: 2;
   text-shadow: 2px 2px 0 #0e1428;
   pointer-events: none;
+}
+
+/* Touch only: buttons for what SHIFT, R, X and G do, the button that opens the chat, and the joystick. */
+#chat-btn,
+#actions,
+#stick {
+  display: none;
+}
+
+.act {
+  box-sizing: border-box;
+  width: var(--act);
+  height: var(--hud);
+  padding: 0 4px;
+  background: rgba(40, 24, 12, 0.8);
+  border: 3px solid #e1a03c;
+  color: #f6e7c1;
+  font: 8px/1.4 'Press Start 2P', monospace;
+  cursor: pointer;
+}
+
+.act:active,
+.act.held {
+  background: rgba(92, 56, 18, 0.92);
+  border-color: #fff0a0;
+}
+
+.act:focus-visible {
+  outline: 3px solid #7cf05a;
+  outline-offset: 2px;
+}
+
+.act.charging {
+  background: linear-gradient(to right, rgba(242, 194, 48, 0.85) calc(var(--charge, 0) * 100%), rgba(40, 24, 12, 0.8) 0);
+  border-color: #fff0a0;
+}
+
+.act.charged {
+  background: rgba(242, 194, 48, 0.9);
+  color: #3a2414;
+  box-shadow: 0 0 10px 2px rgba(255, 211, 107, 0.65);
+}
+
+.act:disabled {
+  background: rgba(40, 24, 12, 0.55);
+  border-color: rgba(138, 101, 52, 0.7);
+  color: rgba(246, 231, 193, 0.4);
+  cursor: default;
+}
+
+/* Where the thumb went down on the left half, and how far it's pushed. */
+#stick {
+  position: fixed;
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(20, 24, 40, 0.35);
+  border: 3px solid rgba(232, 244, 255, 0.35);
+  pointer-events: none;
+}
+
+#stick i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(232, 244, 255, 0.45);
+  border: 3px solid rgba(232, 244, 255, 0.75);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* No keys to press, so no key tags or keyboard help. */
+  .toggle[data-key]::before,
+  .fold[data-key]::before,
+  #hotbar-slots li > b,
+  #hotbar-slots li.primary::after,
+  #pack-slots li.carried::after,
+  #bag .bag-grid button b,
+  #lurepick-list b,
+  #pile-list b,
+  .pile-help,
+  .lure-help,
+  #bag-keys {
+    display: none;
+  }
+
+  /* Room kept at the bottom right, under the menu, for the chat button. */
+  :root {
+    --act: calc(var(--hud) * 1.5);
+    --keep-h: calc(var(--hud) + 8px);
+    --menu-gap: 6px;
+  }
+
+  /* Top left: the backpack, its slots folding out below it. The purse is in the equipments instead. */
+  #pack {
+    top: var(--top);
+    bottom: auto;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  #purse {
+    display: none;
+  }
+
+  /* Bottom left: the tool in hand, the rest stacked up over it, wrapping into another column on short screens. */
+  #hotbar {
+    top: auto;
+    bottom: var(--bottom);
+    flex-direction: column-reverse;
+  }
+
+  #hotbar-slots {
+    flex-flow: column-reverse wrap;
+    max-height: calc(100dvh - var(--top) - var(--hud) - 16px - var(--bottom) - 26px);
+  }
+
+  .fold img {
+    transform: rotate(180deg);
+  }
+
+  .fold[aria-expanded='true'] img {
+    transform: none;
+  }
+
+  /* Bottom right, beside the chat button: RUN, and whatever else there is to do right now further along, wrapping
+     upwards short of the tools. */
+  #actions {
+    display: flex;
+    flex-flow: row-reverse wrap-reverse;
+    gap: 8px;
+    position: fixed;
+    right: calc(var(--right) + var(--hud) + 8px);
+    bottom: var(--bottom);
+    max-width: calc(100vw - var(--left) - (var(--hud) + 8px) * 2 - var(--right) - var(--hud) - 8px);
+  }
+
+  #actions .act {
+    width: auto;
+    min-width: var(--act);
+    max-width: calc(var(--act) * 1.8);
+    padding: 0 6px;
+  }
+
+  #prompt {
+    bottom: calc(var(--bottom) + var(--hud) + 12px);
+    max-width: calc(100vw - var(--left) - var(--right) - 28px);
+    white-space: pre-wrap;
+    text-align: center;
+  }
+
+  #pile {
+    bottom: calc(var(--bottom) + var(--hud) + 66px);
+  }
+
+  #toast {
+    max-width: calc(100vw - var(--left) - var(--right) - 32px);
+  }
+
+  /* The bottom right is the chat button's, so the freezing meter goes up under the clock. */
+  #exposure {
+    top: calc(var(--top) + 64px);
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translateX(-50%);
+  }
+
+  /* No shortcut tags to make room for, so the menu packs as tight as the tools. */
+  #toggles {
+    align-items: flex-end;
+    gap: var(--menu-gap);
+  }
+
+  #menu-items {
+    flex-wrap: wrap-reverse;
+    gap: var(--menu-gap);
+    max-height: calc(100dvh - var(--top) - var(--hud) - var(--menu-gap) - var(--bottom) - var(--keep-h));
+  }
+
+  /* Bottom right: chat, folded behind its button; open, it runs along the bottom up to the button, and both ride
+     on top of the on-screen keyboard. */
+  #chat-btn {
+    display: grid;
+    position: fixed;
+    right: var(--right);
+    bottom: calc(var(--bottom) + var(--kb, 0px));
+  }
+
+  #chat-btn[aria-expanded='true'] {
+    border-color: #7cf05a;
+  }
+  #chat {
+    display: none;
+  }
+
+  #chat.open {
+    display: flex;
+    box-sizing: border-box;
+    height: var(--hud);
+    left: var(--left);
+    right: calc(var(--right) + var(--hud) + 8px);
+    bottom: calc(var(--bottom) + var(--kb, 0px));
+    z-index: 5;
+    transform: none;
+    font-size: 12px;
+  }
+
+  #chat.open input {
+    flex: 1;
+    width: auto;
+  }
+
+  #stick:not([hidden]) {
+    display: block;
+  }
+}
+
+/* Phones: everything round the edge a size smaller. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  :root {
+    --hud: 36px;
+    --hud-art: 26;
+    --menu-gap: 4px;
+  }
+
+  #hotbar .burn {
+    width: 22px;
+  }
+
+  #hotbar .burn::after {
+    width: calc(var(--burn, 1) * 20px);
+  }
+
+  #hotbar-slots span {
+    font-size: 7px;
+  }
+
+  .act {
+    font-size: 7px;
+  }
+
+  #chat.open {
+    font-size: 10px;
+  }
+
+  /* What a setting does now, in smaller words across as much of the screen as it needs, short of the buttons down
+     either side. */
+  #toast.setting {
+    box-sizing: border-box;
+    width: max-content;
+    max-width: calc(100vw - (var(--right) + var(--hud) + 8px) * 2);
+    font-size: 8px;
+    line-height: 1.6;
+  }
+}
+
+/* Tablets: bigger buttons and text. */
+@media (hover: none) and (pointer: coarse) and (min-width: 700px) and (min-height: 700px) {
+  :root {
+    --hud: 64px;
+    --hud-art: 48;
+  }
+
+  #prompt,
+  #chat {
+    font-size: 12px;
+  }
+
+  #toast {
+    top: calc(var(--top) + 140px);
+    font-size: 13px;
+  }
+
+  #toast small {
+    font-size: 10px;
+  }
+
+  .bubble {
+    max-width: 320px;
+    font-size: 13px;
+  }
+
+  .act {
+    font-size: 10px;
+  }
+}
+
+/* Phones: panels lose some padding and scroll inside the screen rather than run off it. */
+@media (max-width: 760px), (max-height: 560px) {
+  .overlay .panel {
+    box-sizing: border-box;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-width: calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right));
+    padding: 16px 14px;
+    gap: 10px;
+    overflow-y: auto;
+  }
+
+  /* No room beside the CLOSE button, so the map's tip has its own line between the map and the button. */
+  #worldmap-tip {
+    position: static;
+    order: 1;
+    text-align: center;
+    white-space: pre-line;
+  }
+
+  #worldmap-tip:empty {
+    display: none;
+  }
+
+  #worldmap-close {
+    order: 2;
+  }
 }

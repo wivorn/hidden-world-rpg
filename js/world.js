@@ -5,7 +5,7 @@ const OX = 172;
 const OY = 124;
 const T = {
   WATER: 0, GRASS: 1, PATH: 2, WOOD: 3, DIRT: 4, CLIFF: 5, STAIRS: 6, FALL: 7, HAY: 8, SAND: 9, FLOOR: 10, WALL: 11, VOID: 12, DOOR: 13,
-  ROCK: 14, SNOW: 15, MOUNT: 16, SPRING: 17, ASH: 18, LAVA: 19, ICE: 20, FIELD: 21, JUNGLE: 22, CAVE: 23,
+  ROCK: 14, SNOW: 15, MOUNT: 16, SPRING: 17, ASH: 18, LAVA: 19, ICE: 20, FIELD: 21, JUNGLE: 22, CAVE: 23, HOLE: 24,
 };
 // Building interiors live in a strip of rows below the outdoor map; the ice cave is the tallest.
 const ROOM_Y = MAP_H + 2;
@@ -24,8 +24,10 @@ const tileAt = (x, y) => (inBounds(x, y) ? map[y * MAP_W + x] : T.WATER);
 const setTile = (x, y, t) => { if (inBounds(x, y)) map[y * MAP_W + x] = t; };
 const WALKABLE = new Set([T.GRASS, T.PATH, T.DIRT, T.HAY, T.STAIRS, T.SAND, T.ROCK, T.SNOW, T.ASH, T.ICE, T.FIELD, T.JUNGLE, T.CAVE]);
 const isLand = (t) => WALKABLE.has(t);
-const isSolidTile = (t) => t === T.WATER || t === T.CLIFF || t === T.FALL || t === T.WALL || t === T.VOID || t === T.MOUNT || t === T.LAVA || t === T.SPRING;
+const isSolidTile = (t) => t === T.WATER || t === T.CLIFF || t === T.FALL || t === T.WALL || t === T.VOID || t === T.MOUNT || t === T.LAVA || t === T.SPRING || t === T.HOLE;
 const isWet = (t) => t === T.WATER || t === T.SPRING;
+// An ice-fishing hole takes a line but is too small to swim or dive into, so it isn't wet.
+const isFishable = (t) => isWet(t) || t === T.HOLE;
 
 // village-local tile access
 const lt = (x, y) => tileAt(x + OX, y + OY);
@@ -141,9 +143,12 @@ const ISLANDS = [
 ];
 const isle = (id) => ISLANDS.find((i) => i.id === id);
 
-// The barrow on top of Stormcrown Tor, in tiles; the skrill's egg lies on its crown. `sides` are the old scorch
-// marks east, west, north and south of it, where lightning once found metal.
-const TOR_AT = { x: isle('tor').x + 1, y: isle('tor').y - 1, sides: [[3.4, 0.2], [-3.4, 0.2], [0, -2.3], [0, 2.6]] };
+// The barrow on top of Stormcrown Tor, in tiles; the skrill's egg lies on its crown. `sockets` are the six stone
+// sockets for lightning rods at the corners of a hexagon round it, east first and going clockwise.
+const TOR_AT = {
+  x: isle('tor').x + 1, y: isle('tor').y - 1,
+  sockets: [0, 1, 2, 3, 4, 5].map((i) => [Math.cos((i * Math.PI) / 3) * 3.6, Math.sin((i * Math.PI) / 3) * 2.4 + 0.2]),
+};
 
 // The dragon roost's ground point on the hermit's isle, and the box of tiles cleared around it.
 const ROOST_AT = { x: isle('hermit').x + 14, y: isle('hermit').y - 1 };
@@ -1284,6 +1289,20 @@ function iceTile(g, x, y, X, Y) {
   blendInto(g, x, y, X, Y, T.SNOW, PAL.snow);
 }
 
+// A round hole chopped through lake ice: a ragged white lip, dark water, and chips of ice heaped round it.
+function holeTile(g, x, y, X, Y) {
+  iceTile(g, x, y, X, Y);
+  ellipse(g, X + 8, Y + 8.5, 6.5, 5.5, PAL.iceLight);
+  ellipse(g, X + 8, Y + 8.5, 5, 4, '#2a5a7a');
+  ellipse(g, X + 8, Y + 9.5, 4, 2.8, '#173a56');
+  rect(g, X + 4, Y + 6, 8, 1, '#4a86a8');
+  line(g, X + 6, Y + 11, X + 9, Y + 11, '#3a7296');
+  for (let i = 0; i < 5; i++) {
+    const a = hash(x, y, 1500 + i) * Math.PI * 2;
+    px(g, X + 8 + Math.round(Math.cos(a) * 7), Y + 9 + Math.round(Math.sin(a) * 6), i % 2 ? '#ffffff' : PAL.iceDark);
+  }
+}
+
 function mountTile(g, x, y, X, Y) {
   const e = elev[y * MAP_W + x];
   const dark = e === 255;
@@ -1466,6 +1485,7 @@ function groundTile(g, x, y) {
     case T.ASH: ashTile(g, x, y, X, Y); break;
     case T.LAVA: lavaTile(g, x, y, X, Y); break;
     case T.ICE: iceTile(g, x, y, X, Y); break;
+    case T.HOLE: holeTile(g, x, y, X, Y); break;
     case T.FIELD: fieldTile(g, x, y, X, Y); break;
     case T.JUNGLE: jungleTile(g, x, y, X, Y); break;
     default: waterTile(g, x, y, X, Y);
@@ -1679,7 +1699,8 @@ const signBy = (shop, x, y) => { addObj('shopSign', x, y).shop = shop; };
 const SOIL = {
   snowPine: [T.SNOW, T.ROCK], palm: [T.SAND, T.GRASS, T.JUNGLE], fern: [T.GRASS, T.SAND, T.JUNGLE], jungleTree: [T.JUNGLE], deadTree: [T.ASH],
   boulderDark: [T.ASH], boulderSnow: [T.SNOW, T.ROCK], iceCrystal: [T.SNOW, T.ICE], boulder: [T.ROCK, T.GRASS], stone: [T.GRASS, T.SAND, T.ROCK, T.SNOW],
-  splitTree: [T.GRASS, T.ROCK],
+  bananaTree: [T.JUNGLE, T.GRASS, T.SAND], orangeTree: [T.GRASS, T.JUNGLE], lemonTree: [T.GRASS, T.JUNGLE],
+  splitTree: [T.GRASS, T.ROCK], cactus: [T.SAND], cactusTall: [T.SAND], barrelCactus: [T.SAND],
 };
 let homes = [];
 
@@ -1711,6 +1732,22 @@ function woods(x0, y0, x1, y1, step, seed, density, pick, inside = () => true) {
 const woodsL = (x0, y0, x1, y1, ...rest) => woods(x0 + OX, y0 + OY, x1 + OX, y1 + OY, ...rest);
 const mixed = (r) => (r < 0.4 ? 'pine' : r < 0.75 ? 'pine2' : 'oak');
 const evergreen = (r) => (r < 0.5 ? 'pine' : r < 0.92 ? 'pine2' : 'oak');
+const ORCHARD = ['appleTree', 'pearTree', 'cherryTree', 'plumTree', 'peachTree'];
+// Up to `n` of `keys`, taking turns, planted a little apart on open ground within a few tiles of (cx, cy).
+function grove(keys, cx, cy, n, seed) {
+  const rng = mulberry32(seed);
+  const put = [];
+  for (let i = 0; i < 120 && put.length < n; i++) {
+    const a = rng() * Math.PI * 2;
+    const d = rng() * 5.5;
+    const [x, y] = [cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.7];
+    if (put.some(([px, py]) => Math.hypot(px - x, py - y) < 2.6)) continue;
+    if (plant(keys[put.length % keys.length], x, y)) put.push([x, y]);
+  }
+}
+
+// `pick`, but with `odds` of one of `fruits` instead.
+const fruity = (pick, fruits, odds) => (r, x, y) => (r >= 1 - odds ? fruits[Math.floor(((r - 1 + odds) / odds) * fruits.length) % fruits.length] : pick(r / (1 - odds), x, y));
 
 const VILLAGE_NPCS = [
   {
@@ -1954,10 +1991,14 @@ function placeObjects() {
   const core = (x, y) => x > 50 && x < 126 && y > 44 && y < 92;
   woodsL(0, 0, 60, 112, 1.35, 1337, 0.72, evergreen, forest);
   woodsL(46, 30, 126, 43, 2.2, 1338, 0.42, mixed, (x, y) => !(x > 70 && x < 87) && !(x > 98 && x < 125));
-  woodsL(46, 44, 136, 112, 2.4, 1339, 0.4, mixed, (x, y) => !core(x, y) && !forest(x, y) && Math.hypot(x - BAY.x, y - BAY.y) > 14);
+  woodsL(46, 44, 136, 112, 2.4, 1339, 0.4, fruity(mixed, ORCHARD.slice(0, 4), 0.12), (x, y) => !core(x, y) && !forest(x, y) && Math.hypot(x - BAY.x, y - BAY.y) > 14);
   placeMountain();
   woodsL(0, 0, 60, 112, 4, 1341, 0.4, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'), forest);
   for (const [k, x, y] of [['oak', 56.6, 70.2], ['oak', 102.4, 66], ['pine', 103.2, 70.4], ['oak', 72.6, 47.6], ['pine2', 87.2, 47.4], ['bushPink', 89.4, 51.4], ['bushYellow', 66.2, 49.6]]) plantL(k, x, y);
+  // the orchard south of the fields
+  for (let row = 0; row < 3; row++) {
+    for (let i = 0; i < 5; i++) plantL(ORCHARD[(i + row * 2) % ORCHARD.length], 108.6 + i * 3.4 + (row % 2) * 1.2, 81.6 + row * 3);
+  }
 
   // interiors
   for (const r of Object.values(ROOMS)) for (const [k, x, y] of r.furniture) addAbs(k, ...roomSpot(r, x, y));
@@ -2089,10 +2130,10 @@ function placeIslands() {
   prop('dragonPool', ns.x - 2.9, ns.y + 3.4, 'nursery');
   [[-3.2, -0.6], [-0.8, -1.2], [2.4, -0.7], [3.4, 1.9], [-2.8, 2.5], [0.4, 1.6], [2, 3.5], [-1.2, 3.6]]
     .forEach(([x, y], i) => { addAbs(i % 2 ? 'oak' : 'pine', ns.x + x, ns.y + y).site = 'nursery'; });
-  woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 2, 1400, 0.55, mixed, clear);
+  woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 2, 1400, 0.55, fruity(mixed, ['appleTree', 'orangeTree', 'cherryTree', 'pearTree', 'lemonTree', 'peachTree'], 0.18), clear);
   woods(h.x - h.rx, h.y - h.ry, h.x + h.rx, h.y + h.ry, 4, 1401, 0.45, (r) => (r < 0.5 ? 'bushPink' : 'bushYellow'), clear);
 
-  // the jungle isle: palms on the beach, broad trees and ferns round a maze of vine trees, and a thunderdrum's
+  // the jungle isle: palms and bananas on the beach, broad trees, citrus and ferns round a maze of vine trees, and a thunderdrum's
   // nest in the clearing at its heart
   const j = isle('jungle');
   const nest = (species, x, y) => {
@@ -2103,7 +2144,9 @@ function placeIslands() {
   nest('thunderdrum', maze.x, maze.y + 0.5);
   for (const [x, y] of [[maze.x - 3, maze.y - 2], [maze.x + 3.2, maze.y + 3], [maze.x + 2.8, maze.y - 2.2], [maze.x - 2.6, maze.y + 3.2]]) addAbs('fern', x, y);
   const wild = (x, y) => Math.hypot((x + OX - maze.x) / maze.rx, (y + OY - maze.y) / maze.ry) > 1;
-  woods(j.x - j.rx - 2, j.y - j.ry - 2, j.x + j.rx + 2, j.y + j.ry + 2, 1.7, 1402, 0.8, (r, x, y) => (tileAt(Math.floor(x), Math.floor(y - 0.01)) === T.SAND ? 'palm' : r < 0.55 ? 'jungleTree' : 'palm'), wild);
+  const jungly = (r) => (r < 0.45 ? 'jungleTree' : r < 0.62 ? 'bananaTree' : r < 0.68 ? 'orangeTree' : r < 0.73 ? 'lemonTree' : 'palm');
+  const beachy = (r) => (r < 0.3 ? 'bananaTree' : 'palm');
+  woods(j.x - j.rx - 2, j.y - j.ry - 2, j.x + j.rx + 2, j.y + j.ry + 2, 1.7, 1402, 0.8, (r, x, y) => (tileAt(Math.floor(x), Math.floor(y - 0.01)) === T.SAND ? beachy(r) : jungly(r)), wild);
   woods(j.x - j.rx, j.y - j.ry, j.x + j.rx, j.y + j.ry, 1.6, 1403, 0.6, () => 'fern', wild);
 
   // the ancient ruin: a ring of rune stones round the slab that seals the night fury's egg
@@ -2127,7 +2170,9 @@ function placeIslands() {
     }
   }
   addAbs('stone', r.x + 4, r.y + 9);
-  woods(r.x - r.rx, r.y - r.ry, r.x + r.rx, r.y + r.ry, 2.2, 1404, 0.5, mixed, (x, y) => Math.hypot((x + OX - r.x) / 9, (y + OY - r.y) / 7) > 1 && Math.abs(x + OX - r.x) > 4);
+  // an old grove of oranges and lemons on the sunny south-east slope
+  grove(['orangeTree', 'lemonTree'], r.x + 11, r.y + 6, 7, 1410);
+  woods(r.x - r.rx, r.y - r.ry, r.x + r.rx, r.y + r.ry, 2.2, 1404, 0.5, fruity(mixed, ['plumTree', 'peachTree', 'orangeTree'], 0.14), (x, y) => Math.hypot((x + OX - r.x) / 9, (y + OY - r.y) / 7) > 1 && Math.abs(x + OX - r.x) > 4);
 
   // the frozen isle: snow, a frozen lake, ice crystals, and an ice cave with a light fury's nest at the end
   const f = isle('frozen');
@@ -2167,6 +2212,9 @@ function placeIslands() {
   for (const [x, y] of [[s.x - 12, s.y + 2], [s.x - 9.5, s.y + 6.5], [s.x - 15, s.y - 2]]) addAbs('column', x, y);
   for (const [x, y] of [[s.x - 6, s.y + 9], [s.x + 17, s.y - 5], [s.x - 17, s.y + 7]]) addAbs('boulder', x, y);
   addAbs('stone', s.x + 3.4, s.y + 6.6);
+  // cacti dotted over the dunes, leaving the ground before the sphinx and the cave door clear
+  const cactusKind = (r) => (r < 0.4 ? 'cactus' : r < 0.65 ? 'cactusTall' : 'barrelCactus');
+  woods(s.x - s.rx, s.y - s.ry, s.x + s.rx, s.y + s.ry, 2.4, 1406, 0.5, cactusKind, (x, y) => Math.hypot((x + OX - s.x) / 8, (y + OY - s.y - 1) / 6) > 1);
 
   // Hawk Rock: Old Bjorn's cache in a thicket of brambles on the plateau, its mouth stopped with a boulder;
   // a fallen trunk across the gap in the spur below
@@ -2202,13 +2250,17 @@ function placeIslands() {
     }
   }
 
-  // Stormcrown Tor: the barrow with the skrill's egg on its crown and the four old scorch marks round it, the
-  // weather-watcher's fallen lookout, glassy streaks where lightning struck the ground, and trees it split
+  // Stormcrown Tor: the barrow with the skrill's egg on its crown and six rod sockets round it (each with its rod,
+  // hidden until one is set), the weather-watcher's fallen lookout, glassy streaks where lightning struck the
+  // ground, and trees it split
   const t = isle('tor');
   const m = TOR_AT;
   addAbs('torMound', m.x, m.y);
   Object.assign(addAbs('egg_skrill', m.x, m.y + 0.3), { species: 'skrill', storm: true });
-  for (const [dx, dy] of m.sides) addAbs('torScorch', m.x + dx, m.y + dy);
+  m.sockets.forEach(([dx, dy], i) => {
+    Object.assign(addAbs('rodSocket', m.x + dx, m.y + dy), { socket: i });
+    Object.assign(addAbs('lightningRodSet', m.x + dx, m.y + dy + 0.06), { socket: i, hidden: true });
+  });
   addAbs('lookout', t.x - 9, t.y + 4.5);
   for (const [x, y] of [[t.x + 8, t.y + 6], [t.x - 13, t.y - 3], [t.x + 12, t.y - 6], [t.x - 5, t.y + 9], [t.x + 16, t.y + 3]]) addAbs('glassStreak', x, y);
   for (const [x, y] of [[t.x - 15, t.y + 4], [t.x + 14, t.y + 8], [t.x + 6, t.y - 9], [t.x - 8, t.y - 8]]) plant('boulder', x, y);

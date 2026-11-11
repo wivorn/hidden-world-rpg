@@ -197,7 +197,7 @@ function renderTinker() {
 const canTinker = () => started && has('backpack') && !flight && !sail && !hop && !naming && !fade;
 
 function toggleTinker(open = !tinkerOpen) {
-  if (open && (!canTinker() || mapOpen || journalOpen || fishLogOpen || tradeOpen || chestOpen)) return;
+  if (open && (!canTinker() || mapOpen || journalOpen || fishLogOpen || dragonLogOpen || tradeOpen || chestOpen)) return;
   tinkerOpen = open;
   tinkerEl.hidden = !open;
   tinkerBtn.setAttribute('aria-expanded', String(open));

@@ -1,12 +1,14 @@
 // The dragon nursery on the hermit's isle. Once a dragon has hatched from a roost egg the hermit asks for one: fell
 // the trees between his stakes west of the hut, bring NURSERY_WOOD wood and raise it there. A baby dragon told to stay
-// by it wanders about inside its fence and grows a size every NURSERY_DAYS days, all the way to grown.
+// by it wanders about inside its fence and grows a size every NURSERY_DAYS days, all the way to grown, when the hermit
+// straps a saddle on it so it's ready to ride.
 
 const NURSERY_WOOD = 10;
 const NURSERY_DAYS = 2;
 const NURSERY_NEAR = 110;
-// `raised` counts the babies that have grown up there; `lastDay` the game time last seen.
-const nursery = { asked: false, built: false, raised: 0, lastDay: null };
+// `raised` counts the babies that have grown up there; `lastDay` the game time last seen; `first` the name of the
+// first grown, and `saddlesTold` whether the hermit has since mentioned the saddles in his chest.
+const nursery = { asked: false, built: false, raised: 0, lastDay: null, first: null, saddlesTold: false };
 let nurseryObj = null;
 let nurseryTrees = [];
 let nurseryStakes = [];
@@ -128,6 +130,19 @@ function updateNursery() {
       growInNursery(d);
     }
   }
+  tellSaddles();
+}
+
+// Once a dragon has grown up in the nursery, the hermit lets on about his chest of saddles the first time he's by.
+function tellSaddles(n = npcs.find((k) => k.look.id === 'hermit')) {
+  if (!nursery.raised || nursery.saddlesTold || !n || flight || sail || naming) return false;
+  if (!sameSpace(n) || Math.hypot(n.x - player.x, n.y - player.y) > 140 || npcs.some((k) => k.talkT > 0)) return false;
+  nursery.saddlesTold = true;
+  const left = hermitStore.saddle || 0;
+  const more = left ? `I've got more saddles in the chest in my hut, ${left === 1 ? 'one left' : `${left} of them`}. Help yourself, for any other dragon of yours.`
+    : 'You\'ve found the saddles in my chest already, I see.';
+  npcSay(n, `${nursery.first ? `${nursery.first}'s` : 'Your hatchling\'s'} full grown, and I've saddled it! ${more}`);
+  return true;
 }
 
 function growInNursery(d) {
@@ -136,9 +151,10 @@ function growInNursery(d) {
     toast('THE NURSERY', `${d.name} has grown a size bigger`);
     return;
   }
-  Object.assign(d, { nursery: false, grow: 0 });
-  nursery.raised++;
-  toast('FULL GROWN', `${d.name} has grown up in the nursery`);
+  Object.assign(d, { nursery: false, grow: 0, saddled: true });
+  d.obj.saddled = true;
+  if (!nursery.raised++) nursery.first = d.name;
+  toast('FULL GROWN', `${d.name} has grown up in the nursery, and the hermit has saddled it for you`);
 }
 
 // ---------- the hermit ----------
@@ -146,6 +162,7 @@ function growInNursery(d) {
 // The hermit asks for the nursery once a dragon has hatched from a roost egg, then has a word on it every other time.
 function nurseryTalk(n) {
   if (n.look.id !== 'hermit') return false;
+  if (tellSaddles(n)) return true;
   if (!nursery.asked) {
     if (!hatchedBred()) return false;
     nursery.asked = true;
@@ -171,7 +188,7 @@ function nurseryLine() {
     const days = Math.max(1, Math.ceil(NURSERY_DAYS - (kid.grow || 0)));
     return `${kid.name} is coming along nicely. ${days === 1 ? 'Another day' : `${days} more days`} and it'll be a size bigger.`;
   }
-  if (dragons.some((d) => d.stage < GROWN)) return `Leave a hatchling in the nursery and it grows a size every ${NURSERY_DAYS} days, no fishing needed.`;
+  if (dragons.some((d) => d.stage < GROWN)) return `Leave a hatchling in the nursery and it grows a size every ${NURSERY_DAYS} days, no fishing needed. I'll have a saddle on it when it's grown.`;
   return null;
 }
 
@@ -179,14 +196,14 @@ function nurseryLine() {
 
 function saveNursery() {
   return {
-    asked: nursery.asked, built: nursery.built, raised: nursery.raised,
+    asked: nursery.asked, built: nursery.built, raised: nursery.raised, first: nursery.first, saddlesTold: nursery.saddlesTold,
     felled: nurseryTrees.map((o, i) => (o.key !== o.tree ? i : -1)).filter((i) => i >= 0),
   };
 }
 
 function restoreNursery(s) {
   if (!s) return;
-  Object.assign(nursery, { asked: s.asked, built: s.built, raised: s.raised || 0, lastDay: null });
+  Object.assign(nursery, { asked: s.asked, built: s.built, raised: s.raised || 0, lastDay: null, first: s.first || null, saddlesTold: !!s.saddlesTold });
   for (const i of s.felled || []) {
     const o = nurseryTrees[i];
     if (!o) continue;

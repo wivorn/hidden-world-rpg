@@ -135,7 +135,7 @@ function buildSeaArt() {
   });
 }
 
-const seaLife = { pods: [], whales: [], schools: [], turtles: [], jellies: [], seals: [], gulls: [], mantas: [], orcas: [], lions: [] };
+const seaLife = { pods: [], whales: [], schools: [], turtles: [], jellies: [], seals: [], gulls: [], mantas: [], orcas: [], lions: [], sharks: [] };
 
 function depthAt(x, y) {
   const tx = Math.floor(x / TILE);
@@ -201,13 +201,20 @@ function initSea() {
     const p = spot(6, 255, 500, seaLife.mantas);
     if (p) seaLife.mantas.push({ ...p, heading: rng() * Math.PI * 2, phase: rng() * 6 });
   }
+  // every pod size from a lone orca to six, and one more of any size
+  const podSizes = [1, 2, 3, 4, 5, 6, 1 + Math.floor(rng() * 6)].sort(() => rng() - 0.5);
   for (let i = 0; i < 7; i++) {
     const p = spot(10, 255, 600, seaLife.orcas);
     if (!p) continue;
-    const members = Array.from({ length: 2 + Math.floor(rng() * 3) }, (_, j) => ({ ox: (j - 1) * 22 + rng() * 8, oy: (rng() - 0.5) * 22, phase: rng() * 6 }));
+    const n = podSizes[i];
+    const members = Array.from({ length: n }, (_, j) => ({ ox: (j - (n - 1) / 2) * 20 + rng() * 8, oy: (rng() - 0.5) * (n > 3 ? 34 : 22), phase: rng() * 6 }));
     seaLife.orcas.push({ ...p, heading: rng() * Math.PI * 2, face: 1, members, breachT: 6 + rng() * 14, breach: null });
   }
   placeSeaLions(rng);
+  for (let i = 0; i < 10; i++) {
+    const p = spot(5, 255, 450, seaLife.sharks);
+    if (p) seaLife.sharks.push({ ...p, heading: rng() * Math.PI * 2, face: 1, phase: rng() * 6, restT: 0, rush: false });
+  }
 }
 
 // Colonies lounge on beaches and rocky shores away from the harbour, each with a patch of water to slip into.
@@ -560,6 +567,49 @@ function updateSpyHop(p, near, dt) {
   return true;
 }
 
+// Sharks cruise the deep water in lazy loops, fins cutting the surface. One that scents a swimmer out of their depth
+// makes straight for them and knocks the wind out of them, then sheers off a while. The shallows are safe.
+const SHARK_CRUISE = 22;
+const SHARK_RUSH = 68;
+const SHARK_SCENT = 150;
+const SHARK_REST = 9;
+
+function updateShark(s, dt) {
+  if (s.restT > 0) s.restT -= dt;
+  const dx = player.x - s.x;
+  const dy = player.y - s.y;
+  const d = Math.hypot(dx, dy);
+  s.rush = player.swimming && !indoors && !sail && !flight && !(s.restT > 0) && d < SHARK_SCENT && depthAt(player.x, player.y) >= 2;
+  const ox = s.x;
+  if (s.rush) {
+    const turn = Math.atan2(dy, dx) - s.heading;
+    s.heading += Math.max(-dt * 3, Math.min(dt * 3, Math.atan2(Math.sin(turn), Math.cos(turn))));
+    const nx = s.x + Math.cos(s.heading) * SHARK_RUSH * dt;
+    const ny = s.y + Math.sin(s.heading) * SHARK_RUSH * dt;
+    if (depthAt(nx, ny) >= 2) Object.assign(s, { x: nx, y: ny });
+    if (d < 12) sharkBite(s);
+  } else {
+    s.heading += (Math.sin(time * 0.4 + s.phase) * 0.8 + (Math.random() - 0.5)) * dt;
+    swimAlong(s, SHARK_CRUISE, 4, dt);
+  }
+  if (Math.abs(s.x - ox) > 0.01) s.face = s.x > ox ? 1 : -1;
+}
+
+function sharkBite(s) {
+  s.restT = SHARK_REST;
+  s.heading += Math.PI;
+  const d = Math.hypot(player.x - s.x, player.y - s.y) || 1;
+  player.knock = { vx: ((player.x - s.x) / d) * 150, vy: ((player.y - s.y) / d) * 150, t: 0.3 };
+  player.stamina = 0;
+  player.winded = true;
+  seaSplash(player.x, player.y, 1.5);
+  burst(player.x, player.y - 8, ['#ffffff', '#9fd2fa'], 8, 30);
+  Sfx.splash(1);
+  Sfx.thunk(0.8);
+  stats.sharked = (stats.sharked || 0) + 1;
+  muse(['A shark! Back to the shallows, quick!', 'That shark nearly had me! I\'m all out of breath...', 'Sharks again! Better keep to the shallows.'][Math.min(2, stats.sharked - 1)]);
+}
+
 // A sea lion lounges and barks on the shore, flops into the sea when someone comes close,
 // swims about a while and hauls itself back out once they've gone. One brought down on land is gone till it respawns.
 const lionAlive = (s) => s.state !== 'down' && s.state !== 'gone';
@@ -662,6 +712,7 @@ function updateSea(dt) {
   for (const f of seaLife.gulls) updateGulls(f, dt);
   for (const m of seaLife.mantas) updateManta(m, dt);
   for (const p of seaLife.orcas) updateOrcas(p, dt);
+  for (const s of seaLife.sharks) updateShark(s, dt);
   for (const c of seaLife.lions) {
     const scared = c.members.some((s) => lionAlive(s) && lionStartled(s));
     for (const s of c.members) updateLion(s, scared, dt);
@@ -708,6 +759,8 @@ function drawSeaUnder(cx, cy) {
   }
   ctx.globalAlpha = 0.26;
   for (const m of seaLife.mantas) if (onScreen(m.x, m.y, cx, cy)) drawManta(m, cx, cy);
+  ctx.globalAlpha = 0.32;
+  for (const s of seaLife.sharks) if (onScreen(s.x, s.y, cx, cy)) drawSharkShadow(s, cx, cy);
   ctx.globalAlpha = 0.3;
   for (const t of seaLife.turtles) {
     if (turtleUp(t) || !onScreen(t.x, t.y, cx, cy)) continue;
@@ -735,6 +788,17 @@ function drawManta(m, cx, cy) {
   const [ax, ay] = at([-6, 0]);
   const [bx, by] = at([-18, Math.sin(time * 2 + m.phase) * 2]);
   line(ctx, ax, ay, bx, by, '#16304f');
+}
+
+function drawSharkShadow(s, cx, cy) {
+  const c = Math.cos(s.heading);
+  const n = Math.sin(s.heading);
+  const sway = Math.sin(time * (s.rush ? 10 : 4) + s.phase) * 2;
+  const at = ([fx, fy]) => [Math.round(s.x - cx + fx * c - fy * n), Math.round(s.y - cy + (fx * n + fy * c) * 0.7)];
+  poly(ctx, [[12, 0], [7, -3], [-6, -2], [-11, 0], [-6, 2], [7, 3]].map(at), '#16304f');
+  poly(ctx, [[4, -2], [-1, -8], [-1, -2]].map(at), '#16304f');
+  poly(ctx, [[4, 2], [-1, 8], [-1, 2]].map(at), '#16304f');
+  poly(ctx, [[-10, 0], [-16, sway - 4], [-14, sway * 0.5], [-16, sway + 4]].map(at), '#16304f');
 }
 
 function drawJellies(j, cx, cy) {
@@ -882,7 +946,36 @@ function seaSprites(cx, cy) {
     if (!onScreen(c.x, c.y, cx, cy, 90)) continue;
     for (const s of c.members) out.push({ y: s.y, draw: () => drawLion(s, cx, cy) });
   }
+  for (const s of seaLife.sharks) {
+    if (onScreen(s.x, s.y, cx, cy)) out.push({ y: s.y, draw: () => drawSharkFin(s, cx, cy) });
+  }
   return out;
+}
+
+// The dorsal fin above the water in a collar of foam, a wake trailing behind when it rushes; now and then the tail flicks up.
+function drawSharkFin(s, cx, cy) {
+  const f = s.face;
+  const x = Math.round(s.x - cx);
+  const y = Math.round(s.y - cy);
+  const h = s.rush ? 10 : 9 + Math.round(Math.sin(time * 1.5 + s.phase) * 0.6);
+  ctx.globalAlpha = 0.7;
+  ellipse(ctx, x, y, s.rush ? 6 : 4 + Math.sin(time * 3 + s.phase), 1.2, PAL.foam);
+  if (s.rush) {
+    for (let i = 1; i <= 4; i++) {
+      px(ctx, x - f * (4 + i * 3), y - i, PAL.foam);
+      px(ctx, x - f * (4 + i * 3), y + i, PAL.foam);
+    }
+  }
+  ctx.globalAlpha = 1;
+  poly(ctx, [[x + 4 * f, y], [x - f, y - h], [x - 2 * f, y - h + 1], [x - 2 * f, y - 3], [x - 4 * f, y]], '#4a5462');
+  line(ctx, x + 3 * f, y - 1, x - f, y - h + 1, '#8a97a8');
+  if (Math.sin(time * 2.2 + s.phase) < 0.4) return;
+  const tx = Math.round(s.x - Math.cos(s.heading) * 14 - cx);
+  const ty = Math.round(s.y - Math.sin(s.heading) * 10 - cy);
+  poly(ctx, [[tx + f, ty], [tx - f, ty - 4], [tx - f, ty]], '#4a5462');
+  ctx.globalAlpha = 0.6;
+  rect(ctx, tx - 2, ty, 4, 1, PAL.foam);
+  ctx.globalAlpha = 1;
 }
 
 function drawOrcaBack(p, m, cx, cy) {

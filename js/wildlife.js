@@ -1,5 +1,6 @@
-// Wild animals: deer, boar and rabbits to hunt for meat, foxes, goats and frogs that just live here, and the snakes
-// that lie in wait in the jungle maze. Hedgehogs, badgers, wolves, owls and bats only come out at night.
+// Wild animals: deer, boar, rabbits and the desert's javelinas to hunt for meat, foxes, goats, frogs and penguins that
+// just live here, and the snakes of the jungle maze and scorpions of the dunes that lie in wait. Hedgehogs, badgers,
+// wolves, owls and bats only come out at night.
 
 // `hp`, `meat` and `hide` only for game animals; the bigger the beast, the more hides. Speeds in px/s; `shy` is how close the player can get before it bolts,
 // `range` how far from home it wanders, `box` the half-width an arrow or blade has to land within.
@@ -12,6 +13,9 @@ const WILD = {
   frog: { name: 'frog', walk: 34, shy: 26, range: 14, box: 4, tiles: [T.GRASS, T.JUNGLE, T.SAND, T.DIRT], hops: true, call: 'croak', every: [5, 12] },
   sealion: { name: 'sea lion', hp: 2, meat: 3, hide: 3, box: 11 },
   snake: { name: 'snake', hp: 1, meat: 0, walk: 10, lunge: 40, strike: 170, shy: 0, range: 28, box: 7, tiles: [T.JUNGLE] },
+  javelina: { name: 'javelina', hp: 3, meat: 2, hide: 1, walk: 13, run: 66, charge: 88, shy: 0, range: 56, box: 6, tiles: [T.SAND, T.GRASS], call: 'grunt', every: [8, 16] },
+  scorpion: { name: 'scorpion', hp: 1, meat: 0, walk: 8, lunge: 30, strike: 150, shy: 0, range: 36, box: 6, tiles: [T.SAND], venom: 3, warn: 'rattle' },
+  penguin: { name: 'penguin', walk: 9, slide: 80, shy: 38, range: 60, box: 6, tiles: [T.SNOW, T.ICE], call: 'honk', every: [7, 16] },
   hedgehog: { name: 'hedgehog', walk: 9, shy: 30, range: 36, box: 5, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [7, 14] },
   badger: { name: 'badger', hp: 3, meat: 2, hide: 1, walk: 15, run: 72, shy: 56, range: 52, box: 8, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [10, 20] },
   wolf: { name: 'wolf', hp: 4, meat: 3, hide: 3, walk: 24, run: 115, shy: 70, watch: 150, range: 80, box: 11, tiles: [T.GRASS, T.SNOW, T.ROCK], night: true, call: 'howl', every: [22, 30] },
@@ -26,6 +30,10 @@ function mazeBox() {
   const j = isle('jungle');
   const { cols, rows, pitch } = JUNGLE_MAZE;
   return { x0: j.x - (cols * pitch) / 2, y0: j.y - (rows * pitch) / 2, x1: j.x + (cols * pitch) / 2, y1: j.y + (rows * pitch) / 2 };
+}
+function frozenLake() {
+  const f = isle('frozen');
+  return { x0: f.x - 6, y0: f.y - 7, x1: f.x + 12, y1: f.y + 5 };
 }
 const HERDS = [
   { kind: 'deer', n: 3, area: local(4, 20, 34, 46) },
@@ -44,6 +52,9 @@ const HERDS = [
   { kind: 'frog', n: 4, area: local(12, 44, 32, 64) },
   { kind: 'frog', n: 2, isle: 'jungle' },
   { kind: 'snake', n: 11, area: mazeBox() },
+  { kind: 'penguin', n: 6, area: frozenLake() },
+  { kind: 'javelina', n: 4, isle: 'speck' },
+  { kind: 'scorpion', n: 5, isle: 'speck' },
   { kind: 'hedgehog', n: 3, area: local(54, 68, 100, 96) },
   { kind: 'hedgehog', n: 2, area: local(116, 64, 134, 96) },
   { kind: 'badger', n: 2, area: local(6, 62, 36, 96) },
@@ -138,7 +149,7 @@ const awayFrom = (a, x, y) => {
 // Turns aside when the way is blocked, and bends back toward home the further it has run past its range. The pull
 // grows smoothly so a fleeing animal doesn't dither at the edge; where it would cancel the heading outright, the
 // animal veers round to one side instead.
-function steer(a, ux, uy, sp, dt) {
+function steer(a, ux, uy, sp, dt, rate) {
   const w = WILD[a.kind];
   const hx = a.home.x - a.x;
   const hy = a.home.y - a.y;
@@ -157,17 +168,49 @@ function steer(a, ux, uy, sp, dt) {
     ux = vx / n;
     uy = vy / n;
   }
+  if (Math.abs(ux) < 1e-6) ux = 0;
+  if (Math.abs(uy) < 1e-6) uy = 0;
   const x0 = a.x;
+  const y0 = a.y;
   const s = sp * dt;
-  if (move(a, ux * s, uy * s)) {
-    a.stuck = 0;
-  } else {
-    a.stuck += dt;
+  const gone = () => Math.hypot(a.x - x0, a.y - y0);
+  move(a, ux * s, uy * s);
+  if (gone() < s * 0.5) {
+    // scraping along a wall or into a corner: veer round, the same side it last did, as little as will get it going
+    Object.assign(a, { x: x0, y: y0 });
     const side = a.dodge || (a.dodge = Math.random() < 0.5 ? 1 : -1);
-    if (!move(a, -uy * side * s, ux * side * s)) a.dodge = -side;
+    let found = false;
+    for (const sd of [side, -side]) {
+      for (const ang of DETOURS) {
+        const c = Math.cos(ang * sd);
+        const n = Math.sin(ang * sd);
+        move(a, (ux * c - uy * n) * s, (ux * n + uy * c) * s);
+        if (gone() >= s * 0.5) {
+          a.dodge = sd;
+          found = true;
+          break;
+        }
+        Object.assign(a, { x: x0, y: y0 });
+      }
+      if (found) break;
+    }
   }
+  // how fast it's really getting anywhere, smoothed, so a shuffle back and forth on the spot counts as none
+  if (dt > 0) {
+    const k = 1 - Math.exp(-dt * 8);
+    a.svx = (a.svx || 0) + ((a.x - x0) / dt - (a.svx || 0)) * k;
+    a.svy = (a.svy || 0) + ((a.y - y0) / dt - (a.svy || 0)) * k;
+  }
+  a.pace = Math.min(1, Math.hypot(a.svx || 0, a.svy || 0) / sp);
+  a.held = a.held ? a.pace < 0.35 : a.pace < 0.2;
+  a.stuck = a.pace < 0.3 ? a.stuck + dt : 0;
+  a.anim += dt * rate * a.pace;
   faceMoving(a, a.x - x0, dt, sp);
 }
+const DETOURS = [0.5, 1, 1.5, 2.1, 2.7];
+const STEERED = new Set(['walk', 'flee', 'charge', 'sulk']);
+// Standing still on the spot, though it means to be moving: hemmed in, so it shows standing rather than running in place.
+const pinned = (a) => !!a.held;
 
 // Faces the way it has really been going, smoothed, so a blocked step or a heading near straight up or down
 // doesn't flip it back and forth.
@@ -178,7 +221,7 @@ function faceMoving(e, mx, dt, sp) {
 }
 
 function startle(a) {
-  if (a.kind === 'boar' || a.kind === 'bat') return;
+  if (WILD[a.kind].charge || a.kind === 'bat') return;
   for (const b of animals) {
     if (b.kind !== a.kind || b.state === 'down' || b.state === 'gone' || b.state === 'dive') continue;
     if (b !== a && Math.hypot(b.x - a.x, b.y - a.y) > 90) continue;
@@ -243,8 +286,9 @@ function updateAnimal(a, dt) {
   const dist = Math.hypot(player.x - a.x, player.y - a.y);
   const near = playerAbout() && !player.swimming;
   const shy = w.shy * (player.running ? 1.4 : 1);
-  if (a.kind === 'boar') return updateBoar(a, dt, dist, near);
-  if (a.kind === 'snake') return updateSnake(a, dt, dist, near);
+  if (w.charge) return updateBoar(a, dt, dist, near);
+  if (w.lunge) return updateSnake(a, dt, dist, near);
+  if (a.kind === 'penguin') return updatePenguin(a, dt, dist, near && dist < shy);
   if (a.kind === 'bat') return updateBat(a, dt);
   if (a.kind === 'owl') return updateOwl(a, dt, dist, near && dist < shy);
   if (a.state === 'curl') {
@@ -257,9 +301,9 @@ function updateAnimal(a, dt) {
 
   if (a.state === 'flee') {
     const [ux, uy] = awayFrom(a, player.x, player.y);
-    steer(a, ux, uy, w.run, dt);
-    a.anim += dt * (w.hops ? 7 : 12);
-    a.lift = w.hops ? Math.abs(Math.sin(a.anim * Math.PI)) * 4 : 0;
+    steer(a, ux, uy, w.run, dt, w.hops ? 7 : 12);
+    if (a.stuck > 0.8) Object.assign(a, { dodge: -(a.dodge || 1), stuck: 0 });
+    a.lift = w.hops && !pinned(a) ? Math.abs(Math.sin(a.anim * Math.PI)) * 4 : 0;
     if ((a.fleeT -= dt) <= 0 && !(near && dist < shy * 1.5)) Object.assign(a, { state: 'idle', timer: 1 + Math.random() * 2, lift: 0 });
     return;
   }
@@ -279,9 +323,8 @@ function updateAnimal(a, dt) {
       Object.assign(a, { state: Math.random() < 0.6 ? 'graze' : 'idle', timer: 2 + Math.random() * 4, lift: 0, stuck: 0 });
       return;
     }
-    steer(a, dx / d, dy / d, w.walk, dt);
-    a.anim += dt * (w.hops ? 4 : 5);
-    a.lift = w.hops ? Math.abs(Math.sin(a.anim * Math.PI)) * (a.kind === 'frog' ? 3 : 2) : 0;
+    steer(a, dx / d, dy / d, w.walk, dt, w.hops ? 4 : 5);
+    a.lift = w.hops && !pinned(a) ? Math.abs(Math.sin(a.anim * Math.PI)) * (a.kind === 'frog' ? 3 : 2) : 0;
     return;
   }
   if ((a.timer -= dt) > 0) return;
@@ -382,9 +425,67 @@ function updatePounce(a, dt) {
   Object.assign(a, { state: 'sit', timer: 1.5 + Math.random() * 2, lift: 0 });
 }
 
-// Boars mind their own business until hurt; then they charge whoever did it.
+// Penguins waddle about the snow, and out on the ice flop onto their bellies for a long glide. One that's startled
+// belly-flops and slides off, though it soon grinds to a halt on snow.
+const iceUnder = (a) => tileAt(Math.floor(a.x / TILE), Math.floor((a.y - 1) / TILE)) === T.ICE;
+function updatePenguin(a, dt, dist, close) {
+  const w = WILD.penguin;
+  if (close && a.state !== 'slide') a.state = 'flee';
+  if (a.state === 'flee') {
+    // off whichever way is clear, as near straight away as it can; hemmed in, it just stands its ground
+    const [ux, uy] = awayFrom(a, player.x, player.y);
+    const clear = (vx, vy) => habitat('penguin', a.x + vx * 20, a.y + vy * 20) && canStand(a, a.x + vx * 8, a.y + vy * 8);
+    for (const ang of [0, ...DETOURS.flatMap((d) => [d, -d])]) {
+      const vx = ux * Math.cos(ang) - uy * Math.sin(ang);
+      const vy = ux * Math.sin(ang) + uy * Math.cos(ang);
+      if (clear(vx, vy)) return bellySlide(a, vx, vy, w.slide * 1.2);
+    }
+    return Object.assign(a, { state: 'idle', timer: 1, dir: player.x > a.x ? 'right' : 'left' });
+  }
+  if (a.state === 'slide') {
+    const k = Math.exp(-dt * (iceUnder(a) ? 0.45 : 4));
+    a.vx *= k;
+    a.vy *= k;
+    const ahead = habitat('penguin', a.x + a.vx * 0.15, a.y + a.vy * 0.15);
+    if (!ahead || !move(a, a.vx * dt, a.vy * dt)) {
+      a.vx *= -0.25;
+      a.vy *= -0.25;
+    }
+    if (Math.random() < dt * 8) {
+      particles.push({ type: 'steam', x: a.x - Math.sign(a.vx) * 7, y: a.y - 1, vx: -a.vx * 0.2, vy: -6 - Math.random() * 8, life: 0, max: 0.4 });
+    }
+    if (Math.hypot(a.vx, a.vy) < 7) Object.assign(a, { state: 'idle', timer: 1 + Math.random() * 2, vx: 0, vy: 0 });
+    return;
+  }
+  if (a.state === 'walk') {
+    const dx = a.target.x - a.x;
+    const dy = a.target.y - a.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 2 || a.stuck > 0.6) return Object.assign(a, { state: 'idle', timer: 1.5 + Math.random() * 3, stuck: 0 });
+    if (iceUnder(a) && Math.random() < dt * 0.8) return bellySlide(a, dx / d, dy / d, w.slide);
+    steer(a, dx / d, dy / d, w.walk, dt, 6);
+    return;
+  }
+  if ((a.timer -= dt) > 0) return;
+  if (iceUnder(a) && Math.random() < 0.6) {
+    const ang = Math.random() * Math.PI * 2;
+    return bellySlide(a, Math.cos(ang), Math.sin(ang) * 0.7, w.slide);
+  }
+  a.target = pickWander(a);
+  if (a.target) Object.assign(a, { state: 'walk', stuck: 0 });
+  else a.timer = 1;
+}
+
+function bellySlide(a, ux, uy, speed) {
+  Object.assign(a, { state: 'slide', vx: ux * speed, vy: uy * speed, dir: ux > 0 ? 'right' : 'left' });
+  if (time - (a.honkAt ?? -9) < 3) return;
+  a.honkAt = time;
+  Sfx.honk(0.4 * earshot(a.x, a.y));
+}
+
+// Boars and javelinas mind their own business until hurt; then they charge whoever did it.
 function updateBoar(a, dt, dist, near) {
-  const w = WILD.boar;
+  const w = WILD[a.kind];
   if (a.state === 'stun') {
     if ((a.timer -= dt) <= 0) Object.assign(a, { state: 'sulk', timer: 3 });
     return;
@@ -395,8 +496,7 @@ function updateBoar(a, dt, dist, near) {
       return;
     }
     const [ux, uy] = awayFrom(a, player.x, player.y);
-    steer(a, -ux, -uy, w.charge, dt);
-    a.anim += dt * 12;
+    steer(a, -ux, -uy, w.charge, dt, 12);
     if ((a.callT -= dt) <= 0) {
       a.callT = 0.6;
       Sfx.grunt(earshot(a.x, a.y));
@@ -406,8 +506,7 @@ function updateBoar(a, dt, dist, near) {
   }
   if (a.state === 'sulk') {
     const [ux, uy] = awayFrom(a, player.x, player.y);
-    steer(a, ux, uy, w.walk * 2.5, dt);
-    a.anim += dt * 7;
+    steer(a, ux, uy, w.walk * 2.5, dt, 7);
     if ((a.timer -= dt) <= 0) Object.assign(a, { state: 'idle', timer: 1 });
     return;
   }
@@ -419,8 +518,7 @@ function updateBoar(a, dt, dist, near) {
       Object.assign(a, { state: Math.random() < 0.7 ? 'graze' : 'idle', timer: 2 + Math.random() * 4, stuck: 0 });
       return;
     }
-    steer(a, dx / d, dy / d, w.walk, dt);
-    a.anim += dt * 5;
+    steer(a, dx / d, dy / d, w.walk, dt, 5);
     return;
   }
   if ((a.timer -= dt) > 0) return;
@@ -445,16 +543,16 @@ function gore(a, ux, uy) {
   player.chop = null;
   Sfx.thunk(1);
   Sfx.grunt(1);
-  muse(['Oof!', 'Ow! That boar means business.', has('shield') ? 'Ouch! I should raise my shield as it charges...' : 'Ouch! A shield would come in handy...'][Math.min(2, stats.gored++)]);
+  muse(['Oof!', `Ow! That ${WILD[a.kind].name} means business.`, has('shield') ? 'Ouch! I should raise my shield as it charges...' : 'Ouch! A shield would come in handy...'][Math.min(2, stats.gored++)]);
   Object.assign(a, { state: 'sulk', timer: 2.5 });
 }
 
 // A snake lies still until you come close; then it coils, hissing, and lunges where you stood. Step back smartly
-// while it coils and it falls short; a raised shield turns the fangs.
+// while it coils and it falls short; a raised shield turns the fangs. A scorpion rears its tail and stings the same way.
 const BITE_TIME = 5;
 const SNAKE_CLEAR = 2;
 function updateSnake(a, dt, dist, near) {
-  const w = WILD.snake;
+  const w = WILD[a.kind];
   const prey = near && !(player.downT > 0) && !(player.clearT > 0);
   if (a.state === 'coil') {
     a.dir = player.x > a.x ? 'right' : 'left';
@@ -476,7 +574,7 @@ function updateSnake(a, dt, dist, near) {
   }
   if (prey && dist < w.lunge) {
     Object.assign(a, { state: 'coil', t: 0.55, dir: player.x > a.x ? 'right' : 'left' });
-    Sfx.hiss(0.7 * earshot(a.x, a.y));
+    Sfx[w.warn || 'hiss'](0.7 * earshot(a.x, a.y));
     return;
   }
   if (a.state === 'walk') {
@@ -484,8 +582,7 @@ function updateSnake(a, dt, dist, near) {
     const dy = a.target.y - a.y;
     const d = Math.hypot(dx, dy);
     if (d < 2 || a.stuck > 0.6) return Object.assign(a, { state: 'idle', timer: 3 + Math.random() * 5, stuck: 0 });
-    steer(a, dx / d, dy / d, w.walk, dt);
-    a.anim += dt * 4;
+    steer(a, dx / d, dy / d, w.walk, dt, 4);
     return;
   }
   if ((a.timer -= dt) > 0) return;
@@ -500,19 +597,22 @@ function bite(a) {
     a.hurtT = 0.3;
     Sfx.thunk(1);
     burst(a.x, a.y - 6, ['#ffffff', '#fff27a'], 8, 30);
-    muse('Ha! Not through my shield, snake.');
+    muse(`Ha! Not through my shield, ${WILD[a.kind].name}.`);
     return;
   }
+  const venom = WILD[a.kind].venom || BITE_TIME;
   Object.assign(a, { state: 'rest', timer: 2.4 });
-  Object.assign(player, { downT: BITE_TIME, clearT: BITE_TIME + SNAKE_CLEAR, chop: null, nock: null, fishing: null, knock: null, running: false, jumpT: -1, anim: 0, frame: 0 });
+  Object.assign(player, { downT: venom, clearT: venom + SNAKE_CLEAR, bitBy: a.kind, chop: null, nock: null, fishing: null, knock: null, running: false, jumpT: -1, anim: 0, frame: 0 });
   Sfx.hiss(1);
   Sfx.thunk(0.8);
   burst(player.x, player.y - 8, ['#e0303a', '#ffffff'], 6, 24);
-  const lines = ['Ow! A snake! My legs... I can\'t move...', 'Bitten again! Everything\'s gone numb...', has('shield') ? 'Numb again... raise the shield when one coils!' : 'Numb again... a shield would stop those fangs.'];
+  const lines = a.kind === 'scorpion'
+    ? ['Yow! A scorpion! My legs have gone stiff...', 'Stung again! I can\'t feel my feet...', has('shield') ? 'Stung again... raise the shield when one rears its tail!' : 'Stung again... a shield would stop that sting.']
+    : ['Ow! A snake! My legs... I can\'t move...', 'Bitten again! Everything\'s gone numb...', has('shield') ? 'Numb again... raise the shield when one coils!' : 'Numb again... a shield would stop those fangs.'];
   muse(lines[Math.min(2, stats.bitten++)]);
 }
 
-// Lying where the snake left you until the venom wears off.
+// Lying where the snake or scorpion left you until the venom wears off.
 function updateDown(dt) {
   player.downT -= dt;
   player.anim = 0;
@@ -521,7 +621,7 @@ function updateDown(dt) {
   if (player.downT > 0) return;
   player.downT = 0;
   dust(player.x, player.y);
-  if (stats.bitten === 1) muse('Phew, I can move again. Better watch for those snakes.');
+  if (stats.bitten === 1) muse(`Phew, I can move again. Better watch for those ${WILD[player.bitBy || 'snake'].name}s.`);
 }
 
 function ambientCall(a, dt) {
@@ -545,7 +645,7 @@ function updateWildlife(dt) {
   if (player.clearT > 0) player.clearT -= dt;
   const k = player.knock;
   if (k) {
-    if (grounded() && !sail && !flight) move(player, k.vx * dt, k.vy * dt);
+    if ((grounded() || player.swimming) && !sail && !flight) move(player, k.vx * dt, k.vy * dt);
     if ((k.t -= dt) <= 0) player.knock = null;
   }
   for (const a of animals) {
@@ -599,7 +699,7 @@ function hurtAnimal(a, dmg) {
   }
   if (a.hp <= 0) return bringDown(a);
   if (a.kind === 'sealion') return startleLions(a);
-  if (a.kind === 'boar') {
+  if (WILD[a.kind].charge) {
     Object.assign(a, { state: 'charge', t: 3 });
     Sfx.grunt(1);
     return;
@@ -611,7 +711,7 @@ function bringDown(a) {
   Object.assign(a, { state: 'down', t: 0, lift: 0 });
   stats.hunted++;
   stats[a.kind] = (stats[a.kind] || 0) + 1;
-  if (a.kind === 'boar') Sfx.grunt(0.8);
+  if (WILD[a.kind].charge) Sfx.grunt(0.8);
   if (a.kind === 'sealion') startleLions(a);
 }
 
@@ -638,12 +738,15 @@ function dropMeat(a) {
 
 // ---------- drawing ----------
 
-// Frames as built in sprites.js: [still, step, head-down, running] for most; rabbits and frogs [sit, hop, nibble/croak].
+// Frames as built in sprites.js: [still, step, head-down, running] for most; rabbits and frogs [sit, hop, nibble/croak];
+// penguins [stand, waddle, belly-slide].
 function animalFrame(a) {
   const step = Math.floor(a.anim) % 2;
+  if (STEERED.has(a.state) && pinned(a)) return 0;
   if (a.kind === 'rabbit') return a.lift > 0.5 ? 1 : a.state === 'graze' && (time + a.home.x) % 2 < 1.2 ? 2 : 0;
   if (a.kind === 'frog') return a.lift > 0.5 ? 1 : a.croakT > 0 ? 2 : 0;
-  if (a.kind === 'snake') return a.state === 'strike' ? 3 : a.state === 'coil' || a.state === 'rest' ? 2 : step;
+  if (a.kind === 'penguin') return a.state === 'slide' ? 2 : a.state === 'walk' ? step : 0;
+  if (WILD[a.kind].lunge) return a.state === 'strike' ? 3 : a.state === 'coil' || a.state === 'rest' ? 2 : step;
   if (a.kind === 'bat') return step;
   if (a.kind === 'owl') return a.state === 'flyoff' ? 2 + step : (time + a.phase) % 4 < 0.2 ? 1 : 0;
   if (a.kind === 'hedgehog') return a.state === 'curl' ? 2 : a.state === 'walk' ? step : 0;

@@ -162,13 +162,14 @@ const QUESTS = [
     steps: [
       { id: 'torLanded', text: 'Go ashore on Stormcrown Tor, far out east past the hermit\'s isle', done: () => stats.torLanded > 0 },
       { id: 'torSeen', text: 'Find what lies on the barrow at the top. It only shows in the rain', done: () => stats.torSeen > 0 },
+      { id: 'torRods', text: () => `Set a lightning rod in each of the six sockets round the barrow (${rodCount()}/6)`, done: () => rodCount() === 6 || torEgg.state === 'hatched' },
       { id: 'torHatched', text: 'Find a way to crack the egg', done: () => torEgg.state === 'hatched' },
     ],
   },
 ];
 
 const questDone = (q) => q.steps.every((s) => journal.done[s.id]);
-const stepText = (s) => (typeof s.text === 'function' ? s.text() : s.text);
+const stepText = (s) => touchWords(typeof s.text === 'function' ? s.text() : s.text);
 
 let journalT = 0;
 
@@ -194,8 +195,9 @@ const toastEl = document.getElementById('toast');
 const toasts = [];
 let toastTimer = null;
 
-function toast(kind, text) {
-  toasts.push([kind, text]);
+// `setting` for one telling the player what a setting they turned on or off does now.
+function toast(kind, text, setting = false) {
+  toasts.push([kind, text, setting]);
   if (!toastTimer) nextToast();
   if (has('backpack')) flashJournalButton();
 }
@@ -207,7 +209,8 @@ function nextToast() {
     toastTimer = null;
     return;
   }
-  toastEl.replaceChildren(Object.assign(document.createElement('small'), { textContent: t[0] }), document.createTextNode(t[1]));
+  toastEl.classList.toggle('setting', t[2]);
+  toastEl.replaceChildren(Object.assign(document.createElement('small'), { textContent: t[0] }), document.createTextNode(touchWords(t[1])));
   toastTimer = setTimeout(nextToast, 3200);
 }
 
@@ -224,6 +227,7 @@ function flashJournalButton() {
   journalBtn.classList.remove('bump');
   void journalBtn.offsetWidth;
   journalBtn.classList.add('bump');
+  flashMenu();
 }
 
 function weatherName() {
@@ -270,7 +274,7 @@ function renderJournal() {
 }
 
 function toggleJournal(open = !journalOpen) {
-  if (open && (!has('backpack') || naming || mapOpen)) return;
+  if (open && (!has('backpack') || naming || mapOpen || dragonLogOpen)) return;
   journalOpen = open;
   journalEl.hidden = !open;
   journalBtn.setAttribute('aria-expanded', String(open));

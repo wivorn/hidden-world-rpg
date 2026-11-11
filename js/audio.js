@@ -447,6 +447,14 @@ const Sfx = (() => {
     snuffle(k = 1) {
       for (let i = 0; i < 3; i++) noise({ dur: 0.07, vol: 0.05 * k, f0: rand(1200, 1700), type: 'bandpass', q: 4, delay: i * 0.11 });
     },
+    // a penguin's braying honk, and the dry clicking of a scorpion rearing to sting
+    honk(k = 1) {
+      const f = rand(520, 600);
+      for (let i = 0; i < 2; i++) tone({ type: 'sawtooth', f0: f, f1: f * 0.75, dur: 0.11, vol: 0.035 * k, delay: i * 0.15, attack: 0.02 });
+    },
+    rattle(k = 1) {
+      for (let i = 0; i < 5; i++) noise({ dur: 0.03, vol: 0.07 * k, f0: rand(2600, 3400), type: 'bandpass', q: 5, delay: i * 0.06 });
+    },
     // a ship's horn, low and long
     horn(k = 1) {
       tone({ type: 'sawtooth', f0: 110, f1: 104, dur: 1.4, vol: 0.06 * k, attack: 0.2 });

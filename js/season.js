@@ -97,14 +97,15 @@ const flowerOdds = () => (seasonShown < 0 ? 0.09 : SEASONS[seasonShown].flowers)
 const flowerColors = () => (seasonShown < 0 ? PETALS : SEASONS[seasonShown].petals);
 
 // Leafy things that turn with the seasons, and the ones that get a coat of snow in winter.
-const TURNS = new Set(['oak', 'bushPink', 'bushYellow', 'bushCut']);
-const SNOWS = new Set([...TURNS, 'pine', 'pine2', 'house', 'houseB', 'houseC', 'houseD', 'hall', 'torMound']);
+const BLOSSOMS = new Set(['oak', 'appleTree', 'pearTree', 'cherryTree', 'plumTree', 'peachTree']);
+const TURNS = new Set([...BLOSSOMS, 'bushPink', 'bushYellow', 'bushCut']);
+const SNOWS = new Set([...TURNS, 'pine', 'pine2', 'orangeTree', 'lemonTree', 'house', 'houseB', 'houseC', 'houseD', 'hall', 'torMound']);
 const turnedImgs = new Map();
 
 function seasonalImg(img, o) {
   const S = SEASONS[seasonShown];
   if (!S) return img;
-  if (TURNS.has(o.key) && (S.leaves || (S.blossom && o.key === 'oak'))) img = turnedImg(img, seasonShown, S.leaves ? Math.floor(o.phase * 7) % S.leaves.length : 0);
+  if (TURNS.has(o.key) && (S.leaves || (S.blossom && BLOSSOMS.has(o.key)))) img = turnedImg(img, seasonShown, S.leaves ? Math.floor(o.phase * 7) % S.leaves.length : 0);
   return S.snow && SNOWS.has(o.key) ? snowyImg(img) : img;
 }
 

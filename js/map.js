@@ -168,6 +168,7 @@ function flashMapButton() {
   mapBtn.classList.remove('bump');
   void mapBtn.offsetWidth;
   mapBtn.classList.add('bump');
+  flashMenu();
 }
 
 const MAP_INK = '#3a2414';
@@ -188,6 +189,7 @@ function tileColor(t, i) {
     case T.HAY: return '#d8b852';
     case T.ROCK: return tier[i] >= 2 ? '#a3a5ab' : '#a49c8c';
     case T.SNOW: case T.ICE: return '#eef0ee';
+    case T.HOLE: return '#5a8aa8';
     case T.MOUNT: return elev[i] === 255 ? '#4c4446' : elev[i] >= 3 ? '#d8dbd8' : '#8a8278';
     case T.SPRING: return '#7cc6bc';
     case T.ASH: return '#7a7072';
@@ -200,7 +202,8 @@ function tileColor(t, i) {
 
 let mapBase = null;
 
-const MAP_TREES = { pine: '#5d7f45', pine2: '#5d7f45', oak: '#6a8a44', palm: '#7a9a48', jungleTree: '#3f7a3a', snowPine: '#7d9488' };
+const MAP_TREES = { pine: '#5d7f45', pine2: '#5d7f45', oak: '#6a8a44', palm: '#7a9a48', jungleTree: '#3f7a3a', snowPine: '#7d9488', cactus: '#4f8a3c', cactusTall: '#4f8a3c',
+  appleTree: '#6a8a44', pearTree: '#6a8a44', cherryTree: '#6a8a44', plumTree: '#6a8a44', peachTree: '#6a8a44', orangeTree: '#4f7a3a', lemonTree: '#4f7a3a', bananaTree: '#5a9a44' };
 
 // One pixel per tile, plus trees as dark dots and buildings as ink blocks; scaled up when shown.
 function buildMapBase() {
@@ -385,7 +388,8 @@ function drawMap() {
   g.beginPath();
   g.arc(mx, my, r - 1, 0, Math.PI * 2);
   g.fill();
-  const tip = [canFlyTo() ? 'CLICK A PLACE TO FLY THERE' : '', 'SCROLL OR +/- TO ZOOM', mapView.z > 1 ? 'ARROWS TO MOVE' : '', 'ESC TO CLOSE'].filter(Boolean).join('\n');
+  const tip = (touchScreen.matches ? [canFlyTo() ? 'TAP A PLACE TO FLY THERE' : '']
+    : [canFlyTo() ? 'CLICK A PLACE TO FLY THERE' : '', 'SCROLL OR +/- TO ZOOM', mapView.z > 1 ? 'ARROWS TO MOVE' : '', 'ESC TO CLOSE']).filter(Boolean).join('\n');
   if (mapTip.textContent !== tip) mapTip.textContent = tip;
   mapCanvas.classList.toggle('fly', canFlyTo() && !!flyHit);
 

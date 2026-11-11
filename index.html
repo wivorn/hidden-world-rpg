@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hidden World</title>
+  <meta name="theme-color" content="#1d3263" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Hidden World" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
@@ -14,7 +22,8 @@
   <div id="bubbles"></div>
   <div id="prompt"></div>
   <div id="hotbar" hidden>
-    <ul id="hotbar-slots" aria-label="Tools. F uses the selected tool; number keys pick one, Tab steps forward and Shift+Tab back"></ul>
+    <ul id="hotbar-slots" aria-label="Tools. Click one to take it in hand and fold the rest away, then click it, or press F, to use it; number keys pick one, Tab steps forward and Shift+Tab back"></ul>
+    <button id="hotbar-fold" class="fold" type="button" aria-expanded="true" aria-controls="hotbar-slots" aria-label="Show every tool" title="Show or hide your tools (Q)" data-key="Q"><img alt="" /></button>
   </div>
   <div id="pack" hidden>
     <button id="bag-btn" class="toggle" type="button" aria-expanded="false" aria-controls="pack-tray" title="Backpack (B)" data-key="B"><img alt="" /><span></span></button>
@@ -30,21 +39,33 @@
     <ul id="pile-list"></ul>
     <p class="pile-help">1-9 or click to pick up   ·   Esc to leave it</p>
   </div>
-  <div id="clock" role="img"><img alt="" /><div aria-hidden="true"><span></span><small></small></div></div>
+  <div id="daybar">
+    <div id="clock" role="img"><img alt="" /><div aria-hidden="true"><span></span><small></small></div><svg aria-hidden="true"><rect id="stamina-line" width="100%" height="100%" pathLength="100" stroke-dasharray="100 100" /></svg><svg class="extra" aria-hidden="true"><rect id="stamina-extra" width="100%" height="100%" pathLength="100" stroke-dasharray="0 100" /></svg></div>
+    <div id="stamina" role="meter" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div>
+  </div>
   <div id="purse" role="status" hidden></div>
   <div id="toggles">
-    <button id="hints" class="toggle" type="button" aria-pressed="false" aria-label="Hints" title="Hints (H)" data-key="H"><img alt="" /></button>
-    <button id="sound" class="toggle" type="button" aria-pressed="true" aria-label="Sound" title="Sound (P)" data-key="P"><img alt="" /></button>
-    <button id="autopick" class="toggle" type="button" aria-pressed="false" aria-label="Auto pick up" title="Auto pick up (/)" data-key="/"><img alt="" /></button>
-    <button id="equip-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Equipments" title="Equipments (E)" data-key="E" hidden><img alt="" /></button>
-    <button id="journal-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Quest journal" title="Quest journal (J)" data-key="J" hidden><img alt="" /></button>
-    <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="World map" title="World map (M)" data-key="M" hidden><img alt="" /></button>
-    <button id="fishlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Fish log" title="Fish log (L)" data-key="L" hidden><img alt="" /></button>
-    <button id="tinker-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Craft" title="Craft (C)" data-key="C" hidden><img alt="" /></button>
+    <button id="menu-btn" class="toggle" type="button" aria-expanded="true" aria-controls="menu-items" aria-label="Menu" title="Menu (O)" data-key="O"><img alt="" /></button>
+    <div id="menu-items">
+      <button id="hints" class="toggle" type="button" aria-pressed="false" aria-label="Hints" title="Hints (H)" data-key="H"><img alt="" /></button>
+      <button id="sound" class="toggle" type="button" aria-pressed="true" aria-label="Sound" title="Sound (P)" data-key="P"><img alt="" /></button>
+      <button id="autopick" class="toggle" type="button" aria-pressed="false" aria-label="Auto pick up" title="Auto pick up (/)" data-key="/"><img alt="" /></button>
+      <button id="stick-btn" class="toggle" type="button" aria-pressed="false" aria-label="Joystick" title="Joystick" hidden><img alt="" /></button>
+      <button id="equip-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Equipments" title="Equipments (E)" data-key="E" hidden><img alt="" /></button>
+      <button id="journal-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Quest journal" title="Quest journal (J)" data-key="J" hidden><img alt="" /></button>
+      <button id="map" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="World map" title="World map (M)" data-key="M" hidden><img alt="" /></button>
+      <button id="dragonlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Dragon log" title="Dragon log (K)" data-key="K" hidden><img alt="" /></button>
+      <button id="fishlog-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Fish log" title="Fish log (L)" data-key="L" hidden><img alt="" /></button>
+      <button id="tinker-btn" class="toggle" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Craft" title="Craft (C)" data-key="C" hidden><img alt="" /></button>
+    </div>
   </div>
   <div id="toast" role="status" aria-live="polite"></div>
-  <div id="stamina" class="full" role="meter" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i></div>
   <div id="exposure" role="meter" aria-label="Freezing" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span aria-hidden="true">FREEZING</span><i></i></div>
+  <div id="actions">
+    <button id="act-run" class="act" type="button">RUN</button>
+  </div>
+  <button id="chat-btn" class="toggle" type="button" aria-controls="chat" aria-expanded="false" aria-label="Chat"><img alt="" /></button>
+  <div id="stick" aria-hidden="true" hidden><i></i></div>
   <form id="chat" autocomplete="off">
     <label for="chat-input">SAY</label>
     <input id="chat-input" maxlength="80" placeholder="Press Enter to chat" enterkeyhint="send" />
@@ -79,6 +100,23 @@
       <h2 id="lurepick-title">WHICH LURE?</h2>
       <ul id="lurepick-list"></ul>
       <p class="lure-help">1-9 or click to pick   ·   Esc to put the rod down</p>
+    </div>
+  </div>
+  <div id="dragonlog" class="overlay" role="dialog" aria-modal="true" aria-labelledby="dragonlog-title" hidden>
+    <div class="panel log-panel">
+      <h2 id="dragonlog-title">DRAGON LOG</h2>
+      <p id="dragonlog-sum"></p>
+      <div id="dragonlog-body">
+        <section aria-labelledby="dragonlog-kinds-title">
+          <h3 id="dragonlog-kinds-title" class="log-head">KINDS OF DRAGON</h3>
+          <ul id="dragonlog-kinds" class="log-grid"></ul>
+        </section>
+        <section aria-labelledby="dragonlog-mine-title">
+          <h3 id="dragonlog-mine-title" class="log-head">YOUR DRAGONS</h3>
+          <ul id="dragonlog-mine" class="log-grid"></ul>
+        </section>
+      </div>
+      <button id="dragonlog-close" type="button">CLOSE</button>
     </div>
   </div>
   <div id="fishlog" class="overlay" role="dialog" aria-modal="true" aria-labelledby="fishlog-title" hidden>
@@ -159,6 +197,7 @@
   <div id="bag" class="overlay" role="dialog" aria-modal="true" aria-labelledby="bag-title" hidden>
     <div class="panel bag-panel">
       <h2 id="bag-title">EQUIPMENTS</h2>
+      <p id="bag-purse"></p>
       <div class="bag-cols">
         <section aria-labelledby="bag-wear-title">
           <h3 id="bag-wear-title">WEARING</h3>
@@ -238,6 +277,7 @@
   <script src="js/breath.js"></script>
   <script src="js/season.js"></script>
   <script src="js/journal.js"></script>
+  <script src="js/dragonlog.js"></script>
   <script src="js/title.js"></script>
   <script src="js/main.js"></script>
   <script src="js/save.js"></script>

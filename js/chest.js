@@ -1,22 +1,34 @@
-// The chest at home: somewhere to keep what won't fit in the backpack. Its contents stay put between visits and saves.
+// The chests at home and in the hermit's hut: somewhere to keep what won't fit in the backpack. Their contents stay
+// put between visits and saves. The hermit's starts with his spare saddles in it.
 
 const chestStore = {};
+const HERMIT_SADDLES = 10;
+const hermitStore = { saddle: HERMIT_SADDLES };
+const CHESTS = [
+  { room: 'home', store: chestStore, title: 'STORAGE CHEST' },
+  { room: 'hut', store: hermitStore, title: 'THE HERMIT\'S CHEST' },
+];
 const chestEl = document.getElementById('chest');
+const chestTitle = document.getElementById('chest-title');
 const chestBag = document.getElementById('chest-bag');
 const chestList = document.getElementById('chest-store');
 const chestSum = document.getElementById('chest-sum');
 const chestClose = document.getElementById('chest-close');
 let chestOpen = false;
-let chestObj = null;
+// The chest being looked in.
+let chestAt = CHESTS[0];
 
-const homeChest = () => (chestObj ||= objects.find((o) => o.key === 'chest' && inRoom(ROOMS.home, o)));
+const chestObjOf = (c) => (c.obj ||= objects.find((o) => (o.key === 'chest' || o.key === 'chestOpen') && inRoom(ROOMS[c.room], o)));
 
+// The chest in this room, if the player is standing at it.
 function nearChest() {
-  const c = homeChest();
-  return indoors === ROOMS.home && has('backpack') && !carrying() && Math.hypot(player.x - c.x, player.y - c.y - 10) < 22;
+  if (!has('backpack') || carrying()) return null;
+  const c = CHESTS.find((k) => indoors === ROOMS[k.room]);
+  const o = c && chestObjOf(c);
+  return o && Math.hypot(player.x - o.x, player.y - o.y - 10) < 22 ? c : null;
 }
 
-const chestKept = () => Object.keys(chestStore).filter((id) => ITEMS[id] && chestStore[id] > 0);
+const chestKept = () => Object.keys(chestAt.store).filter((id) => ITEMS[id] && chestAt.store[id] > 0);
 
 function chestRow(id, n, verb, on, fn) {
   const li = document.createElement('li');
@@ -36,7 +48,7 @@ function renderChest() {
   const mine = Object.keys(ITEMS).filter((id) => has(id) && inPack(id));
   const kept = chestKept();
   chestBag.replaceChildren(...(mine.length ? mine.map((id) => chestRow(id, bag[id], 'STORE', true, (k) => storeItem(id, k))) : [noneRow('Nothing to put away.')]));
-  chestList.replaceChildren(...(kept.length ? kept.map((id) => chestRow(id, chestStore[id], 'TAKE', !bagFull(id), (k) => takeItem(id, k))) : [noneRow('The chest is empty.')]));
+  chestList.replaceChildren(...(kept.length ? kept.map((id) => chestRow(id, chestAt.store[id], 'TAKE', !bagFull(id), (k) => takeItem(id, k))) : [noneRow('The chest is empty.')]));
   chestSum.textContent = `BACKPACK ${held().length}/${packSize()} SLOTS`;
   const again = focused && chestEl.querySelector(`[data-key="${focused}"]:not(:disabled)`);
   (again || chestEl.querySelector('ul button:not(:disabled)') || chestClose).focus();
@@ -45,26 +57,30 @@ function renderChest() {
 function storeItem(id, k) {
   if ((bag[id] || 0) < k) return;
   bag[id] -= k;
-  chestStore[id] = (chestStore[id] || 0) + k;
+  chestAt.store[id] = (chestAt.store[id] || 0) + k;
   renderInventory();
   Sfx.drop();
   renderChest();
 }
 
 function takeItem(id, k) {
-  if ((chestStore[id] || 0) < k || bagFull(id)) return;
-  chestStore[id] -= k;
-  if (!chestStore[id]) delete chestStore[id];
+  const store = chestAt.store;
+  if ((store[id] || 0) < k || bagFull(id)) return;
+  store[id] -= k;
+  if (!store[id]) delete store[id];
   give(id, k);
   Sfx.pickup();
   renderChest();
 }
 
-function toggleChest(open = !chestOpen) {
-  if (open && (naming || mapOpen || journalOpen || fishLogOpen || tradeOpen)) return;
+// Opens the chest `c` (the one the player is at), or shuts whichever is open.
+function toggleChest(open = !chestOpen, c = chestAt) {
+  if (open && (!c || naming || mapOpen || journalOpen || fishLogOpen || dragonLogOpen || tradeOpen)) return;
+  if (open) chestAt = c;
   chestOpen = open;
   chestEl.hidden = !open;
-  homeChest().key = open ? 'chestOpen' : 'chest';
+  chestObjOf(chestAt).key = open ? 'chestOpen' : 'chest';
+  chestTitle.textContent = chestAt.title;
   keys.clear();
   Sfx.door();
   if (open) renderChest();

@@ -430,12 +430,13 @@ const sleepy = () => clock > 0.7 || clock < 0.2;
 
 function nearBed() {
   const b = bedHere();
-  return !!b && sleepy() && !carrying() && Math.hypot(player.x - b.x, player.y - b.y + 10) < 26;
+  return !!b && !carrying() && Math.hypot(player.x - b.x, player.y - b.y + 10) < 26;
 }
 
-// A long fade to black, and it's morning. The game saves.
+// A long fade to black, and it's morning; or by day, a nap till nightfall as in the tent. The game saves.
 function sleep() {
   if (fade) return;
+  if (!sleepy()) return napInBed();
   Sfx.yawn();
   const hut = indoors === ROOMS.hut;
   fade = {
@@ -473,6 +474,25 @@ function napInTent() {
   };
 }
 
+function napInBed() {
+  Sfx.yawn();
+  const hut = indoors === ROOMS.hut;
+  fade = {
+    t: 0, len: 1.4, act: () => {
+      advanceClock(((NAP_DUSK - clock) % 1 + 1) % 1);
+      setWeather(pickWeather(), true);
+      restStamina(1);
+      const hermit = npcs.find((n) => n.look.id === 'hermit');
+      setTimeout(() => {
+        if (!hut) npcSay(mom, 'Had a nice nap, dear? It\'s getting dark out.');
+        else if (sameSpace(hermit)) npcSay(hermit, 'Slept the day away. The gulls have gone to roost.');
+        else muse('Dark already? That was some nap.');
+      }, 1500);
+      saveGame(true);
+    },
+  };
+}
+
 const inHotSpring = () => !indoors && player.swimming && tileAt(Math.floor(player.x / TILE), Math.floor((player.y - 1) / TILE)) === T.SPRING;
 
 function chillInHotSpring() {
@@ -480,9 +500,9 @@ function chillInHotSpring() {
   Sfx.yawn();
   fade = {
     t: 0, len: 1.4, act: () => {
-      advanceClock(4 / 24);
-      restStamina(1);
-      muse('Four peaceful hours pass in the hot spring.');
+      advanceClock(2 / 24);
+      restStamina(2, 2);
+      muse('Two peaceful hours pass in the hot spring. I could run all day!');
       saveGame(true);
     },
   };

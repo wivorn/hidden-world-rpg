@@ -101,7 +101,7 @@ function snapshot() {
       marked: POIS.filter((p) => p.marked).map((p) => p.id),
     },
     drops: drops.filter((d) => d.z <= 0 && !d.fuel && !d.thrown).map((d) => (d.mark ? [d.item, Math.round(d.x), Math.round(d.y), d.mark] : [d.item, Math.round(d.x), Math.round(d.y)])),
-    coins, upgrades: { ...upgrades }, fishLog, chest: { ...chestStore },
+    coins, upgrades: { ...upgrades }, fishLog, chest: { ...chestStore }, hermitChest: { ...hermitStore },
     archery: { stage: archery.stage, active: archery.active, intro: archery.intro },
     ruin: { solved: ruin.solved },
     dunes: saveDunes(),
@@ -232,6 +232,10 @@ function restoreTrade(s) {
   Object.assign(upgrades, kept, { tools: { ...kept.tools } });
   if (lure) bag.goldenLure = (bag.goldenLure || 0) + 10;
   Object.assign(chestStore, s.chest);
+  if (s.hermitChest) {
+    for (const id of Object.keys(hermitStore)) delete hermitStore[id];
+    Object.assign(hermitStore, s.hermitChest);
+  }
   if (s.fishLog) {
     Object.assign(fishLog.caught, s.fishLog.caught);
     Object.assign(fishLog.told, s.fishLog.told);

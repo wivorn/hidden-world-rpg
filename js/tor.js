@@ -1,7 +1,8 @@
 // Stormcrown Tor, far out east past the hermit's isle. A storm cloud of its own hangs over it, so it rains there far
 // more often than anywhere else, and a skrill's egg lies on the barrow at the top that only shows while it does.
-// No lava will crack it: lay metal on the ground on all four sides of the barrow while it rains, and the storm brings
-// down a bolt that does. The watcher's fallen lookout says as much, and metal in the pack crackles in the rain.
+// No lava will crack it: set a lightning rod in each of the six stone sockets round the barrow, and while it rains
+// the storm brings down a bolt that does. The watcher's fallen lookout says as much, and metal in the pack crackles
+// in the rain.
 
 // How the Tor's own rain looks and sounds where the player is, at its heaviest.
 const TOR_SKY = { rain: 0.8, grey: 0.28, fog: 0, clouds: 1, wind: 0.7 };
@@ -9,21 +10,26 @@ const TOR_SKY = { rain: 0.8, grey: 0.28, fog: 0, clouds: 1, wind: 0.7 };
 const TOR_WET = [130, 220];
 const TOR_DRY = [45, 80];
 const TOR_FADE = 6;
-const METALS = ['iron', 'gold', 'goblet', 'crown'];
-// Metal counts for a side of the barrow from METAL_REACH[0] to [1] tiles out from its middle.
-const METAL_REACH = [1.4, 5];
-// The strike, in seconds from the fourth piece landing: sparks crawl over the metal, arcs join it in a ring and run
-// in to the egg, the bolt falls, the shell cracks three times and the skrill climbs out.
+const METALS = ['lightningRod', 'iron', 'gold', 'goblet', 'crown'];
+// The strike, in seconds from it starting: sparks crawl over the rods, arcs join them in a ring and run in to the
+// egg, the bolt falls, the shell cracks three times and the skrill climbs out.
 const STRIKE = { arcs: 0.7, spokes: 2.1, bolt: 2.6, cracks: [2.6, 3.2, 3.8], hatch: 4.6 };
+// How high above its foot a standing rod's tip is, in pixels.
+const ROD_TIP = 31;
 const tor = { wet: true, level: 1, left: 120, boltT: 6, strike: null, buzzT: 0 };
 let torEgg = null;
 let torLookout = null;
 let torMid = null;
+let torSockets = [];
+let torRods = [];
 
 function initTor() {
   torEgg = eggs.find((e) => e.species === 'skrill');
   torLookout = objects.find((o) => o.key === 'lookout');
   torMid = { x: TOR_AT.x * TILE, y: TOR_AT.y * TILE };
+  torSockets = objects.filter((o) => o.key === 'rodSocket').sort((a, b) => a.socket - b.socket);
+  torRods = objects.filter((o) => o.key === 'lightningRodSet').sort((a, b) => a.socket - b.socket);
+  syncRods();
   syncTorEgg(true);
 }
 
@@ -65,6 +71,7 @@ function updateTor(dt) {
     Sfx.thunder(0.6 * near, 0.4 + Math.random() * 1.2);
   }
   if (!stats.torLanded && onTor() && grounded() && !sail && !flight) stats.torLanded = 1;
+  syncRods();
   syncTorEgg();
   if (torEgg.state === 'wild' && !torEgg.hidden && !stats.torSeen && nearBarrow(8) && !sail && !flight) {
     stats.torSeen = 1;
@@ -88,32 +95,57 @@ function syncTorEgg(quiet = false) {
   } else if (stats.torSeen) muse('The rain\'s easing off... and the egg fades into the turf with it. It only shows in the storm.');
 }
 
-// ---------- the metal and the strike ----------
+// ---------- the rods and the strike ----------
 
-// The nearest piece of metal lying on each side of the barrow (east, south, west, north), or null unless all four have one.
-function metalRing() {
-  const sides = [null, null, null, null];
-  const dist = [Infinity, Infinity, Infinity, Infinity];
-  for (const d of drops) {
-    if (!METALS.includes(d.item) || d.z > 0 || d.fuel || d.thrown) continue;
-    const dx = (d.x - torMid.x) / TILE;
-    const dy = ((d.y - torMid.y) / TILE) * 1.3;
-    const r = Math.hypot(dx, dy);
-    if (r < METAL_REACH[0] || r > METAL_REACH[1]) continue;
-    const side = Math.round(Math.atan2(dy, dx) / (Math.PI / 2)) & 3;
-    if (r < dist[side]) {
-      dist[side] = r;
-      sides[side] = d;
-    }
+// Which sockets have a rod in them is kept as a bitmask in stats.torRods, so it saves with the rest of the stats.
+const rodSet = (i) => (stats.torRods >> i) & 1;
+const rodCount = () => torRods.filter((o) => rodSet(o.socket)).length;
+
+function syncRods() {
+  for (const o of torRods) {
+    o.hidden = !rodSet(o.socket);
+    o.col.off = o.hidden;
   }
-  return sides.every(Boolean) ? sides : null;
+}
+
+const nearRodSocket = () => {
+  if (indoors || sail || flight || !grounded() || carrying() || !torSockets.length) return null;
+  let best = null;
+  let bd = 15;
+  for (const o of torSockets) {
+    const d = Math.hypot(o.x - player.x, (o.y - player.y) * 1.3);
+    if (!rodSet(o.socket) && d < bd) [best, bd] = [o, d];
+  }
+  return best;
+};
+
+const rodSocketPrompt = () => (has('lightningRod') ? 'SPACE  Set a lightning rod in the socket' : 'SPACE  Look at the socket');
+
+function useRodSocket(o) {
+  faceToward(player, o.x - player.x, o.y - player.y);
+  if (!has('lightningRod')) {
+    muse(rodCount()
+      ? 'Another socket, empty. It wants a lightning rod like the others.'
+      : 'A six-sided socket cut into the rock, rusty round the hole. Something tall and iron stood here once. The smith could forge it.');
+    return;
+  }
+  useUp('lightningRod');
+  stats.torRods |= 1 << o.socket;
+  syncRods();
+  Sfx.clang(0.7);
+  burst(o.x, o.y - ROD_TIP, ['#e6f6ff', '#9fdcff', '#c9ccd4'], 6, 24);
+  const left = torSockets.length - rodCount();
+  if (left > 0) muse(left === 1 ? 'One socket left.' : `${left} sockets left.`);
+  else if (torEgg.state !== 'wild') muse('All six rods standing.');
+  else if (!torRaining()) muse('All six rods standing. Now I just need the storm to come back.');
+  else muse('All six rods standing... the air\'s starting to hum!');
 }
 
 function updateStrike(dt) {
   if (!tor.strike) {
     if (torEgg.state !== 'wild' || torEgg.hidden || !nearBarrow(18) || sail || flight) return;
-    const ring = metalRing();
-    if (ring) startStrike(ring);
+    if (rodCount() === torSockets.length && torSockets.length) startStrike(torRods.map((o) => ({ x: o.x, y: o.y - ROD_TIP })));
+    else rodSparks(dt);
     return;
   }
   const s = tor.strike;
@@ -121,8 +153,8 @@ function updateStrike(dt) {
   s.t += dt;
   const at = (k) => was < k && s.t >= k;
   if (s.t < STRIKE.bolt && Math.random() < dt * (12 + s.t * 14)) {
-    const p = s.ring[Math.floor(Math.random() * 4)];
-    particles.push({ type: 'spark', layer: 'sky', x: p.x + (Math.random() - 0.5) * 6, y: p.y - 3, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 40, c: '#ffffff', c2: '#7fd8ff', life: 0, max: 0.35 });
+    const p = s.ring[Math.floor(Math.random() * s.ring.length)];
+    particles.push({ type: 'spark', layer: 'sky', x: p.x + (Math.random() - 0.5) * 4, y: p.y, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 40, c: '#ffffff', c2: '#7fd8ff', life: 0, max: 0.35 });
     if (Math.random() < 0.25) Sfx.zap(0.3 + s.t * 0.15);
   }
   if (at(STRIKE.arcs)) Sfx.zap(0.8);
@@ -137,6 +169,16 @@ function updateStrike(dt) {
   if (at(STRIKE.hatch)) {
     tor.strike = null;
     hatch(torEgg);
+  }
+}
+
+// The rods already standing fizz at their tips in the rain.
+function rodSparks(dt) {
+  if (!torRaining()) return;
+  for (const o of torRods) {
+    if (o.hidden || Math.random() > dt * 1.5) continue;
+    particles.push({ type: 'spark', layer: 'sky', x: o.x + (Math.random() - 0.5) * 3, y: o.y - ROD_TIP, vx: (Math.random() - 0.5) * 30, vy: -10 - Math.random() * 25, c: '#e6f6ff', c2: '#7fd8ff', life: 0, max: 0.3 });
+    if (Math.random() < 0.15) Sfx.zap(0.15);
   }
 }
 
@@ -202,7 +244,7 @@ const nearLookout = () => (torLookout && !indoors && !sail && !flight && grounde
 
 function readLookout() {
   faceToward(player, torLookout.x - player.x, torLookout.y - player.y);
-  muse('Scratched into the post: "The sky strikes iron. Lay it round the hill, all four ways, and the hammer falls."');
+  muse('Scratched into the post: "The sky strikes iron. Raise six rods round the hill, one in every socket, and the hammer falls."');
 }
 
 // ---------- drawing ----------
@@ -253,7 +295,7 @@ function strokeJag(pts, cx, cy, bright = 1) {
   ctx.globalAlpha = 1;
 }
 
-// Arcs running piece to piece round the ring, then in from each to the egg; then the bolt itself.
+// Arcs running rod tip to rod tip round the hexagon, then in from each to the egg; then the bolt itself.
 function drawTorBolts(cx, cy) {
   const s = tor.strike;
   if (!s || indoors) return;
@@ -262,13 +304,13 @@ function drawTorBolts(cx, cy) {
   const ey = torEgg.y - 6;
   if (s.t >= STRIKE.arcs && s.t < STRIKE.bolt) {
     const k = Math.min(1, (s.t - STRIKE.arcs) / (STRIKE.spokes - STRIKE.arcs));
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < ring.length; i++) {
       if (Math.random() > 0.35 + k * 0.6) continue;
       const a = ring[i];
-      const b = ring[(i + 1) % 4];
-      strokeJag(jag(a.x, a.y - 2, b.x, b.y - 2, 9, 7), cx, cy, 0.5 + k * 0.5);
+      const b = ring[(i + 1) % ring.length];
+      strokeJag(jag(a.x, a.y, b.x, b.y, 8, 6), cx, cy, 0.5 + k * 0.5);
     }
-    if (s.t >= STRIKE.spokes) for (const p of ring) if (Math.random() < 0.7) strokeJag(jag(p.x, p.y - 2, ex, ey, 5, 5), cx, cy);
+    if (s.t >= STRIKE.spokes) for (const p of ring) if (Math.random() < 0.7) strokeJag(jag(p.x, p.y, ex, ey, 5, 5), cx, cy);
   }
   const u = s.t - STRIKE.bolt;
   if (u < 0 || u > 0.8) return;
