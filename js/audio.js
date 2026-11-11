@@ -378,6 +378,21 @@ const Sfx = (() => {
       tone({ f0: rand(850, 1000), f1: rand(1400, 1700), dur: 0.09, vol: 0.07 * k });
       tone({ f0: rand(1000, 1200), f1: rand(1600, 1900), dur: 0.1, vol: 0.06 * k, delay: 0.12 });
     },
+    // a low rumbling wobble, rising and falling like breathing
+    purr(k = 1) {
+      for (let i = 0; i < 7; i++) {
+        tone({ type: 'triangle', f0: i % 2 ? 92 : 118, f1: i % 2 ? 108 : 96, dur: 0.11, vol: (0.07 + 0.03 * Math.sin((i / 6) * Math.PI)) * k, delay: i * 0.1, attack: 0.03 });
+      }
+      noise({ dur: 0.7, vol: 0.03 * k, f0: 260, f1: 180, attack: 0.1 });
+    },
+    whimper(k = 1) {
+      tone({ f0: 900, f1: 620, dur: 0.22, vol: 0.06 * k, attack: 0.03 });
+      tone({ f0: 760, f1: 520, dur: 0.26, vol: 0.05 * k, delay: 0.26, attack: 0.03 });
+    },
+    spit(k = 1) {
+      noise({ dur: 0.14, vol: 0.18 * k, f0: 2400, f1: 900, type: 'bandpass', q: 1.5 });
+      tone({ f0: 260, f1: 520, dur: 0.08, vol: 0.06 * k, delay: 0.02 });
+    },
     gulp(k = 1) {
       tone({ f0: 420, f1: 160, dur: 0.12, vol: 0.12 * k });
       tone({ f0: 300, f1: 110, dur: 0.14, vol: 0.1 * k, delay: 0.14 });

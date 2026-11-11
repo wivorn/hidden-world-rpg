@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dragon sprite preview</title>
+  <style>
+    body { margin: 0; background: #1b1d24; color: #e8e8ee; font: 13px/1.4 system-ui, sans-serif; }
+    header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 10px 16px; background: #262933; border-bottom: 1px solid #3a3e4c; }
+    header h1 { margin: 0 12px 0 0; font-size: 15px; }
+    label { display: inline-flex; gap: 6px; align-items: center; }
+    section { padding: 4px 16px 16px; background-color: var(--ground); border-bottom: 2px solid #1b1d24; }
+    .night section { background-image: linear-gradient(var(--wash), var(--wash)); }
+    h2 { display: inline-block; margin: 12px 0 6px; padding: 2px 8px; border-radius: 4px; background: #1b1d24cc; font-size: 14px; }
+    h2 small { margin-left: 8px; color: #9a9db0; font-weight: normal; }
+    .row { display: grid; grid-template-columns: 150px 1fr; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .row > span { padding: 2px 6px; border-radius: 4px; background: #1b1d24cc; }
+    .row > div { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end; }
+    canvas { image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dragon sprite preview</h1>
+    <label>Zoom <select id="zoom"><option>2</option><option selected>3</option><option>4</option><option>6</option><option>8</option></select></label>
+    <label>Ground <select id="ground"></select></label>
+    <label><input id="night" type="checkbox" /> Night</label>
+    <label><input id="silhouette" type="checkbox" /> Silhouette</label>
+    <label><input id="saddle" type="checkbox" /> Saddle</label>
+    <label><input id="animate" type="checkbox" checked /> Animate</label>
+  </header>
+  <main id="sheet"></main>
+
+  <script src="../js/pixel.js"></script>
+  <script src="../js/sprites.js"></script>
+  <script>
+    // A dev tool, not part of the game: every kind of dragon at every age and in every view, drawn by the game's
+    // own sprite code. Open this file in a browser and reload it after changing sprites.js.
+
+    // Views are shown in this order along each row.
+    const VIEWS = ['down', 'sw', 'left', 'nw', 'up', 'ne', 'right', 'se'];
+    const AGES = ['Hatchling', 'Youngling', 'Juvenile'];
+    const GROUNDS = { Grass: PAL.grass, Snow: PAL.snow, Sand: PAL.sand, Sea: PAL.water, Rock: PAL.rock };
+    // The wash sky.js lays over everything once it's fully dark.
+    const NIGHT_WASH = 'rgba(6,10,36,0.7)';
+    const FRAME_MS = 160;
+
+    const ui = Object.fromEntries(['zoom', 'ground', 'night', 'silhouette', 'saddle', 'animate'].map((id) => [id, document.getElementById(id)]));
+    const sheet = document.getElementById('sheet');
+    ui.ground.append(...Object.keys(GROUNDS).map((name) => new Option(name)));
+    document.body.style.setProperty('--wash', NIGHT_WASH);
+
+    // buildSprites would make these along with every other sprite in the game; only the dragons are wanted here.
+    Object.assign(SPR, { flyDragon: {}, flyDragonSaddled: {}, heldEgg: {}, babyDragon: {} });
+    for (const [id, pal] of Object.entries(DRAGON_SPECIES)) buildSpecies(id, pal);
+
+    // Canvases that cycle through more than one frame: { c, frames }.
+    let moving = [];
+    let tick = 0;
+
+    // A frame is a list of layers drawn one over the other.
+    function paint(c, layers) {
+      const g = c.getContext('2d');
+      g.globalCompositeOperation = 'source-over';
+      g.clearRect(0, 0, c.width, c.height);
+      for (const layer of layers) g.drawImage(layer, 0, 0);
+      if (!ui.silhouette.checked && !ui.night.checked) return;
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = ui.silhouette.checked ? '#000000' : NIGHT_WASH;
+      g.fillRect(0, 0, c.width, c.height);
+    }
+
+    // One canvas cycling through `frames` when animating, or else one canvas for each of them.
+    function cell(frames, title) {
+      const { width, height } = frames[0][0];
+      const sets = ui.animate.checked ? [frames] : frames.map((f) => [f]);
+      return sets.map((set) => {
+        const c = makeCanvas(width, height);
+        c.style.width = `${width * ui.zoom.value}px`;
+        c.title = title;
+        paint(c, set[0]);
+        if (set.length > 1) moving.push({ c, frames: set });
+        return c;
+      });
+    }
+
+    function row(label, cells) {
+      const div = document.createElement('div');
+      div.className = 'row';
+      const strip = document.createElement('div');
+      strip.append(...cells.flat());
+      div.append(Object.assign(document.createElement('span'), { textContent: label }), strip);
+      return div;
+    }
+
+    const groundFrames = {};
+    function kindSection(id) {
+      const pal = DRAGON_SPECIES[id];
+      const saddled = ui.saddle.checked;
+      const section = document.createElement('section');
+      const h2 = Object.assign(document.createElement('h2'), { textContent: pal.name });
+      h2.append(Object.assign(document.createElement('small'), { textContent: id }));
+      section.append(h2);
+
+      const egg = SPR[`egg_${id}`];
+      section.append(row('Egg, cracking, held', [
+        ...[0, 1, 2, 3].map((crack) => cell([[egg.pick(0, { crack })]], crack ? `${crack} cracks` : 'whole')),
+        cell([[SPR.heldEgg[id]]], 'held'),
+      ]));
+
+      // a young dragon's frames in each view: standing, hopping, then two wing beats
+      SPR.babyDragon[id].forEach((set, stage) => {
+        section.append(row(`${AGES[stage]}, standing`, VIEWS.map((v) => cell([[set[v][0]]], v))));
+        section.append(row(`${AGES[stage]}, flying`, VIEWS.map((v) => cell([[set[v][2]], [set[v][3]]], v))));
+      });
+
+      // the grown dragon on the ground only faces left or right: breathing, blinking and walking
+      const ground = (groundFrames[`${id}:${saddled}`] ||= buildDragonFrames(pal, saddled));
+      section.append(row('Grown, on the ground', [
+        cell([[ground[0]], [ground[1]]], 'breathing'),
+        cell([[ground[2]], [ground[3]]], 'blinking'),
+        cell([[ground[4]], [ground[5]]], 'walking'),
+      ]));
+
+      const fly = (saddled ? SPR.flyDragonSaddled : SPR.flyDragon)[id];
+      section.append(row('Grown, flying', VIEWS.map((v) => cell(fly[v].map((fr) => (fr.over ? [fr.under, fr.over] : [fr.under])), v))));
+      return section;
+    }
+
+    function render() {
+      moving = [];
+      document.body.classList.toggle('night', ui.night.checked);
+      document.body.style.setProperty('--ground', GROUNDS[ui.ground.value]);
+      sheet.replaceChildren(...Object.keys(DRAGON_SPECIES).map(kindSection));
+    }
+
+    for (const el of Object.values(ui)) el.addEventListener('change', render);
+    setInterval(() => {
+      tick++;
+      for (const m of moving) paint(m.c, m.frames[tick % m.frames.length]);
+    }, FRAME_MS);
+    render();
+  </script>
+</body>
+</html>

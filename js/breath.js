@@ -1,18 +1,21 @@
 // ---------- dragon breath ----------
 
-// Every kind of dragon breathes its own element. Plasma blasts things apart and its beam burns through trees, fire
-// sets things alight, frost turns the ground to ice for a while, snows over trees, freezes animals and puts fires
+// Every kind of dragon breathes its own element. Plasma blasts things apart and its beam cuts clean through
+// everything in its line, toppling trees whole and leaving nothing burning. Fire sets things alight, roasts what it
+// catches and boils fish up out of the sea, and its beam fans out wide, starting grass fires that creep on from
+// where it lands. Frost turns the ground to ice for a while, snows over trees, freezes animals and puts fires
 // out, the Thunderdrum's roar is a wall of sound that knocks things flat and shakes the fruit off trees, and the
 // Skrill's lightning strikes the moment it's breathed, setting trees alight and blasting the rest.
-// Bred dragons take theirs from the colour of their breath.
+// Bred dragons inherit theirs as a gene (see genes.js).
 const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning' };
 
 // `reach`, `speed` and `size` scale the fireball, and `radius` is how far its blast reaches. A beam runs out to
 // `len`, strikes the ground every `step` along its sweep from `tilt[0]` to `tilt[1]` radians below level over
-// `time`, and is drawn `width` times as thick as a plasma beam.
+// `time`, and is drawn `width` times as thick as a plasma beam. A beam with a `fan` spreads that far either side
+// by the time it's `len` out.
 const BREATHS = {
   plasma: { reach: 1, speed: 1, size: 1, radius: 28, beam: { len: 300, step: 20, time: 1.1, tilt: [0.7, -0.2], width: 1 } },
-  fire: { reach: 0.75, speed: 0.85, size: 1.2, radius: 24, beam: { len: 210, step: 14, time: 1, tilt: [0.85, -0.1], width: 1.6 } },
+  fire: { reach: 0.75, speed: 0.85, size: 1.2, radius: 24, beam: { len: 210, step: 14, time: 1, tilt: [0.85, -0.1], width: 1.6, fan: 30 } },
   frost: { reach: 1.25, speed: 1.3, size: 0.85, radius: 22, beam: { len: 380, step: 14, time: 1.3, tilt: [0.6, -0.15], width: 0.7 } },
   sonic: { reach: 1, speed: 1.15, size: 1.1, radius: 34, beam: { len: 260, step: 24, time: 0.9, tilt: [0.75, -0.2], width: 2.2 } },
   // no beam: a tap strikes `bolt.tap` ahead, nearer to farther with the charge; let go at the full, the storm's
@@ -21,11 +24,7 @@ const BREATHS = {
   lightning: { reach: 1, speed: 1, size: 1, radius: 26, bolt: { tap: [90, 290], lift: 20, targets: 10, strikes: 8 } },
 };
 
-function breathOf(species) {
-  if (ELEMENT_OF[species]) return ELEMENT_OF[species];
-  const { h } = hslOf(DRAGON_SPECIES[species].breath[0]);
-  return h < 60 || h >= 330 ? 'fire' : h < 170 ? 'sonic' : h < 245 ? 'frost' : 'plasma';
-}
+const breathOf = (species) => ELEMENT_OF[species] || traitsOf(genesOf(species)).breath;
 
 // Holding F gathers the breath: the longer the hold, the bigger, faster and farther the fireball. Held to the
 // full, it comes out as a straight beam instead, aimed down at the ground ahead and tilting up as it goes, so it
@@ -271,7 +270,19 @@ function beamPath(b) {
   return { x0, y0, h0, x1: x0 + dx * reach, y1: y0 + dy * reach, h1: ground ? 0 : h0 - len * drop, ground, reach };
 }
 
-// A full blast where the beam first strikes and where it lifts off, and a lesser one every step between.
+// A full blast where the beam first strikes and where it lifts off, and a lesser one every step between, with more
+// either side as a fanning beam widens.
+function beamStep(b, B, p, at) {
+  const [dx, dy] = b.dir;
+  const x = p.x0 + dx * at;
+  const y = p.y0 + dy * at;
+  breathHit(x, y, b.el, b.pal, false, true);
+  const w = (B.fan || 0) * Math.min(1, at / B.len);
+  if (w < 8) return;
+  const u = Math.hypot(dx, dy);
+  for (const s of [-1, 1]) breathHit(x - (dy / u) * w * s, y + (dx / u) * w * s, b.el, b.pal, false, true);
+}
+
 function updateBeams(dt) {
   for (let i = beams.length - 1; i >= 0; i--) {
     const b = beams[i];
@@ -284,8 +295,7 @@ function updateBeams(dt) {
         breathHit(p.x1, p.y1, b.el, b.pal, true, true);
         b.hit = p.reach + B.step;
       }
-      const [dx, dy] = b.dir;
-      for (; b.hit <= p.reach; b.hit += B.step) breathHit(p.x0 + dx * b.hit, p.y0 + dy * b.hit, b.el, b.pal, false, true);
+      for (; b.hit <= p.reach; b.hit += B.step) beamStep(b, B, p, b.hit);
       b.last = [p.x1, p.y1];
     } else if (b.last) {
       breathHit(b.last[0], b.last[1], b.el, b.pal, true, true);
@@ -297,7 +307,7 @@ function updateBeams(dt) {
     }
     for (let k = 0; k < 4; k++) {
       const u = Math.random();
-      trail(b.el, b.pal, p.x0 + (p.x1 - p.x0) * u, p.y0 + (p.y1 - p.y0) * u - (p.h0 + (p.h1 - p.h0) * u), 6 * B.width);
+      trail(b.el, b.pal, p.x0 + (p.x1 - p.x0) * u, p.y0 + (p.y1 - p.y0) * u - (p.h0 + (p.h1 - p.h0) * u), 6 * B.width + (B.fan || 0) * u);
     }
   }
 }
@@ -413,7 +423,8 @@ function hitWater(x, y, el, big, near, beam) {
     if (big) Sfx.splash(near);
     return;
   }
-  // plasma and fire boil it off in a gout of steam
+  // plasma and fire boil it off in a gout of steam, and fire cooks any fish swimming there
+  if (el === 'fire') for (const s of seaLife.schools) if (Math.hypot(s.x - x, s.y - y) < (big ? 36 : 26)) stunSchool(s, true);
   seaSplash(x, y - 2, big ? 1.4 : 0.6);
   if (big) splash(x, y);
   const n = el === 'fire' ? (big ? 10 : 3) : big ? 6 : 1;
@@ -490,11 +501,11 @@ function affect(x, y, el, r, beam) {
     } else if (el === 'sonic') {
       if (o.snowy > 0) unsnow(o);
       knockOver(o, k);
+    } else if (beam && el === 'plasma') {
+      if (o.snowy > 0) unsnow(o);
+      cutThrough(o, k, x);
     } else if (o.snowy > 0) {
       unsnow(o);
-    } else if (beam && el === 'plasma' && k === 'tree') {
-      ignite(o, Math.random() * 0.15, true);
-      shedLeaves(o, 3);
     } else if (k === 'bramble' || k === 'log') {
       ignite(o, Math.random() * 0.2);
     } else if (el === 'fire' || el === 'lightning') {
@@ -518,10 +529,25 @@ function affect(x, y, el, r, beam) {
     } else if (el === 'sonic') {
       if (wild && d < r + 10) blowBack(a, x, y);
     } else if (d < 18 && huntable(a)) {
+      if (el === 'fire') a.roasted = true;
       hurtAnimal(a, 99);
     }
     if (wild && d < r + 50 && !(a.frozenT > 0)) startle(a);
   }
+}
+
+// A plasma beam slices through what it crosses: a tree topples whole, away from where the beam came in, and the rest
+// breaks as if the Thunderdrum had roared at it. Something already alight is left to burn.
+function cutThrough(o, k, x) {
+  if (o.burnT !== undefined) return;
+  if (k === 'tree') {
+    shedLeaves(o, 4);
+    fell(o);
+    o.fall.dir = x <= o.x ? 1 : -1;
+    return;
+  }
+  o.shakeT = 0.3;
+  if (KNOCK[k]) KNOCK[k](o);
 }
 
 function blastApart(o, k) {
@@ -576,15 +602,43 @@ function blowBack(a, x, y) {
 const MARK_LIFE = { scorch: 30, melt: 20, crust: 10, flames: 1.6 };
 const marks = [];
 
-function addMark(kind, x, y, r) {
+// Flames landing on grass creep on across it: partway through burning each patch may light one more beside it, up
+// to GRASS_FIRE_GENS patches out, setting light to anything that burns close by as it goes.
+const GRASS_FIRE_GENS = 3;
+const GRASS_FIRE_ODDS = 0.55;
+const GRASSY = new Set([T.GRASS, T.FIELD, T.HAY, T.JUNGLE]);
+
+function addMark(kind, x, y, r, gen = 0) {
   if (marks.length > 160) marks.shift();
-  marks.push({ kind, x, y, r: r * (0.85 + Math.random() * 0.3), t: 0, max: MARK_LIFE[kind], seed: Math.random() * 100 });
+  marks.push({ kind, x, y, r: r * (0.85 + Math.random() * 0.3), t: 0, max: MARK_LIFE[kind], seed: Math.random() * 100, gen });
+}
+
+function creepFire(m, lit) {
+  m.crept = true;
+  for (const o of hittables) {
+    const k = kindOf(o);
+    if (!k || o.snowy > 0 || !['tree', 'bush', 'bramble', 'log'].includes(k) || Math.hypot(o.x - m.x, o.y - m.y) > m.r + 10) continue;
+    ignite(o, Math.random() * 0.3, true);
+  }
+  if (m.gen >= GRASS_FIRE_GENS || Math.random() > GRASS_FIRE_ODDS) return;
+  const a = Math.random() * Math.PI * 2;
+  const d = 10 + Math.random() * 6;
+  const x = m.x + Math.cos(a) * d;
+  const y = m.y + Math.sin(a) * d * 0.7;
+  if (GRASSY.has(tileUnder(x, y))) lit.push({ x, y, r: Math.max(6, m.r * 0.85), gen: m.gen + 1 });
 }
 
 function updateMarks(dt) {
+  const lit = [];
   for (let i = marks.length - 1; i >= 0; i--) {
     const m = marks[i];
     if ((m.t += dt) >= m.max) marks.splice(i, 1);
+    else if (m.kind === 'flames' && !m.crept && m.t > m.max * 0.4) creepFire(m, lit);
+  }
+  for (const { x, y, r, gen } of lit) {
+    addMark('scorch', x, y, r * 1.1);
+    addMark('flames', x, y, r, gen);
+    for (let i = 0; i < 2; i++) particles.push({ type: 'ember', layer: 'sky', x, y: y - 2, vx: (Math.random() - 0.5) * 30, vy: -25 - Math.random() * 25, life: 0, max: 0.5 + Math.random() * 0.3 });
   }
   updateIce(dt);
 }
@@ -937,7 +991,7 @@ function drawFlameBeam(b, pts, fade) {
     for (let i = 0; i <= n; i++) {
       const u = i / n;
       const wob = Math.sin(time * 25 + u * 14) * 2.5 * u;
-      const r = (2 + 8 * u) * s * (0.85 + 0.15 * Math.sin(time * 40 + i));
+      const r = (2 + 14 * u) * s * (0.85 + 0.15 * Math.sin(time * 40 + i));
       ellipse(ctx, x0 + (x1 - x0) * u + nx * wob, y0 + (y1 - y0) * u + ny * wob - u * 3, r, r * 0.85, c);
     }
   }

@@ -1764,36 +1764,36 @@ const EGG_CRACKS = [
 // (base, light, speck, speckDark, shine, gloss, glow) and breath (core, bright, edge).
 const DRAGON_SPECIES = {
   nightFury: {
-    name: 'Night Fury', defaultName: 'Toothless',
+    name: 'Shadow Fang', defaultName: 'Soot',
     body: '#1b1f2b', dark: '#0d0f16', light: '#3a4460', wing: '#242a3b', eye: '#9be35a', fin: '#2a3044', glint: '#e6ffb0',
-    ridge: '#323a52', tailFins: ['#2a3044', '#c0392b'], shape: { neck: 0.4, snout: 0.72 },
+    ridge: '#323a52', shape: { neck: 0.4, snout: 0.72 },
     look: { horns: 'fury', spines: 'nubs', tail: 'fins' },
     egg: { base: '#4b2a73', light: '#5f3a8f', speck: '#8a5cc7', speckDark: '#3a1f5c', shine: '#d9b8ff', gloss: '#a77be0', glow: '#b98cff' },
     breath: ['#b05cff', '#e7c8ff', '#7a2fd6'],
   },
   lightFury: {
-    name: 'Light Fury', defaultName: 'Luna',
+    name: 'Moon Frost', defaultName: 'Flurry',
     body: '#eae8f2', dark: '#b4b6cc', light: '#ffffff', wing: '#d6d6e6', eye: '#4aa8ff', fin: '#c4c8de', glint: '#ffffff',
     spot: '#a4a9c6', shape: { neck: 0.45, snout: 0.75 }, look: { horns: 'frill', tail: 'fan', marks: 'bubbles' },
     egg: { base: '#aebcd6', light: '#d6e0f2', speck: '#ffffff', speckDark: '#8796b4', shine: '#ffffff', gloss: '#f2f6ff', glow: '#bfe0ff' },
     breath: ['#5fc8ff', '#e6f8ff', '#2f7fd6'],
   },
   thunderdrum: {
-    name: 'Thunderdrum', defaultName: 'Thornado',
+    name: 'Jungle Bellow', defaultName: 'Bongo',
     body: '#8c6a3a', dark: '#5a4224', light: '#c8a66a', wing: '#3f7f88', eye: '#ffd23a', fin: '#2f9aa6', glint: '#fff6c0',
     belly: '#c8a66a', look: { horns: 'crest', spines: 'plates', tail: 'club', marks: 'stripes' },
     egg: { base: '#2f6f78', light: '#3f8c93', speck: '#c9a86a', speckDark: '#1f4c52', shine: '#bff0f0', gloss: '#6fc0c4', glow: '#6fe0e0' },
     breath: ['#4fe0d0', '#e0fff8', '#1f9a9a'],
   },
   terribleTerror: {
-    name: 'Terrible Terror', defaultName: 'Sharpshot',
+    name: 'Dune Spark', defaultName: 'Pepper',
     body: '#5c9a34', dark: '#3a6a1e', light: '#a6d65a', wing: '#e0862a', eye: '#ffe44a', fin: '#e0542a', glint: '#ffffe0',
     belly: '#c8e07a', horn: '#f0e4b0', look: { horns: 'horns', spines: 'spikes', tail: 'spade', tips: true },
     egg: { base: '#4f8a2e', light: '#6aa83a', speck: '#f0a23a', speckDark: '#2f5a1a', shine: '#fff0a0', gloss: '#a8d45a', glow: '#ffc25a' },
     breath: ['#ff8a2a', '#fff0a0', '#d6421a'],
   },
   skrill: {
-    name: 'Skrill', defaultName: 'Volt',
+    name: 'Storm Striker', defaultName: 'Zigzag',
     body: '#4b4a78', dark: '#2b2a4c', light: '#7f84c0', wing: '#3a3966', eye: '#eaf6ff', fin: '#7fd8ff', glint: '#ffffff',
     belly: '#6a70a8', horn: '#cfe8ff', look: { horns: 'horns', spines: 'spikes', tail: 'spade', marks: 'stripes', tips: true },
     egg: { base: '#3a3f66', light: '#555c8c', speck: '#bfe8ff', speckDark: '#22264a', shine: '#ffffff', gloss: '#8fa6e0', glow: '#9fdcff' },
@@ -1857,8 +1857,10 @@ const DRAGON_AGES = [
   { size: 0.35, head: 2.4, wing: 0.7, tail: 0.6, neck: 0.2, snout: 0.35, chub: 1.4, eye: 4, ew: 3 },
   { size: 0.55, head: 1.6, wing: 0.8, tail: 0.8, neck: 0.5, snout: 0.6, chub: 1.2, eye: 3, ew: 2 },
   { size: 0.78, head: 1.22, wing: 0.9, tail: 0.92, neck: 0.8, snout: 0.85, chub: 1.08, eye: 2, ew: 2 },
-  { size: 1, head: 1, wing: 1, tail: 1, neck: 1, snout: 1, chub: 1, eye: 2, ew: 2 },
+  { size: 1, head: 1, wing: 1, tail: 1, neck: 1, snout: 1, chub: 1, eye: 3, ew: 3 },
 ];
+// How far each pose of the landed grown dragon lowers its body, in body points, and how much a sitting one leans back.
+const DRAGON_POSES = { stand: { sink: 0, tilt: 0 }, crouch: { sink: 1.5, tilt: 0 }, sit: { sink: 2, tilt: 0.22 }, lie: { sink: 3, tilt: 0 } };
 // Size of the young dragon after eating 0-2 fish, as a fraction of the grown dragon's.
 const DRAGON_SCALES = DRAGON_AGES.slice(0, -1).map((a) => a.size);
 // Wing beat of the flying dragon: wingtip height, span and tail sway per frame.
@@ -1869,13 +1871,18 @@ const DRAGON_FLAP = { tip: [-13, -4, 8, -4], span: [0.85, 1, 0.8, 1], sway: [0, 
 // the wing beat frame (0-3) or -1 for folded wings; `stand` puts the feet on the ground point.
 // `pal.look` gives the kind its own horns, spines, tail tip, markings and wingtips (see DRAGON_LOOKS).
 // `opts.saddle` straps a saddle on its back; with `opts.over` (a second canvas) the neck and head of the
-// front-facing views go there instead, to be drawn over a rider. `opts.blink` half-shuts the eyes.
+// front-facing views go there instead, to be drawn over a rider. `opts.blink` half-shuts the eyes, and `opts.eyes` can
+// make them 'happy' (shut in smiling arcs), 'shut' or 'sad' (heavy-lidded and drooping). Side on, `opts.pose` is one of
+// DRAGON_POSES and `opts.wag` (1 or -1) swings the tail.
 // Returns where its mouth is, or null when it faces away.
 function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   const { body: B, wing: M, light: L, dark: D, eye: E, fin: FIN, glint: GLINT } = pal;
+  const pose = opts.pose || 'stand';
+  const { sink, tilt } = view === 'right' ? DRAGON_POSES[pose] : DRAGON_POSES.stand;
   const look = pal.look || {};
-  // a kind's own build: the furies' short necks and blunt snouts
-  if (pal.shape) a = { ...a, neck: a.neck * (pal.shape.neck ?? 1), snout: a.snout * (pal.shape.snout ?? 1) };
+  // a kind's own build on top of its age: the furies' short necks and blunt snouts, a bred kind's long neck, big
+  // wings or stocky body (see SHAPE_GENES)
+  if (pal.shape) a = { ...a, ...Object.fromEntries(Object.entries(pal.shape).map(([k, v]) => [k, a[k] * v])) };
   const HORN = pal.horn || '#ece0c4';
   const PUPIL = '#05070a';
   if (opts.blink) a = { ...a, eye: 1 };
@@ -1885,18 +1892,26 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   const fold = f < 0;
   const tip = fold ? 0 : DRAGON_FLAP.tip[f] * a.wing;
   const span = fold ? 0 : DRAGON_FLAP.span[f] * a.wing;
-  const sw = fold ? 0 : DRAGON_FLAP.sway[f];
+  const sw = fold ? (opts.wag || 0) * 1.5 : DRAGON_FLAP.sway[f];
   const ly = 5 * a.chub + 1;
   const cx = gx;
-  const cy = gy - (ly + (stand ? 2 : 5)) * S;
-  const P = (x, y) => [cx + x * S, cy + y * S];
+  const cy = gy - (ly + (stand ? 2 : 5) - sink) * S;
+  // Leaning back to sit, its rear drops and its front rises.
+  const P = (x, y) => [cx + x * S, cy + (y - x * tilt) * S];
   const T = (t) => Math.max(1, Math.round(t * S * a.chub));
-  const ell = (x, y, rx, ry, c) => ellipse(g, cx + x * S, cy + y * S, rx * S, ry * S, c);
-  // `opts.step` (1 or -1) puts one foot forward and lifts it, the other back, for a walking stride.
+  const ell = (x, y, rx, ry, c) => ellipse(g, cx + x * S, cy + (y - x * tilt) * S, rx * S, ry * S, c);
+  // `opts.step` (1 or -1) puts one foot forward and lifts it, the other back, for a walking stride. The feet stay on
+  // the ground whatever the pose: sitting, the hind legs fold into haunches; crouched, they bend; lying, the forepaws
+  // stretch out in front.
   const step = opts.step || 0;
+  const foot = (x, y, rx, ry) => ellipse(g, cx + x * S, cy + y * S, rx * S, ry * S, B);
   const legs = (...xs) => xs.forEach((x, i) => {
     const s = i % 2 ? -step : step;
-    ell(x * a.chub + s * 3, ly - (s > 0 ? 0.5 : 0), 2 * a.chub, 2, B);
+    const y = ly - sink;
+    if (pose === 'sit' && i % 2 === 0) foot(x * a.chub - 1, y - 0.6, 3.4 * a.chub, 2.6);
+    else if (pose === 'crouch') foot(x * a.chub, y + 0.4, 2.4 * a.chub, 1.6);
+    else if (pose === 'lie') foot(x * a.chub + (i % 2 ? 4 : 0), y + 0.8, 2.6 * a.chub, 1.2);
+    else foot(x * a.chub + s * 3, y - (s > 0 ? 0.5 : 0), 2 * a.chub, 2);
   });
 
   // Head parts are laid out around the head's centre and scaled by a.head on top of a.size.
@@ -1909,11 +1924,25 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   const lift = young * 1.5;
   const hell = (x, y, rx, ry, c) => ellipse(g, hx + x * HS, hy + y * HS, rx * HS, ry * HS * round, c);
   const hpoly = (pts, c) => poly(g, pts.map(([x, y]) => H(x, y)), c);
-  // Pixel-exact so the eyes stay crisp at every size; young eyes get a pupil and a glint.
+  // Pixel-exact so the eyes stay crisp at every size; big eyes get a pupil and a glint. Shut, they're a dim line
+  // along the bottom of the eye, or a smiling arc; sad, the top is lidded over and the back corner droops.
   const eye = (x, y, narrow) => {
     const [ex, ey] = H(x, y).map(Math.round);
     const w = narrow ? Math.max(1, a.ew - 1) : a.ew;
+    const low = ey + a.eye - 1;
+    if (opts.eyes === 'shut') return rect(g, ex, low, w, 1, shade(E, -0.35));
+    if (opts.eyes === 'happy') {
+      for (let i = 0; i < w; i++) px(g, ex + i, w > 2 && (i === 0 || i === w - 1) ? low : low - 1, E);
+      return;
+    }
     rect(g, ex, ey, w, a.eye, E);
+    if (opts.eyes === 'sad' && a.eye > 1) {
+      rect(g, ex, ey, w, 1, D);
+      px(g, ex, ey + 1, D);
+      if (a.eye > 2) px(g, ex + (w >> 1), low, PUPIL);
+      px(g, ex, low + 1, '#9fd8ff');
+      return;
+    }
     if (a.eye > 2) {
       rect(g, ex + (w >> 1), ey + 1, 1, Math.max(1, a.eye - 2), PUPIL);
       px(g, ex, ey, GLINT);
@@ -2049,9 +2078,8 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     const pts = (shape) => shape.map(([dx, dy]) => [x + dx * k, y + dy * k]);
     const pa = pts(A);
     const pb = pts(Bf);
-    const [fa, fb] = pal.tailFins || [FIN, FIN];
-    poly(g, pa, fa);
-    poly(g, pb, fb);
+    poly(g, pa, FIN);
+    poly(g, pb, FIN);
     if (look.tail === 'spade') poly(g, [pa[1], pa[0], pb[1]], FIN);
     if (look.tail === 'fan') poly(g, pts([A[0], [(A[1][0] + Bf[1][0]) * 0.75, (A[1][1] + Bf[1][1]) * 0.75], [(A[2][0] + Bf[2][0]) / 2, (A[2][1] + Bf[2][1]) / 2]]), shade(FIN, 0.25));
     if (look.tail === 'club') {
@@ -2108,21 +2136,31 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
 
   if (view === 'right') {
     sideWing(false);
-    fins(tail(-10, 1, [[-10, sw], [-8, -3 - 2 * sw], [-4, -5 + sw]]), [[0, 1], [-3, -5], [3, -1]], [[0, 1], [-3, 5], [3, 3]]);
+    // sitting, the tail runs back along the ground with its tip curled up; lying, it lies out flat
+    const segs = pose === 'sit' ? [[-8, 2.5 + sw * 0.5], [-8, 0], [-4, -3 + sw]]
+      : pose === 'lie' ? [[-10, 1.5], [-8, 0.5 - sw * 0.5], [-5, -1 - sw]]
+        : [[-10, sw], [-8, -3 - 2 * sw], [-4, -5 + sw]];
+    fins(tail(-10, 1, segs), [[0, 1], [-3, -5], [3, -1]], [[0, 1], [-3, 5], [3, 3]]);
     legs(-5, 5);
     const c = a.chub;
-    ell(0, 0, 11, 6 * c, B);
+    if (tilt) {
+      ell(-3.5, 0.3, 8, 5.8 * c, B);
+      ell(3.5, -0.3, 8, 5.8 * c, B);
+    } else {
+      ell(0, 0, 11, 6 * c, B);
+    }
     belly(1, 3 * c, 8, 2.2 * c);
     ell(0, -3 * c, 8, 2, M);
     marks([[-6, -5 * c, -5, -1], [-1, -5.8 * c, 0, -1.5], [4, -5.2 * c, 5, -1]], [[-7, -3], [-3, -4.5], [2, -3.5], [6, -2.5], [-1, -1.5]]);
     spines([[-8, -4.4 * c], [-4, -5.6 * c], [0, -6 * c], [4, -5.6 * c]], [0, -1]);
     saddle(0, -5 * c, 4.5, 2, [3.6, -1.6], [0, -3, 0, 5.4 * c]);
-    // standing with its wings folded it holds its head up; in the air it stretches out
-    const up = stand && fold;
-    const neck = up ? P(9 + 5 * a.neck, -6 - 7 * a.neck) : P(9 + 7 * a.neck, -2 - 5 * a.neck);
+    // standing with its wings folded it holds its head up; in the air it stretches out; lying, it rests its chin low
+    const up = stand && fold && pose !== 'lie';
+    const neck = pose === 'lie' ? P(10 + 6 * a.neck, 1 - 2 * a.neck)
+      : up ? P(9 + 5 * a.neck, -6 - 7 * a.neck) : P(9 + 7 * a.neck, -2 - 5 * a.neck);
     line(g, ...P(8, -2), ...neck, B, T(5));
     if (look.spines) spines([up ? [9 + 2.5 * a.neck, -5 - 4 * a.neck] : [9 + 3.5 * a.neck, -3 - 3 * a.neck]], [-0.5, -1]);
-    head(neck, 4, (up ? -2 : -1) - lift);
+    head(neck, 4, (up ? -2 : pose === 'lie' ? 1 : -1) - lift);
     ear([[-4, -3], [-11 + 2 * young, -8 - 1.5 * young], [-1, -1]]);
     hell(0, 0, 6, 4, B);
     hpoly([[2, -2], [2 + 8 * sn, 0], [1 + 8 * sn, 3], [2, 4]], B);
@@ -2278,9 +2316,11 @@ function opaqueBox(...cs) {
 // `box` the bounds of the standing front view.
 function buildBabyDragon(pal, stage) {
   const a = DRAGON_AGES[stage];
-  const ox = Math.ceil(38 * a.size) + 2;
-  const oy = Math.ceil(42 * a.size) + 2;
-  const frame = (view, f, stand) => sprite(ox * 2, oy + Math.ceil(16 * a.size) + 2, (g) => drawDragon(g, pal, a, view, f, stand, ox, oy));
+  // room to spare for bred kinds' big wings, heads and long tails
+  const pad = Math.ceil(10 * a.size);
+  const ox = Math.ceil(38 * a.size) + 2 + pad;
+  const oy = Math.ceil(42 * a.size) + 2 + pad;
+  const frame = (view, f, stand) => sprite(ox * 2, oy + Math.ceil(16 * a.size) + 2 + pad, (g) => drawDragon(g, pal, a, view, f, stand, ox, oy));
   const set = { ox, oy, mouth: dragonMouths(pal, a, false) };
   for (const view of DRAGON_VIEWS) set[view] = [frame(view, -1, true), frame(view, 0, true), frame(view, 0, false), frame(view, 2, false)];
   for (const [from, to] of DRAGON_MIRRORS) set[to] = set[from].map(mirror);
@@ -4185,14 +4225,42 @@ function buildBonfireFrames() {
   return frames;
 }
 
-// The grown dragon standing on the ground side on, wings folded and head up, facing right: breathing in
-// and out, then the same blinking, then two strides of a walk. 84x52, with the ground point at (42, PERCH_Y).
-// With `saddle` it wears its saddle.
+// The grown dragon on the ground side on, wings folded, facing right, in one of DRAGON_POSES: breathing in (`breath`
+// 1) or out, mid-stride (`step`), its eyes as `eyes` and tail swung by `wag`. 100x58, with the ground point at
+// (50, PERCH_Y) and room below it for a lying dragon's belly and tail. With `saddle` it wears its saddle.
 const PERCH_Y = 46;
-function buildDragonFrames(pal, saddle) {
+function buildDragonFrame(pal, { saddle, pose, step, eyes, breath, wag }) {
   const a = DRAGON_AGES[DRAGON_AGES.length - 1];
-  const draw = (breath, blink, step = 0) => sprite(84, 52, (g) => drawDragon(g, pal, { ...a, chub: a.chub * (1 + breath * 0.06) }, 'right', -1, true, 42, PERCH_Y - (step < 0 ? 1 : 0), { saddle, blink, step }));
-  return [draw(0, false), draw(1, false), draw(0, true), draw(1, true), draw(0, false, 1), draw(0, false, -1)];
+  return sprite(100, 58, (g) => drawDragon(g, pal, { ...a, chub: a.chub * (1 + breath * 0.06) }, 'right', -1, true, 50, PERCH_Y - (step < 0 ? 1 : 0), {
+    saddle, step, pose, wag, eyes, blink: eyes === 'blink',
+  }));
+}
+
+// The landed dragon's frame for `o` at time `t`: its pose (`o.pose`), striding while it walks, breathing, blinking,
+// eyes as its mood has them (`o.eyes`) or smiling shut while it's being fussed over (`o.patT`), and its tail
+// swinging if `o.wag`. Each is drawn the first time it's wanted, then kept.
+function dragonPicker(pal) {
+  const kept = new Map();
+  const frame = (saddle, right, pose, step, eyes, breath, wag) => {
+    const key = `${+saddle}${+right}${pose}${step}${eyes}${breath}${wag}`;
+    let img = kept.get(key);
+    if (!img) {
+      img = right ? buildDragonFrame(pal, { saddle, pose, step, eyes, breath, wag }) : mirror(frame(saddle, true, pose, step, eyes, breath, wag));
+      kept.set(key, img);
+    }
+    return img;
+  };
+  const pick = (t, o) => {
+    const pose = o.pose || 'stand';
+    const walk = o.walking && pose === 'stand';
+    const step = walk ? (Math.floor(t * 5) % 2 ? -1 : 1) : 0;
+    const blink = (t + o.phase) % 3.7 < 0.18;
+    const eyes = o.patT > 0 ? 'happy' : o.eyes === 'shut' ? 'shut' : blink ? 'blink' : o.eyes || 'open';
+    const breath = walk ? 0 : Math.floor(t * (o.eyes === 'shut' ? 0.8 : 1.4)) % 2;
+    const wag = o.wag ? (Math.floor(t * 5) % 2 ? 1 : -1) : 0;
+    return frame(!!o.saddled, !!o.faceRight, pose, step, eyes, breath, wag);
+  };
+  return { pick, still: frame(false, false, 'stand', 0, 'open', 0, 0) };
 }
 
 // Where the rider sits on the flying dragon's back in each view, from the middle of its body.
@@ -4201,15 +4269,18 @@ const DRAGON_SEATS = { down: [0, -2], up: [0, -2], right: [1, -4], se: [-1, -3],
 const DRAGON_FRONTS = new Set(['down', 'se']);
 
 // The grown dragon in the air, 72x60 with the ground point at (36, 40), in all eight facings and four wing
-// beats. Each frame has an `under` layer, an `over` layer (or null) drawn on top of the rider, and a seat.
-// `mouth` gives where its mouth is in each facing. With `saddle` it wears its saddle.
+// beats, drawn onto canvases FLY_PAD bigger all round so raised wingtips and bred kinds' big wings and long tails
+// fit. Each frame has an `under` layer, an `over` layer (or null) drawn on top of the rider, and a seat (in the
+// unpadded 72x60). `mouth` gives where its mouth is in each facing. With `saddle` it wears its saddle.
+const FLY_PAD = 16;
 function buildFlyingDragon(pal, saddle) {
   const a = DRAGON_AGES[DRAGON_AGES.length - 1];
+  const [w, h] = [72 + FLY_PAD * 2, 60 + FLY_PAD * 2];
   const set = {};
   for (const view of DRAGON_VIEWS) {
     set[view] = DRAGON_FLAP.tip.map((_, f) => {
-      const over = DRAGON_FRONTS.has(view) ? makeCanvas(72, 60) : null;
-      const under = sprite(72, 60, (g) => drawDragon(g, pal, a, view, f, false, 36, 40, { saddle, over: over && over.getContext('2d') }));
+      const over = DRAGON_FRONTS.has(view) ? makeCanvas(w, h) : null;
+      const under = sprite(w, h, (g) => drawDragon(g, pal, a, view, f, false, 36 + FLY_PAD, 40 + FLY_PAD, { saddle, over: over && over.getContext('2d') }));
       const [sx, sy] = DRAGON_SEATS[view];
       return { under, over: over && outline(over), seat: [36 + sx, 29 + sy] };
     });
@@ -4224,16 +4295,13 @@ function buildFlyingDragon(pal, saddle) {
 // Every sprite for one kind of dragon: its egg, the young one at each age, and the grown one sitting and flying,
 // with and without a saddle. Kinds bred at the roost are added this way while the game runs.
 function buildSpecies(id, pal) {
-  const right = buildDragonFrames(pal, false);
-  const saddled = buildDragonFrames(pal, true);
-  const sets = { right, saddled, left: right.map(mirror), saddledLeft: saddled.map(mirror) };
-  const blink = (t, o) => (o.walking ? 4 + (Math.floor(t * 5) % 2) : ((t + o.phase) % 3.7 < 0.18 ? 2 : 0) + (Math.floor(t * 1.4) % 2));
+  const { pick, still } = dragonPicker(pal);
   def(`dragon_${id}`, {
-    frames: sets.left,
+    frames: [still],
     oy: PERCH_Y,
     foot: { w: 46, h: 12 },
     shadow: { rx: 26, ry: 4 },
-    pick: (t, o) => sets[o.saddled ? (o.faceRight ? 'saddled' : 'saddledLeft') : o.faceRight ? 'right' : 'left'][blink(t, o)],
+    pick,
   });
   const egg = buildDragonEgg(pal.egg);
   const cracked = [1, 2, 3].map((n) => buildDragonEgg(pal.egg, n));
@@ -4503,7 +4571,8 @@ function drawBraid(g, x, y, len, hair, w = 1) {
 // `run` swaps in running frames: 1 and 3 are long strides, 0 and 2 are airborne between them.
 // A `coat` (see OUTFITS) goes on over the tunic: its colours, a trim at the collar and hem, and maybe scales.
 // `climb` leaves the arms off the back view: drawClimbArms puts them in, reaching overhead.
-function drawCharacter(g, look, dir, frame, carry = false, run = false, climb = false) {
+// With `pat` the near arm (the right one from in front or behind) is left off, for drawPatArm to reach out.
+function drawCharacter(g, look, dir, frame, carry = false, run = false, climb = false, pat = false) {
   const sk = look.skin || PAL.skin;
   const hair = look.hair;
   const coat = look.coat;
@@ -4586,8 +4655,10 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false, climb = 
       const ra = frame === 3 ? 1 : 0;
       rect(g, 3, 11 + b, 1, 3 + la, tunD);
       px(g, 3, 14 + b + la, sk);
-      rect(g, 12, 11 + b, 1, 3 + ra, tunD);
-      px(g, 12, 14 + b + ra, sk);
+      if (!pat) {
+        rect(g, 12, 11 + b, 1, 3 + ra, tunD);
+        px(g, 12, 14 + b + ra, sk);
+      }
     }
 
     rect(g, 5, 3 + b, 6, 7, sk);
@@ -4712,7 +4783,7 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false, climb = 
       rect(g, 7 + lx, 11 + b, 2, 2, tunD);
       rect(g, 8 + lx, 13 + b, 2, 1, sk);
     }
-  } else if (!carry) {
+  } else if (!carry && !pat) {
     const s = walking ? (frame === 1 ? 1 : -1) : 0;
     rect(g, 7 + s, 11 + b, 2, 3, tunD);
     rect(g, 7 + s, 14 + b, 2, 1, sk);
@@ -4762,12 +4833,12 @@ function drawCharacter(g, look, dir, frame, carry = false, run = false, climb = 
 
 const charCache = new Map();
 
-function charSprite(look, dir, frame, carry = false, run = false, climb = false) {
-  const key = `${look.id}|${look.coat?.id || ''}|${!!look.pack}|${dir}|${frame}|${carry}|${run}|${climb}`;
+function charSprite(look, dir, frame, carry = false, run = false, climb = false, pat = false) {
+  const key = `${look.id}|${look.coat?.id || ''}|${!!look.pack}|${dir}|${frame}|${carry}|${run}|${climb}|${pat}`;
   let c = charCache.get(key);
   if (!c) {
     const d = dir === 'left' ? 'right' : dir;
-    c = sprite(16, 24, (g) => drawCharacter(g, look, d, frame, carry, run, climb), true);
+    c = sprite(16, 24, (g) => drawCharacter(g, look, d, frame, carry, run, climb, pat), true);
     if (dir === 'left') c = mirror(c);
     charCache.set(key, c);
   }

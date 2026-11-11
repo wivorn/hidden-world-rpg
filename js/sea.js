@@ -351,19 +351,20 @@ function updateWhale(w, dt) {
 // ---------- stunned fish ----------
 
 // Lightning in the water stuns any school it reaches: a few of its fish float up belly-up for a while, to be
-// scooped up by a dragon swooping low, and the school is back again later.
+// scooped up by a dragon swooping low, and the school is back again later. Fire boils them, and they come up cooked.
 const FLOAT_LIFE = 40;
 const FLOAT_SINK = 3;
 const SCHOOL_BACK = 90;
 const floaters = [];
 
-function stunSchool(s) {
+function stunSchool(s, cooked = false) {
   if (!s.fish.length) return;
   const n = Math.min(3, Math.ceil(s.fish.length / 2));
   for (let i = 0; i < n; i++) {
     const x = s.x + (Math.random() - 0.5) * 28;
     const y = s.y + (Math.random() - 0.5) * 14;
-    floaters.push({ x, y, id: pickFish({ x, y }), t: -i * 0.15, phase: Math.random() * 6, face: Math.random() < 0.5 ? 1 : -1 });
+    const id = pickFish({ x, y });
+    floaters.push({ x, y, id: cooked ? COOKS[id] || id : id, cooked, t: -i * 0.15, phase: Math.random() * 6, face: Math.random() < 0.5 ? 1 : -1 });
   }
   Object.assign(s, { spare: s.fish, fish: [], backT: SCHOOL_BACK, jump: null });
   seaSplash(s.x, s.y, 0.5);
@@ -374,6 +375,7 @@ function updateFloaters(dt) {
     const f = floaters[i];
     f.t += dt;
     if (f.t >= FLOAT_LIFE) floaters.splice(i, 1);
+    else if (f.cooked && f.t > 0 && Math.random() < dt * 1.5) particles.push({ type: 'steam', x: f.x, y: f.y - 3, vx: (Math.random() - 0.5) * 4, vy: -10 - Math.random() * 6, life: 0, max: 1 });
   }
 }
 

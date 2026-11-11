@@ -731,7 +731,8 @@ function dropMeat(a) {
     particles.push({ type: 'dust', x: a.x + (Math.random() - 0.5) * 12, y: a.y - 4, vx: (Math.random() - 0.5) * 30, vy: -8 - Math.random() * 10, life: 0, max: 0.5 + Math.random() * 0.3 });
   }
   const w = WILD[a.kind];
-  const loot = [...Array(w.meat).fill('meat'), ...Array(w.hide || 0).fill('hide')];
+  const loot = [...Array(w.meat).fill(a.roasted ? 'roast' : 'meat'), ...Array(w.hide || 0).fill('hide')];
+  a.roasted = false;
   const n = loot.length;
   loot.forEach((item, i) => spawnDrop(item, a.x + (i - (n - 1) / 2) * 6, a.y + 2, (i - (n - 1) / 2) * 20, 6, 50));
 }

@@ -1,20 +1,20 @@
 // The dragon roost on the hermit's isle. Once the player has a grown dragon the hermit asks for one: fell the stand
-// of pines between his stakes, bring ROOST_WOOD wood and raise it there. Grown dragons told to stay by it land inside
-// its fence and wander about in there. Once two or more have spent ROOST_DAYS days in there an egg turns up in the
-// nest, and every one hatches a kind of dragon nobody has seen before, mixed at random from the kinds there are.
+// of pines between his stakes, bring ROOST_WOOD wood and raise it there. Up to two grown dragons told to stay by it
+// land inside its fence and wander about in there. Once a pair has spent ROOST_DAYS days in there an egg turns up in
+// the nest, and every one hatches a kind of dragon nobody has seen before, bred from that pair (see genes.js).
 // Plates of fish and a drinking pool stand in the pen here and at the nursery; now and then a dragon wanders over
 // for a bite or a drink.
 
 const ROOST_WOOD = 12;
 const ROOST_DAYS = 3;
 const ROOST_NEAR = 130;
-// Perches in front of the roost and the nest between the front two, from its ground point.
-const ROOST_SLOTS = [[-50, 34], [50, 34], [-26, 70], [26, 70]];
+// The two perches in front of the roost and the nest between them, from its ground point.
+const ROOST_SLOTS = [[-50, 34], [50, 34]];
 const ROOST_NEST = [0, 30];
 // The fence's lines from the roost's ground point, in tiles, and how fast dragons amble about inside it.
 const ROOST_PEN = { x: 6.2, top: -2.6, bottom: 5.6 };
 const PEN_PACE = 14;
-// `days` is how long two or more dragons have spent in the pen since the last egg; `lastDay` the game time last seen.
+// `days` is how long a pair of dragons has spent in the pen since the last egg; `lastDay` the game time last seen.
 const roost = { asked: false, built: false, bred: [], days: 0, lastDay: null };
 let roostObj = null;
 let roostNest = null;
@@ -117,6 +117,13 @@ function roostLeave() {
   return roostSlotFor(d) === null ? null : d;
 }
 
+// By the roost with a grown dragon following, and both perches already taken.
+function roostFull() {
+  const d = follower;
+  if (!d || d.stage !== GROWN || flight || sail || hop || indoors || !nearRoost(player.x, player.y)) return false;
+  return dragons.filter((o) => o !== d && o.roost != null).length >= ROOST_SLOTS.length;
+}
+
 function leaveAtRoost(d) {
   setFollower(null);
   Object.assign(d, { emote: 'heart', emoteT: 1.8 });
@@ -198,13 +205,14 @@ function roam(b, dt) {
   d.walking = true;
 }
 
-// Grown dragons standing inside the fence, the follower too if it's waiting in there.
-const roosting = () => dragons.filter((d) => d.stage === GROWN && d.perched && inRoostPen(d.obj.x, d.obj.y));
+// The grown dragons on the roost's perches and standing inside the fence, in perch order.
+const roosting = () => dragons.filter((d) => d.stage === GROWN && d.roost != null && d.perched && inRoostPen(d.obj.x, d.obj.y))
+  .sort((a, b) => a.roost - b.roost);
 const gameDays = () => dayCount + clock;
 const nestFull = () => eggs.some((e) => e.roostEgg && e.state === 'wild');
 
-// Game time counts, nights slept through included, while two or more are in the pen and the nest is empty; it only
-// pauses otherwise.
+// Game time counts, nights slept through included, while a pair is in the pen and the nest is empty; it only pauses
+// otherwise.
 function updateRoost(dt) {
   if (!roost.built) return;
   const now = gameDays();
@@ -217,23 +225,21 @@ function updateRoost(dt) {
     if (d.emoteT > 0 || Math.random() > dt * 0.05) continue;
     Object.assign(d, { emote: 'heart', emoteT: 1.6 });
   }
-  if (roost.days >= ROOST_DAYS) layEgg();
+  if (roost.days >= ROOST_DAYS) layEgg(here[0], here[1]);
 }
 
-function layEgg() {
+function layEgg(d1, d2) {
   roost.days = 0;
-  const kinds = Object.values(DRAGON_SPECIES);
-  const any = () => kinds[Math.floor(Math.random() * kinds.length)];
   const n = roost.bred.length;
   const id = `bred${n + 1}`;
-  const pal = breedSpecies(any(), any(), Math.floor(Math.random() * 1e9));
+  const pal = breedSpecies(d1, d2, Math.floor(Math.random() * 1e9));
   roost.bred.push({ id, pal });
   registerSpecies(id, pal);
   const e = placeRoostEgg(id);
   stats.laid++;
   burst(e.x, e.y - 8, [pal.egg.base, pal.egg.speck, '#ffe9a8'], 14, 40);
   Sfx.chirp(earshot(e.x, e.y));
-  toast('A NEW EGG', `A ${pal.name} egg has turned up in the roost's nest`);
+  toast('A NEW EGG', `${d1.name} and ${d2.name} have a ${pal.name} egg in the roost's nest`);
 }
 
 function placeRoostEgg(id) {
@@ -294,7 +300,8 @@ function startSnack(s, who) {
     if (s.at.fish.length === PLATE_FISH - 1) s.at.refillT = PLATE_REFILL;
     burst(s.at.x, s.at.y - 6, ['#e8f0f4', '#cfdceb', PAL.wood], 6, 24);
     Sfx.gulp(0.6 * earshot(s.at.x, s.at.y));
-    Object.assign(who, { emote: 'heart', emoteT: 1.6 });
+    Object.assign(who, { emote: 'heart', emoteT: 1.6, fedAt: gameDays() });
+    cheer(who, 3);
   }
   s.t = SNACK_TIME[s.kind];
   s.sipT = 0;
@@ -401,21 +408,24 @@ function mixHue(a, b) {
   return a + d / 2;
 }
 
-// A kind of dragon mixed from two parents: their colours blended and shifted, their horns, spines, tail and markings
-// shuffled with a chance of something new, until it looks unlike any kind already about.
-function breedSpecies(p1, p2, seed) {
+// A kind of dragon bred from the two dragons `d1` and `d2`: one copy of every gene from each (see genes.js), with
+// their colours blended and shifted, until it looks unlike any kind already about.
+function breedSpecies(d1, d2, seed) {
   const r = mulberry32(seed);
   const pickOf = (opts) => opts[Math.floor(r() * opts.length)];
+  const [p1, p2] = [DRAGON_SPECIES[d1.species], DRAGON_SPECIES[d2.species]];
+  const [g1, g2] = [genesOf(d1.species), genesOf(d2.species)];
   const signs = new Set(Object.values(DRAGON_SPECIES).map((p) => lookSign(lookOf(p), hslOf(p.body).h)));
   const [c1, c2] = [hslOf(p1.body), hslOf(p2.body)];
-  let look;
+  let genes;
+  let body;
   let hue;
   for (let tries = 0; tries < 40; tries++) {
-    const [l1, l2] = [lookOf(p1), lookOf(p2)];
-    look = Object.fromEntries(Object.entries(DRAGON_LOOKS).map(([k, opts]) => [k, r() < 0.3 ? pickOf(opts) : (r() < 0.5 ? l1 : l2)[k]]));
+    genes = inheritGenes(g1, g2, r);
+    body = bodyOf(traitsOf(genes));
     hue = r() < 0.3 ? r() * 360 : mixHue(c1.h, c2.h) + (r() - 0.5) * 140;
     hue = ((hue % 360) + 360) % 360;
-    if (!signs.has(lookSign(look, hue))) break;
+    if (!signs.has(lookSign(lookOf(body), hue))) break;
   }
   const s = 0.3 + r() * 0.45;
   const l = r() < 0.2 ? 0.62 + r() * 0.14 : 0.22 + r() * 0.26;
@@ -423,25 +433,29 @@ function breedSpecies(p1, p2, seed) {
   const wingHue = r() < 0.5 ? hue + (r() - 0.5) * 60 : hslOf(pickOf([p1.wing, p2.wing])).h;
   const finHue = r() < 0.5 ? hslOf(pickOf([p1.fin, p2.fin])).h + (r() - 0.5) * 40 : hue + 140 + r() * 80;
   const eyeHue = r() * 360;
-  const breathHue = r() < 0.5 ? hslOf(pickOf([p1.breath[0], p2.breath[0]])).h + (r() - 0.5) * 60 : r() * 360;
+  const breathH = breathHue(traitsOf(genes).breath, [p1, p2], r);
   const eggHue = hue + (r() - 0.5) * 40;
-  const names = new Set(Object.values(DRAGON_SPECIES).map((p) => p.name));
+  // told apart without spaces or capitals, so no "Shadowfang" is bred beside the Shadow Fang
+  const plain = (n) => n.replace(/ /g, '').toLowerCase();
+  const names = new Set(Object.values(DRAGON_SPECIES).map((p) => plain(p.name)));
   let name = '';
-  for (let i = 0; !name || (names.has(name) && i < 40); i++) name = pickOf(BRED_FIRST) + pickOf(BRED_LAST);
+  for (let i = 0; !name || (names.has(plain(name)) && i < 40); i++) name = pickOf(BRED_FIRST) + pickOf(BRED_LAST);
   const pets = new Set([...dragons.map((d) => d.name), ...Object.values(DRAGON_SPECIES).map((p) => p.defaultName)]);
   const defaultName = BRED_PETS.find((n, i) => !pets.has(n) && r() < 0.5 + i / BRED_PETS.length) || pickOf(BRED_PETS);
   return {
-    name, defaultName, parents: [p1.name, p2.name],
+    name, defaultName, parents: [p1.name, p2.name], parentIds: [d1.species, d2.species], parentNames: [d1.name, d2.name], genes,
+    ...(Object.keys(body.shape).length ? { shape: body.shape } : {}),
     body: hsl(hue, s, l), dark: hsl(hue, s, pale ? l * 0.78 : l * 0.62), light: hsl(hue, s * 0.85, Math.min(0.92, l + 0.24)),
     wing: hsl(wingHue, s * 1.1, pale ? l * 0.92 : l * 0.95 + 0.04), eye: hsl(eyeHue, 0.9, 0.6), fin: hsl(finHue, 0.65, 0.5),
     glint: hsl(eyeHue, 0.7, 0.92), spot: hsl(finHue, 0.55, pale ? 0.6 : 0.72), horn: hsl(40, 0.3, 0.84),
     ...(r() < 0.55 ? { belly: hsl(hue + 25, s * 0.7, Math.min(0.84, l + 0.3)) } : {}),
-    look,
+    look: body.look,
     egg: {
       base: hsl(eggHue, 0.45, 0.42), light: hsl(eggHue, 0.45, 0.54), speck: hsl(finHue, 0.6, 0.7), speckDark: hsl(eggHue, 0.45, 0.28),
-      shine: hsl(eggHue, 0.7, 0.88), gloss: hsl(eggHue, 0.55, 0.68), glow: hsl(breathHue, 0.8, 0.7),
+      shine: hsl(eggHue, 0.7, 0.88), gloss: hsl(eggHue, 0.55, 0.68), glow: hsl(breathH, 0.8, 0.7),
     },
-    breath: [hsl(breathHue, 0.9, 0.58), hsl(breathHue, 0.9, 0.9), hsl(breathHue, 0.8, 0.4)],
+    breath: [hsl(breathH, 0.9, 0.58), hsl(breathH, 0.9, 0.9), hsl(breathH, 0.8, 0.4)],
+    ...bredTastes(d1.species, d2.species, r),
   };
 }
 
@@ -484,7 +498,7 @@ function roostLine() {
   }
   const here = roosting().length;
   if (eggs.some((e) => e.roostEgg && e.state === 'wild')) return 'An egg in the roost! Nothing like it ever hatched before. Take it up the fire mountain to warm.';
-  if (here < 2) return 'A dragon on its own just sleeps. Leave two or more at the roost and tell them to stay.';
+  if (here < 2) return 'A dragon on its own just sleeps. Leave two at the roost and tell them to stay. The egg takes after them both.';
   return `Dragons roosting together. Give them ${ROOST_DAYS} days, and there'll be an egg in the nest.`;
 }
 

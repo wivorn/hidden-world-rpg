@@ -41,13 +41,18 @@ body {
   pointer-events: none;
 }
 
+/* Set above the speaker's head, lifted by --lift, with the tail pointing down at it across the gap. */
 .bubble {
+  --ink: #3a2414;
+  --paper: rgba(255, 248, 231, 0.8);
+  --tail: 10px;
+  --lift: 10px;
   position: absolute;
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, calc(-100% - var(--lift)));
   padding: 8px 10px;
-  background: #fff8e7;
-  color: #3a2414;
-  border: 3px solid #3a2414;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
   font: 11px/1.6 'Press Start 2P', monospace;
   width: max-content;
   max-width: 260px;
@@ -62,14 +67,27 @@ body {
   opacity: 1;
 }
 
+/* The tail hangs from the bottom border: its two slanted sides outlined, and filled with the see-through paper,
+   so nothing dark sits behind the fill. */
+.bubble::before,
 .bubble::after {
   content: '';
   position: absolute;
+  top: calc(100% + 3px);
   left: 50%;
-  bottom: -12px;
+  width: 20px;
+  height: var(--tail);
   transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: #3a2414;
+}
+
+.bubble::before {
+  background: var(--ink);
+  clip-path: polygon(evenodd, 0 0, 100% 0, 50% 100%, 0 0, 4px 0, calc(100% - 4px) 0, 50% calc(100% - 4px), 4px 0);
+}
+
+.bubble::after {
+  background: var(--paper);
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 50% calc(100% - 4px));
 }
 
 #prompt {
@@ -303,6 +321,48 @@ body.title #toggles {
   max-width: 100%;
   object-fit: contain;
   background: radial-gradient(ellipse closest-side, rgba(255, 228, 180, 0.2), transparent);
+}
+
+.log-traits {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 0 0;
+  border-top: 1px solid rgba(225, 160, 60, 0.3);
+  list-style: none;
+  font-size: 7px;
+  line-height: 1.5;
+  color: #c8b48a;
+  text-align: left;
+}
+
+.log-traits b {
+  font-weight: normal;
+  color: #f6e7c1;
+}
+
+.log-traits .throwback b,
+.log-traits .hidden b {
+  color: #ff9ad0;
+}
+
+.log-traits .mutation b {
+  color: #ffd36b;
+}
+
+.log-mood i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 3px;
+  background: rgba(246, 231, 193, 0.2);
+  clip-path: polygon(50% 100%, 0 45%, 0 15%, 25% 0, 50% 20%, 75% 0, 100% 15%, 100% 45%);
+}
+
+.log-mood i.on {
+  background: #e8484a;
 }
 
 .panel.log-panel {
@@ -898,13 +958,8 @@ body.title #toast {
 }
 
 .bubble.player {
-  background: #e8f4ff;
-  border-color: #1d3263;
-  color: #1d3263;
-}
-
-.bubble.player::after {
-  border-top-color: #1d3263;
+  --ink: #1d3263;
+  --paper: rgba(232, 244, 255, 0.8);
 }
 
 /* Centred along the bottom. */
@@ -1111,7 +1166,7 @@ body.title #toast {
   animation: bump 0.35s ease-out;
 }
 
-/* The thing carried out of the pack is lit and wears a little X, the key that drops it. */
+/* The thing carried out of the pack is lit and wears a little F, the key that throws it. */
 #pack-slots li.carried {
   border-color: #fff0a0;
   background: rgba(92, 56, 18, 0.92);
@@ -1119,7 +1174,7 @@ body.title #toast {
 }
 
 #pack-slots li.carried::after {
-  content: 'X';
+  content: 'F';
   position: absolute;
   top: -10px;
   right: -9px;

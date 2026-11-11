@@ -130,6 +130,7 @@ function turnBack(e) {
       return mount(d);
     }
     const deck = deckPos();
+    stowPack();
     sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };
     shipObj.rider = player.look;
     Object.assign(player, { x: deck.x, y: shipObj.y, flying: true });

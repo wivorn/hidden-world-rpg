@@ -245,6 +245,7 @@ const listNeeds = (needs) => Object.entries(needs).map(([id, n]) => `${n} ${(n >
 
 const drops = [];
 const REACH = 48;
+const DROP_GRAVITY = 320;
 
 // Starts `z` above the ground and tossed up at `vz`; lands at `y`.
 function spawnDrop(item, x, y, vx = 0, z = 0, vz = 70, vy = 0) {
@@ -421,7 +422,7 @@ function autoPickUp() {
       if (dist > AUTO_REACH * 2 || !sameSpace(d)) d.left = false;
       continue;
     }
-    if (d.z > 0 || dist >= AUTO_REACH || !sameSpace(d) || bagFull(d.item) || dragons.some((b) => b.meal === d)) continue;
+    if (d.z > 0 || dist >= AUTO_REACH || !sameSpace(d) || bagFull(d.item) || dragons.some((b) => b.meal === d || b.fetch?.drop === d)) continue;
     pickUp(d, true);
   }
 }
@@ -430,10 +431,14 @@ function updateDrops(dt) {
   autoPickUp();
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i];
+    if (d.floating) {
+      driftLog(d, dt);
+      continue;
+    }
     if (d.z <= 0 && d.vz <= 0) continue;
     // a feather drifts down, rocking side to side
     if (d.float) d.vz = Math.max(d.vz - 120 * dt, -14);
-    else d.vz -= 320 * dt;
+    else d.vz -= DROP_GRAVITY * dt;
     d.z += d.vz * dt;
     d.x += (d.vx + (d.float ? Math.sin(time * 4 + d.phase) * 16 : 0)) * dt;
     d.y += (d.vy || 0) * dt;
@@ -443,10 +448,22 @@ function updateDrops(dt) {
     if (d.fuel) {
       drops.splice(i, 1);
       stoke(d.fuel);
-    } else if (d.thrown && d.y < MAP_H * TILE && tileAt(Math.floor(d.x / TILE), Math.floor(d.y / TILE)) === T.WATER) {
+    } else if (d.thrown && FISH_IDS.includes(d.item) && wetAt(d.x, d.y)) {
+      // a fish thrown back swims off
+      drops.splice(i, 1);
+      skipRipple(d.x, d.y);
+      Sfx.plip(earshot(d.x, d.y), 1);
+    } else if (d.thrown && d.item !== 'stone' && !SINKS.has(d.item) && wetAt(d.x, d.y)) {
+      // wood, fruit and the rest are lighter than water, so they float where they land
+      Object.assign(d, { thrown: false, floating: true, vx: d.vx * 0.2, vy: (d.vy || 0) * 0.2 });
+      skipRipple(d.x, d.y);
+      Sfx.plip(earshot(d.x, d.y), 1);
+    } else if (d.thrown && !wetAt(d.x, d.y)) {
+      d.thrown = false;
+    } else if (d.thrown) {
       // a fast stone skips off the surface a few times, each hop lower and shorter, then sinks
       const sp = Math.hypot(d.vx, d.vy || 0);
-      if (sp > 40 && (d.skips = (d.skips || 0) + 1) <= 4) {
+      if (d.item === 'stone' && sp > 40 && (d.skips = (d.skips || 0) + 1) <= 4) {
         const k = 0.72 ** d.skips;
         Object.assign(d, { vz: 75 * k, vx: d.vx * 0.75, vy: (d.vy || 0) * 0.75 });
         skipRipple(d.x, d.y);
@@ -458,6 +475,19 @@ function updateDrops(dt) {
       }
     }
   }
+}
+
+const wetAt = (x, y) => y >= 0 && y < MAP_H * TILE && tileAt(Math.floor(x / TILE), Math.floor(y / TILE)) === T.WATER;
+
+// A floating log bobs about and drifts slowly, until it washes up on a shore.
+function driftLog(d, dt) {
+  const k = Math.exp(-dt * 1.2);
+  d.vx = d.vx * k + Math.sin(time * 0.4 + d.phase) * 6 * (1 - k);
+  d.vy = (d.vy || 0) * k + Math.cos(time * 0.3 + d.phase) * 3 * (1 - k);
+  const [x, y] = [d.x + d.vx * dt, d.y + d.vy * dt];
+  if (wetAt(x, y)) Object.assign(d, { x, y });
+  else Object.assign(d, { floating: false, vx: 0, vy: 0 });
+  if (Math.random() < dt * 0.6) skipRipple(d.x, d.y);
 }
 
 function skipRipple(x, y) {
@@ -472,6 +502,15 @@ function skipRipple(x, y) {
 
 function drawDrop(d, cx, cy) {
   const img = SPR.icon[d.item];
+  if (d.floating) {
+    // the bottom of it under the water, with foam round the waterline
+    const h = img.height - 3;
+    const x = Math.round(d.x - img.width / 2) - cx;
+    const y = Math.round(d.y - h + Math.sin(time * 2.5 + d.phase)) - cy;
+    ctx.drawImage(img, 0, 0, img.width, h, x, y, img.width, h);
+    rect(ctx, x - 1, y + h, img.width + 2, 1, PAL.foam);
+    return;
+  }
   drawShadow(Math.round(d.x) - cx, Math.round(d.y) - cy, img.width / 2 - 1, 1.5);
   ctx.drawImage(img, Math.round(d.x - img.width / 2) - cx, Math.round(d.y - 2 - img.height - d.z) - cy);
 }
@@ -897,6 +936,8 @@ function toolHit(c) {
 
 // The prompt for what F does with the selection, or a nudge to pick the thing that would help here.
 function toolHint() {
+  const out = carriedOut();
+  if (out) return [`F  Throw ${out === 'wood' ? 'a log' : `the ${itemName(out)}`}`, bag[out] > 1 && `SHIFT+F  ${throwAllLabel(out)}`].filter(Boolean).join('   ·   ');
   if (player.cook) return `${COOK_VERB[player.cook.id].replace(/e?$/, 'ing')} the ${itemName(player.cook.id)}...`;
   const id = primary();
   const f = player.fishing;
@@ -1112,7 +1153,7 @@ const ARROW_MIN = 40;
 const drawPower = () => (player.nock ? Math.min(1, player.nock.t / DRAW_TIME) : 0);
 
 function drawBow() {
-  if (player.bowT > 0 || player.nock) return;
+  if (player.bowT > 0 || player.throwT > 0 || player.nock) return;
   if (!has('arrow')) {
     player.bowT = 0.8;
     muse('Out of arrows!');
@@ -1348,19 +1389,63 @@ function drawCooking(cx, cy) {
   ctx.drawImage(img, x - Math.round(img.width / 2), y - Math.round(img.height / 2));
 }
 
-function throwStone() {
-  if (player.chop || player.bowT > 0) return;
-  player.bowT = 0.3;
-  bag.stone--;
+// Metal and gold sink for good, so they're never thrown where they'd come down in water.
+const SINKS = new Set(['iron', 'gold', 'ruby', 'emerald', 'goblet', 'crown', 'lightningRod']);
+const THROW_SPEED = 140;
+const THROW_Z = 14;
+const THROW_VZ = 90;
+const THROW_FLIGHT = (THROW_VZ + Math.sqrt(THROW_VZ ** 2 + 2 * DROP_GRAVITY * THROW_Z)) / DROP_GRAVITY;
+const THROW_SPLASH = 8;
+// A handful thrown at once fans out up to THROW_FAN radians either side and up to THROW_SHORT short of a single throw.
+const THROW_FAN = 0.35;
+const THROW_SHORT = 0.3;
+
+const throwAllLabel = (id) => `Throw all ${bag[id]} ${id === 'wood' ? 'logs' : ITEMS[id].plural || itemName(id)}`;
+
+const turnVec = ([vx, vy], a) => [vx * Math.cos(a) - vy * Math.sin(a), vx * Math.sin(a) + vy * Math.cos(a)];
+
+// Whether anything thrown from (x, y) along `dir` could come down in water: a single throw where it lands, a handful
+// anywhere in its fan.
+function throwsWet(x, y, dir, all) {
+  const fan = all ? [-THROW_FAN, 0, THROW_FAN] : [0];
+  const reach = all ? [1 - THROW_SHORT, 1 - THROW_SHORT / 2, 1] : [1];
+  return fan.some((a) => reach.some((k) => {
+    const [vx, vy] = turnVec(dir, a);
+    const [lx, ly] = [x + vx * THROW_SPEED * THROW_FLIGHT * k, y + vy * THROW_SPEED * THROW_FLIGHT * k];
+    return [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => wetAt(lx + dx * THROW_SPLASH, ly + dy * THROW_SPLASH));
+  }));
+}
+
+// One of `id` goes flying ahead, landing about THROW_SPEED * THROW_FLIGHT away, or with `all` every one of them in a
+// spread. Wood by a fire goes on the fire instead; thrown anywhere else, the dragon following goes after it (see
+// askToFetch). Throwing the last of it folds the backpack's slots away.
+function throwItem(id, all = false) {
+  if (player.chop || player.bowT > 0 || player.throwT > 0 || !has(id) || flight || sail || hop || player.swimming) return;
+  if (id === 'wood' && fireNear(player.x, player.y)) return all ? dropAll('wood') : dropItem('wood');
+  const dir = DIR_VEC[player.dir];
+  const [x, y] = [player.x + dir[0] * 6, player.y + 2 + dir[1] * 4];
+  if (SINKS.has(id) && throwsWet(x, y, dir, all)) {
+    return muse(`My ${itemName(id)} would sink to the bottom. Better not throw it in the water.`);
+  }
+  const n = all ? bag[id] : 1;
+  player.throwT = 0.3;
+  bag[id] -= n;
   renderInventory();
-  const [vx, vy] = DIR_VEC[player.dir];
-  spawnDrop('stone', player.x + vx * 6, player.y + 2 + vy * 4, vx * 120, 12, 80, vy * 120);
-  drops[drops.length - 1].thrown = true;
+  if (!has(id)) stowPack();
+  const thrown = [];
+  for (let i = 0; i < n; i++) {
+    const [vx, vy] = turnVec(dir, i ? (Math.random() * 2 - 1) * THROW_FAN : 0);
+    const speed = THROW_SPEED * (i ? 1 - Math.random() * THROW_SHORT : 1);
+    spawnDrop(id, x, y, vx * speed, THROW_Z, THROW_VZ, vy * speed);
+    thrown.push(Object.assign(drops[drops.length - 1], { thrown: true }));
+  }
   Sfx.swish();
+  if (id === 'wood') askToFetch(thrown[0]);
 }
 
 function updateTools(dt) {
   if (player.bowT > 0) player.bowT -= dt;
+  if (player.throwT > 0) player.throwT -= dt;
   if (player.blockT > 0) player.blockT -= dt;
   updateDraw(dt);
   updateFishing(dt);

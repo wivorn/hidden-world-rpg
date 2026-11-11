@@ -906,7 +906,7 @@ function hear(text) {
     if (d) return askToHunt(d);
   }
   if (EAT_WORDS.test(text) && !flight && !sail) {
-    const d = dragonFor(dragons.filter((d) => d.stage < GROWN), 120);
+    const d = dragonFor(dragons.filter((d) => d.stage < GROWN || d.perched), 120);
     if (d) return askToEat(d);
   }
   if (!near.length || teachHears(text, near)) return;
@@ -920,11 +920,11 @@ function hear(text) {
 }
 
 const SPECIES_NAMES = {
-  nightFury: /\b(night ?fury|toothless|fury)\b/i,
-  lightFury: /\b(light ?fury|fury)\b/i,
-  thunderdrum: /\bthunder ?drum\b/i,
-  terribleTerror: /\b(terrible ?)?terror\b/i,
-  skrill: /\bskrill\b/i,
+  nightFury: /\b(shadow ?)?fangs?\b/i,
+  lightFury: /\b(moon ?)?frosts?\b/i,
+  thunderdrum: /\b(jungle ?)?bellows?\b/i,
+  terribleTerror: /\b(dune ?)?sparks?\b/i,
+  skrill: /\b(storm ?)?strikers?\b/i,
 };
 
 const calledBy = (d, text) => new RegExp(`\\b${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
@@ -1142,6 +1142,7 @@ function mount(dragon) {
   const d = dragon.obj;
   dragon.roost = null;
   stats.flown++;
+  stowPack();
   startHop(d.x + 2, d.y, 0, 14, () => {
     d.hidden = true;
     d.col.off = true;
@@ -1154,6 +1155,7 @@ function mount(dragon) {
 // Up and away on the dragon's back, from where it stood or caught up out of the sea.
 let lastRidden = null;
 function takeWing(dragon, x, y, alt, dir) {
+  stowPack();
   flight = {
     x, y, alt, vx: 0, vy: 0, dir, face: dir, flap: 0, mode: 'takeoff', land: null,
     loop: -1, fireCd: 0, charge: null, diveT: 0, splashed: false, dragon,
@@ -1399,7 +1401,8 @@ function scoopFish(f) {
       continue;
     }
     floaters.splice(floaters.indexOf(o), 1);
-    catchFish({ fish: o.id });
+    if (o.cooked) give(o.id, 1);
+    else catchFish({ fish: o.id });
     popIcon(o.id, o.x, o.y - 10);
     seaSplash(o.x, o.y - 1, 0.5);
     Sfx.reward();
@@ -1725,9 +1728,13 @@ function updateBaby(b, dt) {
     updateGrown(b, dt);
     return;
   }
-  if (b.catchT > 0 && (b.catchT -= dt) <= 0) feedBaby(b);
+  if (b.catchT > 0 && (b.catchT -= dt) <= 0) swallow(b);
   if (b.swoop) {
     updateSwoop(b, dt);
+    return;
+  }
+  if (b.fetch) {
+    updateFetch(b, dt);
     return;
   }
   if (b.meal) {
@@ -1772,9 +1779,11 @@ function updateBaby(b, dt) {
     b.chirpT -= dt;
     if (b.chirpT <= 0) {
       b.chirpT = 7 + Math.random() * 7;
-      b.emote = Math.random() < 0.5 ? 'heart' : 'note';
+      b.emote = moodEmote(b) || (Math.random() < 0.5 ? 'heart' : 'note');
       b.emoteT = 1.8;
-      Sfx.chirp(earshot(b.x, b.y));
+      if (b.emote === 'sad') Sfx.whimper(earshot(b.x, b.y));
+      else Sfx.chirp(earshot(b.x, b.y));
+      if (lead) hungerHint(b);
     }
     return;
   }
@@ -1834,15 +1843,18 @@ function drawBaby(b, cx, cy) {
   const y = Math.round(b.y - babyLift(b)) - cy;
   const face = b.face || b.dir;
   if (b.stage === GROWN) {
-    const fr = flySet(b)[face][Math.floor(b.flap) % 4];
-    ctx.drawImage(fr.under, x - 36, y - 40);
-    if (fr.over) ctx.drawImage(fr.over, x - 36, y - 40);
+    const set = flySet(b);
+    const fr = set[face][Math.floor(b.flap) % 4];
+    ctx.drawImage(fr.under, x - 36 - FLY_PAD, y - 40 - FLY_PAD);
+    if (fr.over) ctx.drawImage(fr.over, x - 36 - FLY_PAD, y - 40 - FLY_PAD);
+    if (b.holding && set.mouth[face]) drawHeldLog(x + set.mouth[face][0], y + set.mouth[face][1]);
     return;
   }
   const set = SPR.babyDragon[b.species][b.stage];
   const fr = b.swoop ? 2 : b.flying ? 2 + b.frame : b.jumpT >= 0 ? 1 : 0;
   ctx.drawImage(set[face][fr], x - set.ox, y - set.oy);
   const mouth = set.mouth[face];
+  if (b.holding && mouth) drawHeldLog(x + mouth[0], y + mouth[1]);
   if (b.catchT > 0 && mouth && b.catchBig) {
     const mx = x + mouth[0];
     const my = y + mouth[1];
@@ -1856,6 +1868,9 @@ function drawBaby(b, cx, cy) {
     const tail = s > 0 ? mx - 8 : mx + 7;
     rect(ctx, tail, my - 1, 2, 1, '#46658c');
     rect(ctx, tail, my + 3, 2, 1, '#46658c');
+  } else if (b.catchT > 0 && mouth && b.chew && FOOD_KIND[b.chew] !== 'fish') {
+    const img = SPR.icon[b.chew];
+    ctx.drawImage(img, x + mouth[0] - (img.width >> 1), y + mouth[1] - (img.height >> 1));
   } else if (b.catchT > 0 && mouth) {
     const mx = x + mouth[0];
     const my = y + mouth[1];
@@ -1876,36 +1891,53 @@ const hungryDragon = () => (sail && follower && follower.stage < GROWN && !follo
 
 // The fish flips off the hook and the dragon dives to snatch it before it hits the water.
 function feedFromLine(b, id, x, y) {
-  b.swoop = { x, y, big: BIG_FISH.has(id), t: 0 };
+  b.swoop = { x, y, id, big: BIG_FISH.has(id), t: 0 };
   b.flying = true;
   Sfx.flap(0.5 * earshot(b.x, b.y));
 }
 
-// Told to eat, a baby makes for the nearest raw fish lying on the ground, gobbles it up and grows.
+// Told to eat, a dragon makes for the nearest food lying on the ground and gobbles it up; fish and meat make a young
+// one grow. A grown one walks over to it if it has landed.
 const EAT_WORDS = /\b(eat|eats|eating|feed|food|dinner|hungry)\b/i;
 function askToEat(b) {
   b.emoteT = 1.8;
   Sfx.chirp(earshot(b.x, b.y));
-  if (b.swoop || b.meal || b.catchT > 0) {
+  if (b.swoop || b.meal || b.catchT > 0 || b.fetch) {
     b.emote = 'heart';
     return;
   }
-  let fish = null;
+  let food = null;
   let fd = 120;
   for (const d of drops) {
     const dist = Math.hypot(d.x - b.x, d.y - b.y);
-    if (FISH[d.item] && d.z <= 0 && sameSpace(d) && dist < fd) { fd = dist; fish = d; }
+    if (dragonEats(d.item) && d.z <= 0 && !d.floating && sameSpace(d) && dist < fd) { fd = dist; food = d; }
   }
-  if (!fish) {
+  if (!food) {
     b.emote = 'question';
-    muse(`${b.name} looks about hungrily. I'd better put a fish down first.`);
+    muse(`${b.name} looks about hungrily. I'd better put some food down first.`);
     return;
   }
-  b.meal = fish;
+  b.meal = food;
   b.emote = 'exclaim';
+  if (b.stage === GROWN) idleNow(b, 'stand', 8);
 }
 
-// Flutters over to the fish, lands on it and swallows it whole; gone without a meal if someone picks it up first.
+// Something a young dragon has in its mouth for a moment before it's swallowed (see updateBaby).
+function chew(b, id) {
+  Object.assign(b, { chew: id, catchT: BIG_FISH.has(id) ? 1.4 : 0.9, catchBig: BIG_FISH.has(id) });
+}
+
+// Done chewing: fish and meat make it grow, in the nursery's care as well.
+function swallow(b) {
+  const id = b.chew || 'fish';
+  b.chew = null;
+  if (!growsOn(id)) return;
+  if (b.nursery) growInNursery(b);
+  else feedBaby(b);
+}
+
+// Flutters over to the food, lands on it and swallows it whole; gone without a meal if someone picks it up first.
+// What it won't eat it sniffs at and leaves lying there.
 function updateMeal(b, dt) {
   const fish = b.meal;
   if (!drops.includes(fish)) {
@@ -1926,8 +1958,10 @@ function updateMeal(b, dt) {
   b.anim += dt * 12;
   b.frame = Math.floor(b.anim) % 2;
   if (d > 2 || b.alt > 1.5) return;
+  Object.assign(b, { meal: null, flying: false, alt: 0, anim: 0, frame: 0, stuck: 0 });
+  if (!feedDragon(b, fish.item)) return;
   drops.splice(drops.indexOf(fish), 1);
-  Object.assign(b, { meal: null, flying: false, alt: 0, anim: 0, frame: 0, stuck: 0, catchT: BIG_FISH.has(fish.item) ? 1.4 : 0.9 });
+  chew(b, fish.item);
   Sfx.splash(0.2 * earshot(b.x, b.y));
 }
 
@@ -1947,9 +1981,112 @@ function updateSwoop(b, dt) {
     Sfx.splash((w.big ? 0.9 : 0.6) * earshot(b.x, b.y));
     b.alt = 0;
     b.swoop = null;
-    b.catchT = w.big ? 1.4 : 0.9;
-    b.catchBig = w.big;
+    // one it hates goes straight back in the sea
+    if (feedDragon(b, w.id)) chew(b, w.id);
   }
+}
+
+// ---------- fetch ----------
+
+// A log the player throws: the dragon following watches it land, goes after it and brings it back, unless it's too
+// glum to play. It gives up after FETCH_TIME, or on a log further than FETCH_RANGE from it.
+const FETCH_RANGE = 220;
+const FETCH_TIME = 16;
+const FETCH_CHEER = 10;
+
+function askToFetch(log) {
+  const b = follower;
+  if (!b || b.fetch || b.hunt || b.swoop || b.meal || b.rescue || b.catchT > 0) return;
+  b.emoteT = 1.8;
+  if (moodBand(b) === 'sad') {
+    b.emote = 'dots';
+    if (b.stage === GROWN && b.perched) idleNow(b, 'sit', 6);
+    return;
+  }
+  b.fetch = { drop: log, phase: 'watch', t: 0 };
+  b.emote = 'exclaim';
+}
+
+// Where the fetch stands: false once it's over, given up or the log gone (picked up, burnt, or the player away).
+function fetchGoing(b, dt) {
+  const f = b.fetch;
+  f.t += dt;
+  const log = f.drop;
+  if (f.phase !== 'back' && !drops.includes(log)) return endFetch(b, false);
+  if (f.t > FETCH_TIME || flight || sail || indoors || follower !== b) return endFetch(b, false);
+  if (f.phase === 'watch' && log.z <= 0) {
+    if (Math.hypot(log.x - b.x, log.y - b.y) > FETCH_RANGE) return endFetch(b, false);
+    f.phase = 'go';
+    if (b.stage < GROWN) Sfx.chirp(earshot(b.x, b.y));
+  }
+  return true;
+}
+
+// Picks the log up in its mouth.
+function grabLog(b) {
+  const log = b.fetch.drop;
+  drops.splice(drops.indexOf(log), 1);
+  if (log.floating) seaSplash(log.x, log.y, 0.5);
+  b.holding = 'wood';
+  b.fetch.phase = 'back';
+}
+
+// Drops whatever it has at the player's feet: a heart for a game well played, or a puzzled look if it gave up.
+function endFetch(b, brought) {
+  b.fetch = null;
+  if (b.holding) {
+    b.holding = null;
+    const [x, y] = brought ? [(b.x + player.x) / 2, (b.y + player.y) / 2 + 2] : [b.x, b.y + 2];
+    spawnDrop('wood', Math.round(x), Math.round(y), 0, 4, 40);
+    drops[drops.length - 1].left = true;
+  }
+  Object.assign(b, { emote: brought ? 'heart' : 'question', emoteT: 1.8 });
+  if (brought) {
+    cheer(b, FETCH_CHEER);
+    Sfx.chirp(earshot(b.x, b.y));
+  }
+  return false;
+}
+
+// A young dragon flutters low after the log, snatches it up, and comes back to land beside the player.
+function updateFetch(b, dt) {
+  if (!fetchGoing(b, dt)) return;
+  const f = b.fetch;
+  if (f.phase === 'watch') {
+    updateJump(b, dt);
+    faceToward(b, f.drop.x - b.x, f.drop.y - b.y);
+    return;
+  }
+  const back = f.phase === 'back';
+  const side = b.x < player.x ? -12 : 12;
+  const [tx, ty] = back ? [player.x + side, player.y + 2] : [f.drop.x, f.drop.y];
+  const hover = !back && f.drop.floating ? 3 : 0;
+  const dx = tx - b.x;
+  const dy = ty - b.y;
+  const d = Math.hypot(dx, dy);
+  b.flying = true;
+  if (d > 0.5) {
+    const s = Math.min(d, 120 * dt);
+    b.x += (dx / d) * s;
+    b.y += (dy / d) * s;
+    faceToward(b, dx, dy);
+  }
+  b.alt += ((d > 12 ? 10 : hover) - b.alt) * (1 - Math.exp(-dt * 6));
+  b.anim += dt * 12;
+  b.frame = Math.floor(b.anim) % 2;
+  if (d > 2 || Math.abs(b.alt - hover) > 1.5) return;
+  if (!back) return grabLog(b);
+  if (canStand(b, b.x, b.y)) Object.assign(b, { flying: false, alt: 0, anim: 0, frame: 0, stuck: 0 });
+  faceToward(b, player.x - b.x, player.y - b.y);
+  endFetch(b, true);
+}
+
+// The log in a dragon's mouth at screen point (x, y).
+function drawHeldLog(x, y) {
+  rect(ctx, x - 5, y - 1, 10, 3, PAL.wood);
+  rect(ctx, x - 5, y - 1, 10, 1, PAL.woodLight);
+  rect(ctx, x - 5, y - 1, 1, 3, PAL.woodDark);
+  rect(ctx, x + 4, y - 1, 1, 3, '#d8b07a');
 }
 
 function feedBaby(b) {
@@ -2037,7 +2174,8 @@ function takeOff(b) {
   const d = b.obj;
   d.hidden = true;
   d.col.off = true;
-  Object.assign(b, { perched: false, alt: 0, flap: 0, spot: null });
+  Object.assign(d, { pose: null, lift: 0, walking: false, wag: false, patT: 0 });
+  Object.assign(b, { perched: false, alt: 0, flap: 0, spot: null, idle: null, meal: null });
   dust(d.x, d.y);
   Sfx.flap(earshot(d.x, d.y));
 }
@@ -2051,8 +2189,7 @@ function updateGrown(b, dt) {
     return;
   }
   if (b.ridden) {
-    b.ridden = false;
-    b.perched = !d.hidden;
+    Object.assign(b, { ridden: false, perched: !d.hidden, idle: null, meal: null });
   }
   if (b.rescue) return updateRescue(b, dt);
   if (b.hunt) {
@@ -2060,9 +2197,17 @@ function updateGrown(b, dt) {
     updateHunt(b, dt);
     return;
   }
+  const fetching = !!b.fetch && fetchGoing(b, dt);
   if (b.perched) {
-    if (b !== follower && !hop && inRoostPen(d.x, d.y)) roam(b, dt);
-    else d.walking = false;
+    if (d.patT > 0) d.patT -= dt;
+    if (fetching) {
+      // it watches the log fly, tail going, and takes off after it once it's down
+      Object.assign(d, { walking: false, pose: null, lift: 0, wag: true, faceRight: b.fetch.drop.x > d.x });
+      if (b.fetch.phase === 'go') takeOff(b);
+      return;
+    }
+    if (hop) Object.assign(d, { walking: false, pose: null, lift: 0 });
+    else idleGrown(b, dt);
     b.x = d.x;
     b.y = d.y;
     if (hop || b !== follower) return;
@@ -2071,7 +2216,8 @@ function updateGrown(b, dt) {
     return;
   }
   if (hop) return;
-  const L = b.stayBy ? escortLeader(b) : b === follower ? grownLeader(b) : settleLeader(b);
+  const log = fetching && b.fetch.phase === 'go' ? b.fetch.drop : null;
+  const L = log ? { x: log.x, y: log.y, alt: 3 } : b.stayBy ? escortLeader(b) : b === follower ? grownLeader(b) : settleLeader(b);
   const dx = L.x - b.x;
   const dy = L.y - b.y;
   const k = Math.min(1 - Math.exp(-dt * 2.5), (GROWN_FLY * dt) / (Math.hypot(dx, dy) || 1));
@@ -2082,19 +2228,201 @@ function updateGrown(b, dt) {
   const beat = Math.floor(b.flap / 4);
   b.flap += dt * (b.alt < 12 ? 11 : 7);
   if (Math.floor(b.flap / 4) !== beat) Sfx.flap(0.4 * earshot(b.x, b.y));
+  if (log && Math.hypot(log.x - b.x, log.y - b.y) < 8 && b.alt < 8) grabLog(b);
   if (L.land && Math.hypot(dx, dy) < 3 && b.alt < 1) {
     // it lands facing the player, or at the roost facing in towards the others
-    Object.assign(d, { x: L.x, y: L.y, hidden: false, faceRight: b.roost != null ? ROOST_SLOTS[b.roost][0] < 0 : player.x > L.x });
+    Object.assign(d, {
+      x: L.x, y: L.y, hidden: false, faceRight: b.roost != null ? ROOST_SLOTS[b.roost][0] < 0 : player.x > L.x,
+      pose: null, lift: 0, walking: false, wag: false,
+    });
     d.col.off = false;
     placeCollider(d);
-    Object.assign(b, { x: L.x, y: L.y, alt: 0, perched: true, spot: null, stayBy: false });
+    Object.assign(b, { x: L.x, y: L.y, alt: 0, perched: true, spot: null, stayBy: false, idle: null });
     dust(d.x, d.y);
     Sfx.land(1.5);
+    if (b.fetch?.phase === 'back') endFetch(b, true);
     if (b.settleOnLand) {
       b.settleOnLand = false;
       if (follower === b) follower = null;
     }
   }
+}
+
+// ---------- a grown dragon idling on the ground ----------
+
+// Landed and with nothing to do, a grown dragon stands about, paces near where it landed (or wanders the roost's
+// pen), hops, sits, lies down, or turns to watch the player. A happy one hops and wags its tail more; a glum one
+// mostly sits or lies about with heavy eyes; at night they curl up and sleep. How long each lasts, in seconds:
+const IDLE_TIMES = { stand: [2, 5], pace: [5, 10], hop: [1.4, 2.6], sit: [5, 10], lie: [6, 12], look: [2, 4], nap: [12, 24] };
+const IDLE_WEIGHTS = {
+  happy: { stand: 2, pace: 3, hop: 3, sit: 1, lie: 0, look: 2 },
+  okay: { stand: 3, pace: 3, hop: 1, sit: 2, lie: 1, look: 2 },
+  sad: { stand: 1, pace: 0.5, hop: 0, sit: 3, lie: 3, look: 0.5 },
+};
+const PACE_REACH = 30;
+const MEAL_PACE = 26;
+// One hop: a crouch, up in the air, and down again.
+const HOP_CROUCH = 0.12;
+const HOP_AIR = 0.5;
+const HOP_REST = 0.3;
+const HOP_HEIGHT = 7;
+
+// Puts it straight into idle `kind` for `t` seconds.
+function idleNow(b, kind, t) {
+  b.idle = { ...(b.idle || {}), kind, t, hopT: 0, to: null };
+}
+
+function pickIdle(b, w, near) {
+  const weights = { ...IDLE_WEIGHTS[moodBand(b)] };
+  if (inRoostPen(b.obj.x, b.obj.y) && b !== follower) weights.pace *= 2;
+  if (b === follower) weights.pace = 0;
+  if (!near) weights.look = 0;
+  if (isNight() && !(b === follower && near)) weights.nap = 10;
+  const kinds = Object.keys(weights);
+  let r = Math.random() * kinds.reduce((s, k) => s + weights[k], 0);
+  const kind = kinds.find((k) => (r -= weights[k]) < 0) || 'stand';
+  const [lo, hi] = IDLE_TIMES[kind];
+  Object.assign(w, { kind, t: lo + Math.random() * (hi - lo), hopT: 0, to: null });
+}
+
+function idleGrown(b, dt) {
+  const o = b.obj;
+  const w = (b.idle ||= { kind: 'stand', t: 1 + Math.random() * 2 });
+  w.home ||= { x: o.x, y: o.y };
+  const band = moodBand(b);
+  const near = !flight && !sail && Math.hypot(player.x - o.x, player.y - o.y) < 70;
+  Object.assign(o, { walking: false, pose: null, lift: 0, eyes: w.kind === 'nap' ? 'shut' : band === 'sad' ? 'sad' : 'open' });
+  o.wag = band === 'happy' && (near || w.kind === 'hop');
+  if (w.eatT > 0) {
+    // head down to the food
+    w.eatT -= dt;
+    o.pose = 'lie';
+    return;
+  }
+  if (b.meal) return grownMeal(b, w, dt);
+  if ((w.t -= dt) <= 0) pickIdle(b, w, near);
+  if (w.kind === 'pace') pace(b, w, dt);
+  else if (w.kind === 'sit') o.pose = 'sit';
+  else if (w.kind === 'lie' || w.kind === 'nap') o.pose = 'lie';
+  else if (w.kind === 'hop') hopAbout(b, w, dt);
+  else if (w.kind === 'look' && near) o.faceRight = player.x > o.x;
+  idleEmote(b, w, near, dt);
+}
+
+// Room for `b` to stand at (x, y), not counting its own body.
+function standsFree(b, x, y) {
+  const c = b.obj.col;
+  const off = c.off;
+  c.off = true;
+  const ok = dragonFits(x, y);
+  c.off = off;
+  return ok;
+}
+
+// A step at a time towards `to`: 'walking', 'there' once it's arrived, or 'blocked'. `w` keeps its position between
+// whole pixels.
+function strollTo(b, to, dt, w, speed = PEN_PACE) {
+  const o = b.obj;
+  if (w.fx === undefined || Math.abs(w.fx - o.x) > 1 || Math.abs(w.fy - o.y) > 1) Object.assign(w, { fx: o.x, fy: o.y });
+  const dx = to.x - w.fx;
+  const dy = to.y - w.fy;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 0.5) return 'there';
+  const s = Math.min(dist, speed * dt);
+  const nx = w.fx + (dx / dist) * s;
+  const ny = w.fy + (dy / dist) * s;
+  if (!standsFree(b, Math.round(nx), Math.round(ny))) return 'blocked';
+  Object.assign(w, { fx: nx, fy: ny });
+  if (Math.abs(dx) > 2) o.faceRight = dx > 0;
+  if (o.x !== Math.round(nx) || o.y !== Math.round(ny)) {
+    Object.assign(o, { x: Math.round(nx), y: Math.round(ny) });
+    placeCollider(o);
+  }
+  o.walking = true;
+  return 'walking';
+}
+
+// In the roost's pen it wanders the pen and goes for snacks; anywhere else it paces about near where it landed.
+function pace(b, w, dt) {
+  const o = b.obj;
+  if (inRoostPen(o.x, o.y) && b !== follower) return roam(b, dt);
+  if (!w.to) {
+    if ((w.wait = (w.wait ?? 0) - dt) > 0) return;
+    const a = Math.random() * Math.PI * 2;
+    const r = 10 + Math.random() * (PACE_REACH - 10);
+    w.to = { x: Math.round(w.home.x + Math.cos(a) * r), y: Math.round(w.home.y + Math.sin(a) * r * 0.5) };
+  }
+  if (strollTo(b, w.to, dt, w) === 'walking') return;
+  w.to = null;
+  w.wait = 0.8 + Math.random() * 2;
+}
+
+// Hop after hop on the spot, turning round now and then at the top.
+function hopAbout(b, w, dt) {
+  const o = b.obj;
+  const was = w.hopT || 0;
+  w.hopT = was + dt;
+  const len = HOP_CROUCH + HOP_AIR + HOP_REST;
+  const ph = w.hopT % len;
+  const prev = was % len;
+  if (ph < HOP_CROUCH || ph > HOP_CROUCH + HOP_AIR) {
+    o.pose = 'crouch';
+    if (prev >= HOP_CROUCH && prev <= HOP_CROUCH + HOP_AIR && was > 0) {
+      Sfx.land(0.4 * earshot(o.x, o.y));
+      dust(o.x, o.y);
+    }
+    return;
+  }
+  const u = (ph - HOP_CROUCH) / HOP_AIR;
+  o.lift = Math.round(Math.sin(u * Math.PI) * HOP_HEIGHT);
+  if (u >= 0.5 && (prev - HOP_CROUCH) / HOP_AIR < 0.5 && Math.random() < 0.3) o.faceRight = !o.faceRight;
+}
+
+// Now and then its mood shows over its head: more often with the player by. Asleep, it snores.
+function idleEmote(b, w, near, dt) {
+  if (b.emoteT > 0) return;
+  if (w.kind === 'nap') {
+    if (Math.random() < dt * 0.5) Object.assign(b, { emote: 'zzz', emoteT: 1.8 });
+    return;
+  }
+  if (Math.random() > dt / (near ? 9 : 20)) return;
+  const e = moodEmote(b) || (near ? (Math.random() < 0.5 ? 'heart' : 'note') : null);
+  if (!e) return;
+  Object.assign(b, { emote: e, emoteT: 1.8 });
+  if (e === 'sad') Sfx.whimper(0.6 * earshot(b.x, b.y));
+  if (near) hungerHint(b);
+}
+
+// Told to eat, it walks over to the food, puts its head down and eats it, or turns its nose up at it. With someone in
+// the way it waits a moment for them to move.
+const MEAL_WAIT = 3;
+function grownMeal(b, w, dt) {
+  const o = b.obj;
+  const food = b.meal;
+  if (!drops.includes(food)) {
+    b.meal = null;
+    return;
+  }
+  const to = { x: Math.round(food.x + (food.x < o.x ? 24 : -24)), y: Math.round(food.y) };
+  const went = strollTo(b, to, dt, w, MEAL_PACE);
+  const close = Math.abs(food.x - o.x) <= 44 && Math.abs(food.y - o.y) <= 14;
+  if (went === 'walking') {
+    w.stuckT = 0;
+    return;
+  }
+  if (went === 'blocked' && !close && (w.stuckT = (w.stuckT || 0) + dt) < MEAL_WAIT) return;
+  b.meal = null;
+  w.stuckT = 0;
+  o.faceRight = food.x > o.x;
+  if (!close) {
+    Object.assign(b, { emote: 'question', emoteT: 1.8 });
+    return;
+  }
+  w.eatT = 1.2;
+  if (!feedDragon(b, food.item)) return;
+  drops.splice(drops.indexOf(food), 1);
+  Sfx.gulp(earshot(o.x, o.y));
+  burst(food.x, food.y - 4, ['#ffffff', EDIBLE[food.item] || '#cfdceb'], 6, 24);
 }
 
 // ---------- a grown dragon on the hunt ----------
@@ -2127,6 +2455,11 @@ function askToHunt(b) {
     return;
   }
   if (b.hunt) return;
+  if (moodBand(b) === 'sad') {
+    b.emote = 'dots';
+    muse(`${b.name} doesn't feel like hunting. ${dragonHungry(b) ? 'It looks hungry.' : 'Maybe it needs a bit of fuss first.'}`);
+    return;
+  }
   const a = nearestGame(player.x, player.y, HUNT_RANGE);
   if (!a) {
     b.emote = 'question';
@@ -2147,7 +2480,10 @@ function updateHunt(b, dt) {
     b.hunt = null;
     b.emote = caught ? 'heart' : 'dots';
     b.emoteT = 1.8;
-    if (caught) muse(`Good hunting, ${b.name}!`);
+    if (caught) {
+      cheer(b, 8);
+      muse(`Good hunting, ${b.name}!`);
+    }
     return;
   }
   const dx = a.x - b.x;
@@ -2551,6 +2887,7 @@ function treasureFirst() {
 function board() {
   const deck = deckPos();
   player.swimming = false;
+  stowPack();
   startHop(deck.x, shipObj.y, 0, deck.lift, () => {
     sail = { vx: 0, vy: 0, wakeT: 0, shoreT: 0, shore: null };
     shipObj.rider = player.look;
@@ -2838,6 +3175,7 @@ function action() {
   }
   if (sail) disembark();
   else if (nearMount() === 'ship' && !treasureFirst()) board();
+  else if (feedTarget()) feedByHand(feedTarget());
   else if (roostLeave()) leaveAtRoost(roostLeave());
   else if (nurseryLeave()) leaveAtNursery(nurseryLeave());
   else if (carried && nearPool()) throwEgg();
@@ -3077,6 +3415,7 @@ function update(dt) {
   updateWildlife(dt);
   updateMap();
   for (const d of dragons) {
+    if (started) updateMood(d, dt);
     updateBaby(d, dt);
     updateDragonFace(d, dt);
   }
@@ -3201,7 +3540,7 @@ function drawObject(o, cx, cy) {
   const dy = s.bob ? Math.round(Math.sin(time * 1.4 + o.phase) * s.bob) : 0;
   const shake = o.shakeT > 0 ? Math.sin(o.shakeT * 70) * 1.5 : 0;
   const sx = Math.round(o.x - view.ox - cx + shake);
-  const sy = Math.round(o.y - view.oy - cy + dy);
+  const sy = Math.round(o.y - view.oy - cy + dy - (o.lift || 0));
   // a canopy in front of the player thins out so they can see where they're going
   const thin = s.fade && o.y > player.y && o.y - player.y < view.oy + 4 && Math.abs(o.x - player.x) < 24;
   if (thin) ctx.globalAlpha = 0.45;
@@ -3256,10 +3595,11 @@ function drawEntity(e, cx, cy, lift = 0) {
   const carry = e === player && (carrying() || !!item);
   const run = e.running && !hop;
   const climb = e === player && hop?.climb && !carry;
+  const pat = e === player && !carry && !run && !climb && patting(e);
   if (item) drawCarriedItem(item, x, top);
   else if (carry) drawHeldEgg(x, top);
   drawHeldTool(e, x, top, true);
-  const spr = charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run, climb);
+  const spr = charSprite(e.look, e.dir, e.jumpT >= 0 ? 1 : e.frame, carry, run, climb, pat);
   if (e.craft && e.craft.atAnvil) {
     // leave out the hanging right arm; drawSmithHammer draws it swinging
     ctx.drawImage(spr, 0, 0, 12, 24, x - 8, top, 12, 24);
@@ -3271,6 +3611,32 @@ function drawEntity(e, cx, cy, lift = 0) {
   drawHeldTool(e, x, top, false);
   drawSmithHammer(e, x, top);
   if (climb) drawClimbArms(e, x, top);
+  if (pat) drawPatArm(e, x, top);
+}
+
+// The near arm reaches out toward the dragon being patted, and the hand rises and comes down on it PAT_BOBS times.
+// Side on it reaches straight ahead; from in front it reaches down toward the viewer, from behind up and away.
+function drawPatArm(e, x, top) {
+  const u = time - e.patAt;
+  const out = Math.max(0, Math.min(1, u / PAT_EXTEND, (PAT_ANIM - u) / PAT_EXTEND));
+  const lift = Math.round(Math.abs(Math.sin((u / PAT_ANIM) * Math.PI * PAT_BOBS)) * 2 * out);
+  const f = e.jumpT >= 0 ? 1 : e.frame;
+  const b = f === 1 || f === 3 ? 1 : 0;
+  const sleeve = e.look.coat ? e.look.coat.dark : shade(e.look.tunic, -0.25);
+  const skin = e.look.skin || PAL.skin;
+  if (e.dir === 'left' || e.dir === 'right') {
+    const s = e.dir === 'right' ? 1 : -1;
+    const hx = x + s * Math.round(1 + 4 * out);
+    const hy = top + 12 + b - lift;
+    line(ctx, x, top + 12 + b, hx, hy, sleeve, 2);
+    rect(ctx, s > 0 ? hx + 1 : hx - 2, hy - 1, 2, 2, skin);
+    return;
+  }
+  const up = e.dir === 'up';
+  const hx = x + 4 + Math.round(2 * out);
+  const hy = up ? top + 10 + b - Math.round(2 * out) - lift : top + 13 + b + Math.round(2 * out) - lift;
+  line(ctx, x + 4, top + 11 + b, hx, up ? hy + 1 : hy - 1, sleeve);
+  rect(ctx, hx, hy, 2, 1, skin);
 }
 
 // The foot opposite the reaching hand steps up onto a hold, and pushes until the body has pulled up over it.
@@ -3319,13 +3685,13 @@ function drawFlight(cx, cy) {
   ctx.save();
   ctx.translate(Math.round(f.x + ox) - cx, Math.round(f.y - f.alt - flightBob(f) + oy) - 11 - cy);
   if (rot) ctx.rotate(rot);
-  ctx.drawImage(fr.under, -36, -29);
+  ctx.drawImage(fr.under, -36 - FLY_PAD, -29 - FLY_PAD);
   const carry = carrying();
   if (carry) ctx.drawImage(heldImg(), fr.seat[0] - 42, fr.seat[1] - 52);
   // on a diagonal the rider is seen side on
   const rider = charSprite(player.look, DRAGON_FACE_SIDES[f.face]?.[1] || f.dir, 0, carry);
   ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
-  if (fr.over) ctx.drawImage(fr.over, -36, -29);
+  if (fr.over) ctx.drawImage(fr.over, -36 - FLY_PAD, -29 - FLY_PAD);
   ctx.restore();
 }
 
@@ -3361,14 +3727,17 @@ const EMOTE_ICONS = {
   note: ['..##.', '..#.#', '..#..', '###..', '##...'],
   smile: ['.#.#.', '.#.#.', '.....', '#...#', '.###.'],
   dots: ['.....', '.....', '#.#.#', '.....', '.....'],
+  sad: ['..#..', '..#..', '.###.', '#####', '.###.'],
+  zzz: ['#####', '...#.', '..#..', '.#...', '#####'],
 };
+const EMOTE_COLORS = { heart: '#d83a3a', angry: '#d83a3a', sad: '#3a7ad8', zzz: '#5a5ab0' };
 
 function drawEmote(n, cx, cy, above = 30) {
   const icon = EMOTE_ICONS[n.emote];
   const pop = Math.min(1, (1.8 - n.emoteT) * 8);
   const x = Math.round(n.x) - cx - 4;
   const y = Math.round(n.y - above - pop * 2 + Math.sin(time * 5)) - cy;
-  const color = n.emote === 'heart' || n.emote === 'angry' ? '#d83a3a' : '#3a2414';
+  const color = EMOTE_COLORS[n.emote] || '#3a2414';
   ctx.globalAlpha = Math.min(1, n.emoteT * 3);
   rect(ctx, x, y, 9, 9, '#3a2414');
   rect(ctx, x + 1, y + 1, 7, 7, '#fff8e7');
@@ -3519,6 +3888,12 @@ if (touchScreen.matches) chatInput.placeholder = 'Tap here to chat';
 let promptText = null;
 let hintsOn = false;
 
+// `text`, and T to pat the dragon beside the player, if there is one.
+function withPat(text) {
+  const d = nearPet();
+  return [text, d && `T  Pat ${d.name}`].filter(Boolean).join('   ·   ');
+}
+
 function setPrompt(text) {
   if (text === promptText) return;
   promptText = text;
@@ -3626,7 +4001,7 @@ function render() {
   drawSphinxBubble(cx, cy);
   for (const d of dragons) {
     if (d.emoteT <= 0 || (flight && flight.dragon === d)) continue;
-    const h = d.stage === GROWN ? (d.perched ? 44 : 52) : SPR.babyDragon[d.species][d.stage].top + 4;
+    const h = d.stage === GROWN ? (d.perched ? 44 + (d.obj.lift || 0) - DRAGON_POSES[d.obj.pose || 'stand'].sink * 2 : 52) : SPR.babyDragon[d.species][d.stage].top + 4;
     drawEmote(d, cx, cy, h + babyLift(d));
   }
   for (const s of flock) if (s.emoteT > 0) drawEmote(s, cx, cy, 24);
@@ -3658,8 +4033,12 @@ function render() {
     setPrompt(toolHint());
   } else if (nearMount() === 'ship' && !treasureFirst()) {
     setPrompt('SPACE  Board the ship');
+  } else if (feedTarget()) {
+    setPrompt(withPat(`SPACE  Feed the ${itemName(carriedOut())} to ${feedTarget().name}   ·   ${toolHint()}`));
   } else if (roostLeave()) {
     setPrompt(`SPACE  Leave ${roostLeave().name} at the roost`);
+  } else if (roostFull()) {
+    setPrompt(`The roost holds two dragons. Say "follow me" by one to make room for ${follower.name}`);
   } else if (nurseryLeave()) {
     setPrompt(`SPACE  Leave ${nurseryLeave().name} at the nursery`);
   } else if (carried && nearPool()) {
@@ -3673,7 +4052,7 @@ function render() {
   } else if (treasureFirst()) {
     setPrompt(treasurePrompt());
   } else if (nearMount()) {
-    setPrompt(mountPrompt(nearMount()));
+    setPrompt(withPat(mountPrompt(nearMount())));
   } else if (roostSite()) {
     setPrompt(roostPrompt());
   } else if (nurserySite()) {
@@ -3749,11 +4128,10 @@ function render() {
     const tool = toolHint();
     setPrompt(`${inPen(nearSheep()) ? 'SPACE  Pet the sheep' : 'SPACE  Pet the sheep   ·   Walk at it to shoo it toward the pen'}${tool ? `   ·   ${tool}` : ''}`);
   } else if (carriedOut()) {
-    const id = carriedOut();
-    const name = itemName(id);
-    setPrompt(`X  Drop the ${name}${bag[id] > 1 ? `   ·   SHIFT+X  Drop all ${ITEMS[id].plural || name}` : ''}`);
+    const more = touchScreen.matches ? [] : [packSlots.filter(Boolean).length > 1 && 'TAB  Hold the next thing', 'B  Put it away'];
+    setPrompt(withPat([toolHint(), ...more].filter(Boolean).join('   ·   ')));
   } else if (toolHint() || takeHint()) {
-    setPrompt([toolHint(), takeHint()].filter(Boolean).join('   ·   '));
+    setPrompt(withPat([toolHint(), takeHint()].filter(Boolean).join('   ·   ')));
   } else if (player.swimming) {
     setPrompt('Swim to a beach or low shore to climb out');
   } else if (carried) {
@@ -3763,7 +4141,7 @@ function render() {
   } else if (eggs.some((e) => e.state === 'warming' && Math.hypot(player.x - e.x, player.y - e.y) < 70)) {
     setPrompt('The egg is warming up...');
   } else {
-    setPrompt('');
+    setPrompt(withPat(''));
   }
 
   if (fade) {
@@ -3813,7 +4191,7 @@ function fitHud() {
 }
 
 // Held down, these keep stepping, a little slower than the keyboard repeats.
-const PICK_KEYS = { Tab: (e) => cycleSelection(e.shiftKey ? -1 : 1) };
+const PICK_KEYS = { Tab: (e) => (trayOpen ? cycleCarried : cycleSelection)(e.shiftKey ? -1 : 1) };
 const PICK_REPEAT_MS = 140;
 let pickRepeatAt = 0;
 const BLOCKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
@@ -3944,11 +4322,10 @@ function pressKey(code, shift) {
   if (code === 'KeyF') {
     if (flight) chargeBreath();
     else if (carried) setDownEgg();
-    else {
-      putAwayItem();
-      useTool();
-    }
+    else if (carriedOut()) throwItem(carriedOut(), shift);
+    else useTool();
   }
+  if (code === 'KeyT' && nearPet() && !hop && !fade && !(player.downT > 0)) patDragon(nearPet());
   if (code === 'KeyR') loopTrick();
   if (code === 'KeyP') toggleSound();
   if (code === 'KeyH') toggleHints();
@@ -3957,7 +4334,6 @@ function pressKey(code, shift) {
   if (code === 'KeyJ') toggleJournal(true);
   if (code === 'KeyE') toggleBag(true);
   if (code === 'KeyB' && has('backpack')) toggleTray();
-  if (code === 'KeyX') dropCarried(shift);
   if (code === 'KeyL') toggleFishLog(true);
   if (code === 'KeyK') toggleDragonLog(true);
   if (code === 'KeyC') toggleTinker(true);
@@ -4015,11 +4391,11 @@ let stickOn = touchScreen.matches && localStorage.getItem('hw-stick') === '1';
 let actionsShown = '';
 
 // The key a prompt names, as pressed: its code and whether with SHIFT. SHIFT on its own is the RUN button's.
-const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], X: ['KeyX'], 'SHIFT+X': ['KeyX', true], G: ['KeyG'], ENTER: ['Enter'] };
+const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], ENTER: ['Enter'] };
 // A button's name is the verb of what it does, and the little word after it, or after "it", if there is one: "Climb
 // up the ladder" is CLIMB UP, "Take it down" TAKE DOWN. These read better by another name.
 const ACT_NAMES = [[/^Ride\b/, 'MOUNT'], [/^Put the saddle\b/, 'SADDLE'], [/^See what\b/, 'SHOP'], [/^Splash dive\b/, 'DIVE'],
-  [/^Open your equipments\b/, 'GEAR'], [/alight\b|^Light your torch\b/, 'BURN'], [/^Pick from\b/, 'PICK UP'], [/^Drop all\b/, 'DROP ALL'],
+  [/^Open your equipments\b/, 'GEAR'], [/alight\b|^Light your torch\b/, 'BURN'], [/^Pick from\b/, 'PICK UP'], [/^Throw all\b/, 'THROW ALL'],
   [/^Sleep\b/, 'SLEEP']];
 const ACT_PARTICLES = new Set(['up', 'down', 'in', 'into', 'out', 'over', 'on', 'off', 'back', 'ashore', 'again']);
 
@@ -4047,7 +4423,7 @@ function flightActions() {
   ];
 }
 
-// What the prompt offers with a key, then what it may be too busy to mention: dropping what's carried and taking up
+// What the prompt offers with a key, then what it may be too busy to mention: throwing what's carried and taking up
 // what was set down.
 function touchActions() {
   if (flight) return flightActions();
@@ -4064,10 +4440,8 @@ function touchActions() {
     if (m) add(m[1], m[2]);
   }
   const id = carriedOut();
-  if (id) {
-    add('X', `Drop the ${itemName(id)}`);
-    if (bag[id] > 1) add('SHIFT+X', `Drop all ${ITEMS[id].plural || itemName(id)}`);
-  }
+  if (id) add('F', `Throw the ${itemName(id)}`);
+  if (id && bag[id] > 1) add('SHIFT+F', throwAllLabel(id));
   const t = takeable();
   if (t) add('G', t.label);
   return acts;

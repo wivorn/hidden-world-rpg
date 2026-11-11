@@ -1,7 +1,8 @@
 // The hotbar down the left holds every tool carried, in TOOLS order. Unfolded, a press on a slot takes that tool in
 // hand and folds the bar (Q) to show only it; F, or a press on it then, uses it. The backpack button
-// at the bottom left (B) folds out the backpack's slots, where picking a thing takes it out to carry and X drops it;
-// the equipments (E) show everything carried: what's worn, the tools and the backpack, and use what's in it.
+// at the bottom left (B) folds out the backpack's slots and takes out the first thing in them to carry; Tab, or a
+// press on a slot, carries another, F throws one, and folding the slots away puts it back. The equipments (E) show
+// everything carried: what's worn, the tools and the backpack, and use what's in it.
 
 const hotbar = [];
 // The tool F works with.
@@ -18,7 +19,7 @@ const packSlotsEl = document.getElementById('pack-slots');
 const packRoom = document.getElementById('pack-room');
 const equipBtn = document.getElementById('equip-btn');
 const hotbarFold = document.getElementById('hotbar-fold');
-let trayOpen = localStorage.getItem('hw-tray') === '1';
+let trayOpen = false;
 let toolsFolded = localStorage.getItem('hw-tools-folded') === '1';
 const iconUrls = {};
 const iconOf = (id) => SPR.icon[id] || SPR.ui[id];
@@ -127,7 +128,7 @@ function renderInventory(changed) {
   if (bagOpen) renderBag();
 }
 
-// Every slot of the backpack, the empty ones too; picking a thing takes it out to carry, picking it again puts it back.
+// Every slot of the backpack, the empty ones too; picking a thing takes it out to carry instead.
 function renderTray(changed) {
   packTray.hidden = !trayOpen;
   bagBtn.setAttribute('aria-expanded', String(trayOpen));
@@ -143,7 +144,7 @@ function renderTray(changed) {
     const n = countTag(id);
     if (n) btn.append(n);
     btn.title = ITEMS[id].name;
-    btn.setAttribute('aria-label', `${itemLabel(id)}, carry it`);
+    btn.setAttribute('aria-label', `${itemLabel(id)}${id === carriedItem ? ', carrying it. Press F to throw one' : ', carry it'}`);
     btn.setAttribute('aria-pressed', String(id === carriedItem));
     li.classList.toggle('carried', id === carriedItem);
     if (id === changed) li.classList.add('bump');
@@ -154,8 +155,9 @@ function renderTray(changed) {
 
 function toggleTray(open = !trayOpen) {
   trayOpen = open;
-  localStorage.setItem('hw-tray', open ? '1' : '0');
-  renderTray();
+  syncPack();
+  carriedItem = open ? packSlots.find(Boolean) || null : null;
+  renderInventory();
   Sfx.drop();
 }
 
@@ -166,9 +168,16 @@ const handsFree = () => !carrying() && !sail && !flight && !player.swimming && !
 const carriedOut = () => (carriedItem && has(carriedItem) && handsFree() ? carriedItem : null);
 
 function carryItem(id) {
-  carriedItem = carriedItem === id ? null : id;
+  if (id === carriedItem) return;
+  carriedItem = id;
   renderInventory();
   Sfx.drop();
+}
+
+// Folds the backpack's slots away, putting back what's carried: once the last of it's thrown, or on climbing onto a
+// dragon or the ship.
+function stowPack() {
+  if (trayOpen) toggleTray(false);
 }
 
 function putAwayItem() {
@@ -177,13 +186,12 @@ function putAwayItem() {
   renderInventory();
 }
 
-// X drops one of what's carried, Shift+X the lot; still carrying any left.
-function dropCarried(all) {
-  const id = carriedOut();
-  if (!id) return;
-  if (all) dropAll(id);
-  else dropItem(id);
-  if (!has(id)) putAwayItem();
+// With the backpack's slots out, Tab carries the next thing in them, Shift+Tab the one before, wrapping round.
+function cycleCarried(step) {
+  const items = packSlots.filter(Boolean);
+  if (!items.length) return cycleSelection(step);
+  const i = items.indexOf(carriedItem);
+  carryItem(items[i < 0 ? (step > 0 ? 0 : items.length - 1) : (i + step + items.length) % items.length]);
 }
 
 // Folded, the bar shows only the tool in hand; the number keys and Tab still pick any of them.
@@ -217,7 +225,7 @@ function releaseSlot() {
 
 function useSlot(btn) {
   selectHand(+btn.dataset.slot);
-  putAwayItem();
+  if (trayOpen) toggleTray(false);
   useTool();
 }
 
@@ -440,7 +448,7 @@ function renderPick() {
     if (fence) out('MEND FENCE', () => mendWithWood(fence));
     if (id === 'wood' && fire) out('ADD TO FIRE', () => dropItem('wood'));
     if (here && PLACE[id]) out('PLACE', () => placeThing(id));
-    if (here && id === 'stone') out('THROW', throwStone);
+    if (here && id === 'stone') out('THROW', () => throwItem('stone'));
     if (id === 'saddle') {
       if (nearDragon()) out('SADDLE UP', saddleUp);
       else bagWhat.textContent += ' Stand by a grown dragon and press SPACE to strap it on.';

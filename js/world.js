@@ -1752,7 +1752,7 @@ const fruity = (pick, fruits, odds) => (r, x, y) => (r >= 1 - odds ? fruits[Math
 const VILLAGE_NPCS = [
   {
     look: 'chief', x: 78, y: 42.6, roam: 1.5,
-    lines: ['Welcome to the Hidden World, {name}.', 'Every island hides a story. Go and find them.', 'Our smith can make you all kinds of tools. Pay him a visit.', 'The great hall is always open to you.', 'Behind the hall the mountains rise ledge on ledge. Climb the rock from one to the next, all the way up to the snow.'],
+    lines: ['Welcome to Numina, {name}.', 'Every island hides a story. Go and find them.', 'Our smith can make you all kinds of tools. Pay him a visit.', 'The great hall is always open to you.', 'Behind the hall the mountains rise ledge on ledge. Climb the rock from one to the next, all the way up to the snow.'],
     nightLines: ['Still about, {name}? The fire in the great hall burns all night.', 'Look at those stars. Our ancestors steered their ships by them.', 'Night is for the old stories. Sit a while.', 'Rest well tonight. The islands will still be waiting in the morning.'],
   },
   {
@@ -1830,7 +1830,7 @@ const NPCS = [
   // the travelling merchant waits out of the world until his ship docks
   {
     look: 'merchant', x: MAP_W - 4, y: ROWS - 2, fixed: 'left',
-    lines: ['Silver for fish, silver for wool! Ottar buys it all!', 'I sail the whole Hidden World. Three days round, then back here.', 'Mind the gangplank, friend.'],
+    lines: ['Silver for fish, silver for wool! Ottar buys it all!', 'I sail all of Numina. Three days round, then back here.', 'Mind the gangplank, friend.'],
     nightLines: ['Late trade? Ottar never sleeps!', 'Silver for fish, silver for wool, night or day!', 'Mind the gangplank, friend. It\'s slippery in the dark.'],
   },
   // after the merchant, so the villagers in old saves keep their places

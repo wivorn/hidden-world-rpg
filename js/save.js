@@ -94,6 +94,7 @@ function snapshot() {
       return {
         species: d.species, name: d.name, stage: d.stage, x: Math.round(at.x), y: Math.round(at.y), follower: d === follower,
         saddled: !!d.saddled, roost: d.roost ?? null, nursery: !!d.nursery, grow: +(d.grow || 0).toFixed(3),
+        mood: Math.round(moodOf(d)), fedAt: +(d.fedAt ?? gameDays()).toFixed(3), favKnown: !!d.favKnown, disKnown: !!d.disKnown,
       };
     }),
     map: {
@@ -324,8 +325,9 @@ function restoreDragons(list) {
       species: s.species, x: s.x, y: s.y, alt: 0, dir: 'down', anim: 0, frame: 0, flying: false, stuck: 0, jumpT: 0, jumpDelay: 0,
       emote: null, emoteT: 0, chirpT: 4, stage: s.stage, swoop: null, catchT: 0, home: { x: s.x, y: s.y }, wanderT: 3, name: s.name,
       // dragons grown before saddles were a thing were already being ridden, so they keep a saddle on
-      saddled: s.saddled ?? s.stage === GROWN, roost: roost.built && !s.follower ? s.roost ?? null : null,
+      saddled: s.saddled ?? s.stage === GROWN, roost: roost.built && !s.follower && s.roost < ROOST_SLOTS.length ? s.roost ?? null : null,
       nursery: nursery.built && !s.follower && !!s.nursery && s.stage < GROWN, grow: s.grow || 0,
+      mood: s.mood ?? MOOD_START, fedAt: s.fedAt ?? null, favKnown: !!s.favKnown, disKnown: !!s.disKnown,
     };
     dragons.push(d);
     if (d.stage === GROWN) {
