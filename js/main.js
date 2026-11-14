@@ -4352,6 +4352,10 @@ function pressKey(code, shift) {
   if (code === 'KeyL') toggleFishLog(true);
   if (code === 'KeyK') toggleDragonLog(true);
   if (code === 'KeyC') toggleTinker(true);
+  if (code === 'KeyX') {
+    const id = carriedOut();
+    if (id) dropItem(id);
+  }
   if (code === 'KeyG') takeBack();
   if (code === 'KeyO') toggleMenu();
   if (code === 'KeyQ' && hotbar.length > 1) toggleToolsFold();
@@ -4406,7 +4410,7 @@ let stickOn = localStorage.getItem('hw-stick') !== '0';
 let actionsShown = '';
 
 // The key a prompt names, as pressed: its code and whether with SHIFT. SHIFT on its own is the RUN button's.
-const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], ENTER: ['Enter'] };
+const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], X: ['KeyX'], ENTER: ['Enter'] };
 // A button's name is the verb of what it does, and the little word after it, or after "it", if there is one: "Climb
 // up the ladder" is CLIMB UP, "Take it down" TAKE DOWN. These read better by another name.
 const ACT_NAMES = [[/^Ride\b/, 'MOUNT'], [/^Put the saddle\b/, 'SADDLE'], [/^See what\b/, 'SHOP'], [/^Splash dive\b/, 'DIVE'],
@@ -4438,8 +4442,7 @@ function flightActions() {
   ];
 }
 
-// What the prompt offers with a key, then what it may be too busy to mention: throwing what's carried and taking up
-// what was set down.
+// Include the prompt's actions, plus actions for items held or set down.
 function touchActions() {
   if (flight) return flightActions();
   const acts = [];
@@ -4459,6 +4462,7 @@ function touchActions() {
   const id = carriedOut();
   if (id) add('F', `Throw the ${itemName(id)}`);
   if (id && bag[id] > 1) add('SHIFT+F', throwAllLabel(id));
+  if (id && !hop && !naming) add('X', `Drop the ${itemName(id)}`);
   const t = takeable();
   if (t) add('G', t.label);
   return acts;
