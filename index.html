@@ -15,7 +15,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <style>#game { touch-action: none; }</style>
+  <style>
+    /* Apply the zoom lock to HUD descendants as well as the canvas. */
+    body * {
+      touch-action: none;
+    }
+    /* Dialogs still need native scrolling when their contents exceed the screen. */
+    .overlay,
+    .overlay * {
+      touch-action: pan-y;
+    }
+    #worldmap-canvas {
+      touch-action: none;
+    }
+  </style>
 </head>
 <body class="title">
   <canvas id="game"></canvas>
@@ -287,11 +300,45 @@
   <script src="js/save.js"></script>
   <script>
     // Prevent mobile browsers from interpreting game touches as page zoom gestures.
+    let menuTap = null;
+    const moved = (touch) => Math.hypot(touch.clientX - menuTap.x, touch.clientY - menuTap.y) > 10;
+
     document.addEventListener('touchstart', (event) => {
-      if (event.touches.length > 1) event.preventDefault();
+      menuTap = null;
+      if (event.touches.length > 1) {
+        event.preventDefault();
+        return;
+      }
+      const target = event.target;
+      if (target.closest?.('.overlay, #pile, #pack-tray') && !target.closest('input:not([type="radio"]), textarea')) {
+        const touch = event.changedTouches[0];
+        menuTap = { id: touch.identifier, x: touch.clientX, y: touch.clientY, start: event.timeStamp };
+      }
     }, { passive: false });
     document.addEventListener('touchmove', (event) => {
       if (event.touches.length > 1) event.preventDefault();
+      if (menuTap && moved(event.touches[0])) menuTap = null;
+    }, { passive: false });
+    document.addEventListener('touchcancel', () => { menuTap = null; });
+    // Safari can still recognize double taps on positioned elements. The canvas and
+    // these controls already handle pointer events, so they don't need a native tap.
+    document.addEventListener('touchend', (event) => {
+      const pointerControl = event.target.closest?.('#game, #act-run, #actions [data-act]:not([data-act="Enterfalse"])');
+      const touch = event.changedTouches[0];
+      const isMenuTap = menuTap && touch.identifier === menuTap.id
+        && !moved(touch) && event.timeStamp - menuTap.start < 500;
+      menuTap = null;
+      if (!event.cancelable) return;
+      if (pointerControl || isMenuTap) event.preventDefault();
+
+      // A canceled tap cannot produce a native click. Forward deliberate menu taps
+      // to their original controls, including buttons rendered after the menu opens.
+      if (isMenuTap) {
+        const target = event.target;
+        const control = target.closest('button, label, a[href], input[type="radio"]');
+        if (control) control.click();
+        else if (target.id === 'bag') target.click(); // The equipment backdrop closes on click.
+      }
     }, { passive: false });
     document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
