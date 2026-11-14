@@ -4450,6 +4450,8 @@ function touchActions() {
     const name = digit && hotbar[key - 1] ? `READY ${ITEMS[hotbar[key - 1]].name.toUpperCase()}` : actName(label);
     acts.push({ code, shift, label, name });
   };
+  // Fishing keeps its touch action even when the fight hint has no leading key.
+  if (player.fishing && primary() === 'rod') add('F', 'Reel in');
   for (const part of (promptText || '').split(/\s+·\s+/)) {
     const m = part.match(PROMPT_KEY);
     if (m) add(m[1], m[2]);
