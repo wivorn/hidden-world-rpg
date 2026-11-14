@@ -4394,7 +4394,7 @@ window.addEventListener('resize', resize);
 
 // Touch screens have no keys, so along the bottom right, beside the chat button, there's a button for every key that
 // would do something right now: RUN, standing in for SHIFT, and whatever else the player could do where they are.
-// With the joystick on, a thumb on the left half steers.
+// With the joystick on, a thumb anywhere on the world steers.
 const actionsEl = document.getElementById('actions');
 const runBtn = document.getElementById('act-run');
 const chatBtn = document.getElementById('chat-btn');
@@ -4402,7 +4402,7 @@ const stickBtn = document.getElementById('stick-btn');
 const stickEl = document.getElementById('stick');
 const stickKnob = stickEl.querySelector('i');
 const STICK_R = 40;
-let stickOn = touchScreen.matches && localStorage.getItem('hw-stick') === '1';
+let stickOn = localStorage.getItem('hw-stick') !== '0';
 let actionsShown = '';
 
 // The key a prompt names, as pressed: its code and whether with SHIFT. SHIFT on its own is the RUN button's.
@@ -4606,7 +4606,7 @@ stickBtn.addEventListener('click', () => {
   localStorage.setItem('hw-stick', stickOn ? '1' : '0');
   renderStickBtn();
   stickBtn.blur();
-  toast('JOYSTICK', stickOn ? 'On: drag on the left half to walk, tap anywhere to act' : 'Off: hold a finger where you want to go', true);
+  toast('JOYSTICK', stickOn ? 'On: hold anywhere on the world and drag to walk, tap to act' : 'Off: hold a finger where you want to go', true);
 });
 toggleIcon(stickBtn, 'stick');
 toggleIcon(chatBtn, 'chat');
@@ -4666,7 +4666,9 @@ screenCanvas.addEventListener('pointerdown', (e) => {
     return;
   }
   const p = pointerPos(e);
-  if (stickOn && started && !naming && !stick && p.x < window.innerWidth / 2) {
+  if (e.pointerType === 'touch' && stickOn && started && !naming) {
+    if (stick) return;
+    e.preventDefault();
     screenCanvas.setPointerCapture(e.pointerId);
     startStick(e, p);
     return;
@@ -4688,18 +4690,19 @@ screenCanvas.addEventListener('pointermove', (e) => {
 // A quick tap that didn't drag acts, as SPACE does, on either half.
 const endPointer = (e) => {
   if (stick && e.pointerId === stick.id) {
-    const tap = time - stick.t < 0.2 && Math.hypot(stick.dx, stick.dy) < 10;
+    const tap = e.type === 'pointerup' && time - stick.t < 0.2 && Math.hypot(stick.dx, stick.dy) < 10;
     const p = { x: stick.x0, y: stick.y0 };
     endStick();
     if (tap && !tapWorld(p)) action();
     return;
   }
   if (!pointer || e.pointerId !== pointerId) return;
-  if (time - pointerDownAt < 0.2) action();
+  if (e.type === 'pointerup' && time - pointerDownAt < 0.2) action();
   pointer = null;
 };
 screenCanvas.addEventListener('pointerup', endPointer);
 screenCanvas.addEventListener('pointercancel', endPointer);
+screenCanvas.addEventListener('lostpointercapture', endPointer);
 
 // ---------- naming a hatchling ----------
 
