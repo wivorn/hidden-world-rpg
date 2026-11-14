@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Numina</title>
   <meta name="theme-color" content="#1d3263" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <style>#game { touch-action: none; }</style>
 </head>
 <body class="title">
   <canvas id="game"></canvas>
@@ -284,5 +285,17 @@
   <script src="js/title.js"></script>
   <script src="js/main.js"></script>
   <script src="js/save.js"></script>
+  <script>
+    // Prevent mobile browsers from interpreting game touches as page zoom gestures.
+    document.addEventListener('touchstart', (event) => {
+      if (event.touches.length > 1) event.preventDefault();
+    }, { passive: false });
+    document.addEventListener('touchmove', (event) => {
+      if (event.touches.length > 1) event.preventDefault();
+    }, { passive: false });
+    document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', (event) => event.preventDefault(), { passive: false });
+  </script>
 </body>
 </html>
