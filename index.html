@@ -15,7 +15,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <style>#game { touch-action: none; }</style>
+  <style>
+    /* Apply the zoom lock to HUD descendants as well as the canvas. */
+    body * {
+      touch-action: none;
+    }
+    /* Dialogs still need native scrolling when their contents exceed the screen. */
+    .overlay,
+    .overlay * {
+      touch-action: manipulation;
+    }
+  </style>
 </head>
 <body class="title">
   <canvas id="game"></canvas>
@@ -293,6 +303,14 @@
     document.addEventListener('touchmove', (event) => {
       if (event.touches.length > 1) event.preventDefault();
     }, { passive: false });
+    // Safari can still recognize double taps on positioned elements. The canvas and
+    // these controls already handle pointer events, so they don't need a native tap.
+    document.addEventListener('touchend', (event) => {
+      const pointerControl = event.target.closest('#game, #act-run, #actions [data-act]:not([data-act="Enterfalse"])');
+      if (pointerControl && event.cancelable) {
+        event.preventDefault();
+      }
+    }, { capture: true, passive: false });
     document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
     document.addEventListener('gesturechange', (event) => event.preventDefault(), { passive: false });
     document.addEventListener('gestureend', (event) => event.preventDefault(), { passive: false });
