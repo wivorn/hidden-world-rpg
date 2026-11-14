@@ -368,7 +368,14 @@ function renderTrade() {
     const name = wareName(w);
     const what = Object.assign(document.createElement('span'), { className: 'what' });
     what.append(Object.assign(document.createElement('b'), { textContent: name }), Object.assign(document.createElement('small'), { textContent: w.text }));
-    if (shop && !owned && !shop.sells) what.append(makingsEl(w, shop));
+    const canCraft = !owned && !locked && canCraftAtSmithy(w);
+    if (shop && !owned && !shop.sells) what.append(makingsEl(w, shop, canCraft));
+    if (canCraft) {
+      const craft = tradeButton('CRAFT', `Ask the smith to craft ${name.toLowerCase()}`, `craft-${w.id}-${w.tier || 0}`, true, () => craftWare(w));
+      const actions = document.createElement('span');
+      actions.append(craft);
+      what.append(actions);
+    }
     if (locked) what.append(Object.assign(document.createElement('small'), { className: 'lock', textContent: locked }));
     li.classList.toggle('owned', !!owned);
     li.append(Object.assign(document.createElement('span'), { className: 'ware-icon' }), what);
@@ -390,7 +397,25 @@ function wareNeeds(w) {
   return w.needs || (w.tier ? null : RECIPES.find((r) => r.item === w.id && !r.tier)?.needs);
 }
 
-function makingsEl(w, shop) {
+function canCraftAtSmithy(w) {
+  if (shopKey !== 'smith' || !shopNpc || shopNpc.craft || !has('backpack')) return false;
+  const recipe = recipeFor(wareName(w));
+  if (!recipe || recipe.maker !== 'smith' || recipe.item !== w.id || recipe.tier !== w.tier) return false;
+  const needs = Object.entries(recipe.needs || {});
+  if (needs.length && !has('axe')) return false;
+  if (!needs.every(([id, n]) => (bag[id] || 0) >= n)) return false;
+  const freed = needs.filter(([id, n]) => bag[id] === n).length;
+  return !bagFull(w.id) || held().length - freed < packSize();
+}
+
+function craftWare(w) {
+  if (!tradeOpen || w.owned?.() || w.locked?.() || !canCraftAtSmithy(w)) return;
+  const smith = shopNpc;
+  askCraft(smith, wareName(w));
+  if (smith.craft) toggleTrade(false, false);
+}
+
+function makingsEl(w, shop, canCraft) {
   const needs = wareNeeds(w);
   const el = Object.assign(document.createElement('small'), { className: 'makings' });
   if (!needs) {
@@ -407,7 +432,7 @@ function makingsEl(w, shop) {
     chip.setAttribute('aria-label', `${ITEMS[id].name}, ${have} of ${n}`);
     el.append(chip);
   }
-  if (ready && !w.locked?.()) el.append(Object.assign(document.createElement('em'), { textContent: `Ready! Ask ${shop.who}.` }));
+  if (ready && !canCraft && !w.locked?.()) el.append(Object.assign(document.createElement('em'), { textContent: `Ready! Ask ${shop.who}.` }));
   return el;
 }
 
@@ -451,7 +476,7 @@ function buyWare(w) {
   renderTrade();
 }
 
-function toggleTrade(open = !tradeOpen) {
+function toggleTrade(open = !tradeOpen, farewell = true) {
   if (open && (naming || mapOpen || journalOpen || fishLogOpen || dragonLogOpen)) return;
   tradeOpen = open;
   tradeEl.hidden = !open;
@@ -460,8 +485,10 @@ function toggleTrade(open = !tradeOpen) {
     Sfx.door();
     renderTrade();
   } else {
-    if (!shopOf()) npcSay(merchant.npc, 'Fair winds! Come back when your nets are full.');
-    else if (shopNpc) npcSay(shopNpc, shopOf().bye);
+    if (farewell) {
+      if (!shopOf()) npcSay(merchant.npc, 'Fair winds! Come back when your nets are full.');
+      else if (shopNpc) npcSay(shopNpc, shopOf().bye);
+    }
     shopKey = shopNpc = null;
   }
 }
