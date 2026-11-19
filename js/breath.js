@@ -7,7 +7,9 @@
 // out, the Thunderdrum's roar is a wall of sound that knocks things flat and shakes the fruit off trees, and the
 // Skrill's lightning strikes the moment it's breathed, setting trees alight and blasting the rest. The Tide Glider's
 // water puts fires out, cools lava to a crust, washes the snow off trees and bowls animals over, and its beam is a
-// long jet like a fire-hose's. Bred dragons inherit theirs as a gene (see genes.js).
+// long jet like a fire-hose's. Bred dragons inherit theirs as a gene (see genes.js), and some pairs of genes fuse
+// into breaths no wild dragon has: Steam leaves a scalding cloud hanging where it lands, Thunder cracks lightning and
+// a wall of sound at once, and Moonbeam leaves pools of silver light that glow in the dark and lull animals to sleep.
 const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning', tideGlider: 'water' };
 
 // `reach`, `speed` and `size` scale the fireball, and `radius` is how far its blast reaches. A beam runs out to
@@ -24,6 +26,9 @@ const BREATHS = {
   // ring spans from halfway to the farthest tap, `bolt.lift` up the screen, striking up to `bolt.targets` things
   // in it and `bolt.strikes` more round it.
   lightning: { reach: 1, speed: 1, size: 1, radius: 26, bolt: { tap: [90, 290], lift: 20, targets: 10, strikes: 8 } },
+  steam: { reach: 0.7, speed: 0.7, size: 1.4, radius: 30, beam: { len: 190, step: 20, time: 1.1, tilt: [0.85, -0.1], width: 1.8, fan: 26 } },
+  thunder: { reach: 0.9, speed: 1.2, size: 1.2, radius: 42, beam: { len: 250, step: 26, time: 0.9, tilt: [0.75, -0.2], width: 2.4 } },
+  moonbeam: { reach: 1.3, speed: 1.2, size: 0.9, radius: 26, beam: { len: 400, step: 20, time: 1.4, tilt: [0.6, -0.15], width: 0.8 } },
 };
 
 const breathOf = (species) => ELEMENT_OF[species] || traitsOf(genesOf(species)).breath;
@@ -327,6 +332,14 @@ function trail(el, pal, x, y, spread) {
   } else if (el === 'water') {
     if (Math.random() < 0.6) particles.push({ type: 'drop', layer: 'sky', big: true, x, y, vx: (Math.random() - 0.5) * 24, vy: -10 - Math.random() * 20, life: 0, max: 0.35 + Math.random() * 0.2 });
     else particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 16, vy: 4 + Math.random() * 10, pal, life: 0, max: 0.3 });
+  } else if (el === 'steam') {
+    if (Math.random() < 0.6) particles.push({ type: 'steam', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 10, vy: -12 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.4 });
+  } else if (el === 'thunder') {
+    if (Math.random() < 0.3) particles.push({ type: 'ring', layer: 'sky', x, y, vx: 0, vy: 0, r: 2, grow: 12, flat: 1, pal, life: 0, max: 0.35 });
+    else if (Math.random() < 0.5) particles.push({ type: 'spark', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 50, vy: (Math.random() - 0.5) * 30, c: '#ffffff', c2: pal[0], life: 0, max: 0.2 });
+  } else if (el === 'moonbeam') {
+    if (Math.random() < 0.5) particles.push({ type: 'spark', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 14, vy: 4 + Math.random() * 8, c: '#ffffff', c2: pal[1], life: 0, max: 0.5 + Math.random() * 0.3 });
+    else particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 10, vy: 2 + Math.random() * 6, pal, life: 0, max: 0.4 });
   } else {
     particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 30, vy: -10 - Math.random() * 20, pal, life: 0, max: 0.3 + Math.random() * 0.2 });
   }
@@ -360,6 +373,7 @@ function updateFireballs(dt) {
   updateBeams(dt);
   updateBolts(dt);
   updateMarks(dt);
+  updateSteam(dt);
   for (let i = fireballs.length - 1; i >= 0; i--) {
     const b = fireballs[i];
     b.t += dt;
@@ -384,7 +398,9 @@ function breathHit(x, y, el, pal, big, beam = false) {
   const tile = tileUnder(x, y);
   const near = earshot(x, y);
   particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: pal[0], life: 0, max: big ? 0.3 : 0.2 });
-  if (isWet(tile)) {
+  if (FUSED_HITS[el]) {
+    FUSED_HITS[el](x, y, pal, big, isWet(tile), tile);
+  } else if (isWet(tile)) {
     hitWater(x, y, el, big, near, beam);
   } else {
     hitGround(x, y, el, pal, big, tile, beam);
@@ -623,9 +639,143 @@ function blowBack(a, x, y) {
   if (WILD[a.kind].charge || WILD[a.kind].lunge) Object.assign(a, { state: 'stun', timer: 1.2 });
 }
 
+// ---------- the fused breaths ----------
+
+const within = (o, x, y, r) => Math.hypot(o.x - x, o.y - y) < r;
+const wildNear = (x, y, r) => prey().filter((a) => alive(a) && animals.includes(a) && within(a, x, y, r));
+
+function downPrey(x, y, roast) {
+  for (const a of [...prey()]) {
+    if (!alive(a) || !huntable(a) || !within(a, x, y, 18)) continue;
+    if (roast) a.roasted = true;
+    hurtAnimal(a, 99);
+  }
+}
+
+const FUSED_HITS = {
+  // Steam scalds: it cooks what it lands on, then hangs about as a cloud (see steamClouds).
+  steam(x, y, pal, big, wet, tile) {
+    const r = BREATHS.steam.radius * (big ? 1 : 0.7);
+    puffSteam(x, y, r);
+    if (wet) {
+      for (const s of seaLife.schools) if (within(s, x, y, r + 6)) stunSchool(s, true);
+      seaSplash(x, y - 2, big ? 1 : 0.5);
+    } else {
+      if (tile === T.LAVA) addMark('crust', x, y, big ? 12 : 8);
+      else if (tile === T.SNOW || tile === T.ICE) addMark('melt', x, y, big ? 15 : 9);
+      downPrey(x, y, true);
+    }
+    scald(x, y, r);
+    if (big) Sfx.hiss(earshot(x, y));
+  },
+  // Thunder is lightning and a roar in one: it strikes, and a wall of sound rolls out from the strike.
+  thunder(x, y, pal, big, wet) {
+    const r = BREATHS.thunder.radius * (big ? 1 : 0.6);
+    sparksAt(x, y, big ? 18 : 6);
+    for (let i = 0; i < (big ? 3 : 1); i++) particles.push({ type: 'ring', layer: 'water', x, y: y - 1, vx: 0, vy: 0, r: 4, grow: r * 1.2, flat: 0.45, pal, life: -i * 0.1, max: 0.5 });
+    if (big) {
+      particles.push({ type: 'shock', layer: 'water', x, y: y - 1, vx: 0, vy: 0, pal, life: 0, max: 0.4 });
+      weather.flash = Math.max(weather.flash, 0.25);
+    }
+    if (wet) {
+      shockWater(x, y, big ? SHOCK_REACH : SHOCK_REACH / 2);
+      seaSplash(x, y - 2, big ? 2.4 : 1);
+      return;
+    }
+    for (const o of hittables) {
+      const k = kindOf(o);
+      if (!k || !within(o, x, y + 4, r)) continue;
+      if (o.snowy > 0) unsnow(o);
+      knockOver(o, k);
+    }
+    downPrey(x, y, false);
+    for (const a of wildNear(x, y, r + 16)) blowBack(a, x, y);
+    for (const a of wildNear(x, y, r + 70)) if (!(a.frozenT > 0)) startle(a);
+  },
+  // Moonbeam is cold light: it leaves a pool of moonlight, snuffs fires, draws fish up to it and lulls animals to sleep.
+  moonbeam(x, y, pal, big, wet) {
+    const r = BREATHS.moonbeam.radius * (big ? 1 : 0.7);
+    addMark('moon', x, y, big ? 16 : 10).c = pal[1];
+    for (let i = 0; i < (big ? 10 : 3); i++) {
+      const a = Math.random() * Math.PI * 2;
+      particles.push({ type: 'spark', layer: 'sky', x, y: y - 3, vx: Math.cos(a) * 30, vy: Math.sin(a) * 18 - 20, c: '#ffffff', c2: pal[1], life: 0, max: 0.5 + Math.random() * 0.3 });
+    }
+    if (wet) for (const s of seaLife.schools) if (within(s, x, y, r + 10)) stunSchool(s);
+    for (const o of [...burning]) if (within(o, x, y, r)) douse(o);
+    for (const a of wildNear(x, y, r)) lull(a);
+  },
+};
+
+// A cloud of steam hangs where Steam lands, scalding all in it: it puts fires out, thaws ice and snow, and sends
+// animals running. A puff landing in a cloud swells it instead of starting another.
+const STEAM_TIME = 4;
+const STEAM_TICK = 0.4;
+const steamClouds = [];
+
+function puffSteam(x, y, r) {
+  const c = steamClouds.find((c) => within(c, x, y, c.r * 0.6));
+  if (c) {
+    c.r = Math.min(52, Math.max(c.r, r) + 3);
+    c.t = 0;
+    return;
+  }
+  if (steamClouds.length > 24) steamClouds.shift();
+  steamClouds.push({ x, y, r, t: 0, tick: 0, seed: Math.random() * 100 });
+}
+
+function scald(x, y, r) {
+  thawGround(x, y, r);
+  meltAt(x, y + 4, r);
+  for (const o of hittables) if (o.snowy > 0 && within(o, x, y + 4, r)) unsnow(o);
+  for (const o of [...burning]) if (within(o, x, y, r)) douse(o);
+  for (const a of wildNear(x, y, r + 30)) if (!(a.frozenT > 0)) startle(a);
+}
+
+function updateSteam(dt) {
+  for (let i = steamClouds.length - 1; i >= 0; i--) {
+    const c = steamClouds[i];
+    if ((c.t += dt) >= STEAM_TIME) {
+      steamClouds.splice(i, 1);
+      continue;
+    }
+    if ((c.tick += dt) >= STEAM_TICK) {
+      c.tick = 0;
+      scald(c.x, c.y, c.r);
+    }
+    if (Math.random() < dt * 10 && onScreen(c.x, c.y, cam.x, cam.y, 40)) {
+      const a = Math.random() * Math.PI * 2;
+      const d = Math.random() * c.r;
+      particles.push({ type: 'steam', x: c.x + Math.cos(a) * d, y: c.y + Math.sin(a) * d * 0.5 - 2, vx: (Math.random() - 0.5) * 8, vy: -10 - Math.random() * 8, life: 0, max: 1.2 + Math.random() * 0.6 });
+    }
+  }
+}
+
+function drawSteam(cx, cy) {
+  for (const c of steamClouds) {
+    const fade = Math.min(1, c.t / 0.2, (STEAM_TIME - c.t) / 1.2);
+    for (let i = 0; i < 4; i++) {
+      const a = c.seed + i * 1.7 + c.t * 0.4;
+      const x = Math.round(c.x - cx + Math.cos(a) * c.r * 0.35);
+      const y = Math.round(c.y - cy - 4 + Math.sin(a) * c.r * 0.15);
+      ctx.globalAlpha = 0.16 * fade;
+      ellipse(ctx, x, y, c.r * 0.7, c.r * 0.38, '#f4f8fb');
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Moonlight lulls an animal to sleep where it stands, for SLEEP_TIME (see updateAnimal).
+const SLEEP_TIME = 6;
+
+function lull(a) {
+  if (a.frozenT > 0 || WILD[a.kind].night) return;
+  a.sleepT = SLEEP_TIME + Math.random() * 2;
+  a.lift = 0;
+}
+
 // ---------- marks left on the ground ----------
 
-const MARK_LIFE = { scorch: 30, melt: 20, crust: 10, flames: 1.6 };
+const MARK_LIFE = { scorch: 30, melt: 20, crust: 10, flames: 1.6, moon: 40 };
 const marks = [];
 
 // Flames landing on grass creep on across it: partway through burning each patch may light one more beside it, up
@@ -636,7 +786,17 @@ const GRASSY = new Set([T.GRASS, T.FIELD, T.HAY, T.JUNGLE]);
 
 function addMark(kind, x, y, r, gen = 0) {
   if (marks.length > 160) marks.shift();
-  marks.push({ kind, x, y, r: r * (0.85 + Math.random() * 0.3), t: 0, max: MARK_LIFE[kind], seed: Math.random() * 100, gen });
+  const m = { kind, x, y, r: r * (0.85 + Math.random() * 0.3), t: 0, max: MARK_LIFE[kind], seed: Math.random() * 100, gen };
+  marks.push(m);
+  return m;
+}
+
+// Pools of moonlight light up the dark round them (see nightLights).
+function breathLights() {
+  return marks.filter((m) => m.kind === 'moon').map((m) => {
+    const k = Math.min(1, (m.max - m.t) / 6);
+    return { x: m.x, y: m.y - 2, r: Math.round(m.r * 3), k: 0.8 * k, glow: Math.round(m.r * 0.8), color: m.c };
+  });
 }
 
 function creepFire(m, lit) {
@@ -852,6 +1012,19 @@ function drawMarks(cx, cy) {
       blotch(m, x, y, r, '#3a2a2a');
       ctx.globalAlpha = 0.6 * fade;
       ellipse(ctx, x + 1, y, r * 0.4, r * 0.15, '#5a4040');
+    } else if (m.kind === 'moon') {
+      const shimmer = 0.85 + 0.15 * Math.sin(time * 3 + m.seed);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.2 * fade * shimmer;
+      blotch(m, x, y, r, m.c || '#cfd8ff');
+      ctx.globalAlpha = 0.3 * fade * shimmer;
+      ellipse(ctx, x, y, r * 0.45, r * 0.2, '#ffffff');
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = fade;
+      for (let i = 0; i < 3; i++) {
+        if (Math.sin(time * 4 + m.seed + i * 2.1) < 0.6) continue;
+        px(ctx, x + Math.round(Math.cos(m.seed + i * 2.3) * r * 0.6), y + Math.round(Math.sin(m.seed + i * 2.3) * r * 0.3), '#ffffff');
+      }
     } else {
       const k = Math.sin(Math.PI * Math.min(1, m.t / m.max));
       ctx.globalAlpha = 0.5;
@@ -916,6 +1089,7 @@ function drawFireballs(cx, cy) {
   }
   ctx.globalCompositeOperation = 'source-over';
   for (const b of fireballs) drawBall(b, Math.round(b.x - cx), Math.round(b.y - b.h - cy));
+  drawSteam(cx, cy);
   drawBeams(cx, cy);
   drawShocks(cx, cy);
   drawBolts(cx, cy);
@@ -961,6 +1135,36 @@ function drawBall(b, x, y) {
     ellipse(ctx, x, y, 4 * s + wob, 4 * s - wob, pal[0]);
     ellipse(ctx, x - 1.5 * s, y - 1.5 * s, 1.6 * s, 1.2 * s, pal[1]);
     px(ctx, x - 2 * s, y - 2 * s, '#ffffff');
+  } else if (b.el === 'steam') {
+    // a churning puff, trailing wisps
+    for (let i = 3; i >= 1; i--) {
+      ctx.globalAlpha = 0.5 - i * 0.1;
+      ellipse(ctx, x - ux * i * 4 * s, y - uy * i * 4 * s - i, (5 - i) * s, (4 - i * 0.8) * s, '#eef3f6');
+    }
+    ctx.globalAlpha = 1;
+    for (let k = 0; k < 3; k++) {
+      const a = time * 6 + k * 2.1;
+      ellipse(ctx, x + Math.cos(a) * 2 * s, y + Math.sin(a) * 1.5 * s, 3.5 * s, 3 * s, k ? '#f4f8fb' : pal[0]);
+    }
+    px(ctx, x - 1, y - 2, '#ffffff');
+  } else if (b.el === 'thunder') {
+    // a roar's rings round a crackling core
+    for (let k = 0; k < 3; k++) {
+      const u = (time * 5 + k / 3) % 1;
+      ctx.globalAlpha = 1 - u;
+      strokeRing(x, y, (2 + 8 * u) * s, (2 + 8 * u) * s, pal[k ? 0 : 1], 1.5);
+    }
+    ctx.globalAlpha = 1;
+    strokeJag(jag(x - 4 * s, y - 3 * s, x + 4 * s, y + 3 * s, 3, 3), 0, 0, 1);
+    ellipse(ctx, x, y, 2.5 * s + pulse, 2.5 * s + pulse, pal[1]);
+  } else if (b.el === 'moonbeam') {
+    // a pale crescent with a halo
+    ctx.globalAlpha = 0.5;
+    strokeRing(x, y, 6 * s, 6 * s, pal[1], 1);
+    ctx.globalAlpha = 1;
+    ellipse(ctx, x, y, 4.5 * s, 4.5 * s, pal[1]);
+    ellipse(ctx, x + ux * 1.6 * s - uy * 1.6 * s, y + uy * 1.6 * s + ux * 1.6 * s, 3.6 * s, 3.6 * s, pal[2]);
+    px(ctx, x - 2, y - 2, '#ffffff');
   } else {
     ellipse(ctx, x, y, 5 * s + pulse, 5 * s + pulse, pal[2]);
     ellipse(ctx, x, y, 4 * s, 4 * s, pal[0]);
@@ -984,8 +1188,9 @@ function drawBeams(cx, cy) {
     ctx.drawImage(glowSprite(26, b.pal[0]), pts[0][0] - 26, pts[0][1] - 26);
     ctx.drawImage(glowSprite(er, b.pal[0]), pts[1][0] - er, pts[1][1] - er);
     ctx.globalCompositeOperation = 'source-over';
-    if (b.el === 'fire') drawFlameBeam(b, pts, fade);
+    if (b.el === 'fire' || b.el === 'steam') drawFlameBeam(b, pts, fade);
     else if (b.el === 'sonic') drawSoundBeam(b, pts, fade);
+    else if (b.el === 'thunder') drawThunderBeam(b, pts, fade);
     else drawRayBeam(b, pts, fade, w, p.ground, B.width);
   }
   ctx.globalAlpha = 1;
@@ -1077,6 +1282,13 @@ function drawSoundBeam(b, pts, fade) {
     strokeRing(x, y, 2 + 2 * u, 5 + 10 * u, b.pal[1], 2, rot);
     strokeRing(x, y, 1 + 2 * u, 3 + 8 * u, b.pal[0], 1, rot);
   }
+}
+
+// Thunder: the roar's rippling band, with lightning crackling down the middle of it.
+function drawThunderBeam(b, pts, fade) {
+  drawSoundBeam(b, pts, fade);
+  const [[x0, y0], [x1, y1]] = pts;
+  strokeJag(jag(x0, y0, x1, y1, Math.max(4, Math.round(Math.hypot(x1 - x0, y1 - y0) / 14)), 5), 0, 0, fade);
 }
 
 // A jagged bolt from the mouth to the strike, re-forked every few frames; it flashes, dims, then flashes back

@@ -328,7 +328,7 @@ function nightLights(cx, cy, visible) {
   }
   for (const s of smoulder) out.push({ x: s.x, y: s.y - 3, r: 12, k: 0.7 * (1 - s.t / s.max) });
   for (const f of fireflies) out.push({ x: f.x, y: f.y, r: 7, k: 0.8 * fireflyGlow(f) });
-  out.push(...festivalLights());
+  out.push(...festivalLights(), ...breathLights());
   return out;
 }
 

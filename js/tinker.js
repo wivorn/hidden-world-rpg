@@ -39,7 +39,7 @@ const TINKER = [
     item: 'grapple', needs: { rope: 1, iron: 1 }, fire: true, words: /\b(grappl\w*|hooks?)\b/, teacher: 'smith',
     miss: 'A rope with nothing on the end. Something heavy I could bend into a hook?',
     cold: 'If I heated this iron I could bend it into a hook. I need to be by a fire.',
-    teach: 'A grappling hook? Heat a lump of iron in a fire, bend it to a hook and knot a rope on. Throw it up a cliff and climb.',
+    teach: 'A grappling hook? Heat a lump of iron in a fire, bend it to a hook and knot a rope on. Throw it up a cliff and climb, or hook a tree or a wall and haul yourself over.',
   },
 ];
 const TINKER_SLOTS = 4;
@@ -141,6 +141,16 @@ function tinkerWith(list) {
 // How many of `id` are still free to add, after what's already in the slots.
 const spare = (id) => (bag[id] || 0) - tinker.tried.filter((t) => t === id).length;
 const tinkerable = () => Object.keys(ITEMS).filter((id) => has(id) && !ITEMS[id].worn && !ITEMS[id].tool);
+const inHand = () => Object.keys(ITEMS).filter((id) => has(id) && TINKER.some((r) => r.keep?.includes(id)));
+
+function inHandRow(id) {
+  const li = document.createElement('li');
+  li.className = 'in-hand';
+  const what = Object.assign(document.createElement('span'), { className: 'what', textContent: ITEMS[id].name });
+  what.append(Object.assign(document.createElement('small'), { textContent: 'A tool. Carry it and it does its part, it doesn\'t go in.' }));
+  li.append(icon(id), what, Object.assign(document.createElement('span'), { className: 'tag', textContent: 'IN HAND' }));
+  return li;
+}
 
 function renderTinker() {
   const focused = document.activeElement?.dataset?.key;
@@ -162,8 +172,9 @@ function renderTinker() {
     return li;
   }));
   const mine = tinkerable();
+  const tools = inHand();
   const full = tinker.tried.length >= TINKER_SLOTS;
-  tinkerBag.replaceChildren(...(mine.length ? mine.map((id) => {
+  tinkerBag.replaceChildren(...(mine.length || tools.length ? [...mine.map((id) => {
     const li = document.createElement('li');
     const n = spare(id);
     li.append(icon(id), Object.assign(document.createElement('span'), { className: 'what', textContent: ITEMS[id].stack ? `${ITEMS[id].name} ×${n}` : ITEMS[id].name }));
@@ -173,7 +184,7 @@ function renderTinker() {
       renderTinker();
     }));
     return li;
-  }) : [noneRow('Nothing in your pack to craft with.')]));
+  }), ...tools.map(inHandRow)] : [noneRow('Nothing in your pack to craft with.')]));
   const found = TINKER.filter((r) => tinker.known.has(r.item));
   tinkerKnownTitle.textContent = `DISCOVERIES ${found.length}/${TINKER.length}`;
   tinkerKnown.replaceChildren(...(found.length ? found.map((r) => {

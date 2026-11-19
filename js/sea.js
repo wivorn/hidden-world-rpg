@@ -144,6 +144,70 @@ function depthAt(x, y) {
   return seaDist[ty * MAP_W + tx];
 }
 
+// Each kind of sea life as it starts out at `p`, keyed by its list in `seaLife`: how many the sea holds, where
+// (`depth`, in tiles from land, and `apart`, in px from the next) and its name. The level editor places them too.
+// Sea lions lounge on the shore instead, so they're set out by `seaLionColony`.
+const SEA_KINDS = {
+  pods: {
+    name: 'Dolphins', n: 14, depth: [6, 255], apart: 300,
+    make: (p, rng) => {
+      const members = Array.from({ length: 2 + Math.floor(rng() * 2) }, (_, j) => ({
+        ox: (j - 1) * 14 + rng() * 6, oy: (rng() - 0.5) * 18, phase: rng() * 3, up: false,
+      }));
+      return { ...p, heading: rng() * Math.PI * 2, vx: 0, vy: 0, face: 1, side: rng() < 0.5 ? -1 : 1, members };
+    },
+  },
+  whales: {
+    name: 'Whale', n: 8, depth: [9, 255], apart: 500,
+    make: (p, rng) => ({ ...p, heading: rng() * Math.PI * 2, face: 1, t: rng() * 16, sang: false, spouts: 0 }),
+  },
+  schools: {
+    name: 'Fish school', n: 170, depth: [1, 3], apart: 70,
+    make: (p, rng) => {
+      const fish = Array.from({ length: 4 + Math.floor(rng() * 3) }, () => ({ a: rng() * 6.28, r: 3 + rng() * 7, s: 0.8 + rng() * 1.2 }));
+      return { ...p, hx: p.x, hy: p.y, vx: 0, vy: 0, fleeT: 0, jumpT: 3 + rng() * 10, jump: null, fish };
+    },
+  },
+  turtles: {
+    name: 'Sea turtle', n: 28, depth: [3, 30], apart: 220,
+    make: (p, rng) => ({ ...p, heading: rng() * Math.PI * 2, face: 1, phase: rng() * 14, diveT: 0, wakeT: 0 }),
+  },
+  jellies: {
+    name: 'Jellyfish', n: 40, depth: [4, 255], apart: 260,
+    make: (p, rng) => {
+      const members = Array.from({ length: 3 + Math.floor(rng() * 4) }, () => ({ ox: (rng() - 0.5) * 56, oy: (rng() - 0.5) * 34, phase: rng() * 6.28, r: 2 + Math.floor(rng() * 2) }));
+      return { ...p, heading: rng() * Math.PI * 2, tint: ['#f4a6c8', '#a8c6f4', '#c9b0f0'][Math.floor(rng() * 3)], members };
+    },
+  },
+  seals: {
+    name: 'Seal', n: 60, depth: [1, 2], apart: 140,
+    make: (p, rng) => ({ ...p, hx: p.x, hy: p.y, tx: p.x, ty: p.y, t: rng() * 4, up: true, phase: rng() * 6 }),
+  },
+  gulls: {
+    name: 'Gulls', n: 20, depth: [2, 10], apart: 420,
+    make: (p, rng) => {
+      const birds = Array.from({ length: 3 + Math.floor(rng() * 3) }, () => ({ r: 16 + rng() * 26, a: rng() * 6.28, s: 0.45 + rng() * 0.35, alt: 34 + rng() * 22, flap: rng() * 6 }));
+      return { ...p, birds };
+    },
+  },
+  mantas: {
+    name: 'Manta ray', n: 12, depth: [6, 255], apart: 500,
+    make: (p, rng) => ({ ...p, heading: rng() * Math.PI * 2, phase: rng() * 6 }),
+  },
+  orcas: {
+    name: 'Orcas', n: 7, depth: [10, 255], apart: 600,
+    make: (p, rng, n = 1 + Math.floor(rng() * 6)) => {
+      const members = Array.from({ length: n }, (_, j) => ({ ox: (j - (n - 1) / 2) * 20 + rng() * 8, oy: (rng() - 0.5) * (n > 3 ? 34 : 22), phase: rng() * 6 }));
+      return { ...p, heading: rng() * Math.PI * 2, face: 1, members, breachT: 6 + rng() * 14, breach: null };
+    },
+  },
+  lions: { name: 'Sea lions', shore: true },
+  sharks: {
+    name: 'Shark', n: 10, depth: [5, 255], apart: 450,
+    make: (p, rng) => ({ ...p, heading: rng() * Math.PI * 2, face: 1, phase: rng() * 6, restT: 0, rush: false }),
+  },
+};
+
 function initSea() {
   buildSeaArt();
   const rng = mulberry32(7);
@@ -158,99 +222,71 @@ function initSea() {
     }
     return null;
   };
-  for (let i = 0; i < 14; i++) {
-    const p = spot(6, 255, 300, seaLife.pods);
-    if (!p) continue;
-    const members = Array.from({ length: 2 + Math.floor(rng() * 2) }, (_, j) => ({
-      ox: (j - 1) * 14 + rng() * 6, oy: (rng() - 0.5) * 18, phase: rng() * 3, up: false,
-    }));
-    seaLife.pods.push({ ...p, heading: rng() * Math.PI * 2, vx: 0, vy: 0, face: 1, side: rng() < 0.5 ? -1 : 1, members });
-  }
-  for (let i = 0; i < 8; i++) {
-    const p = spot(9, 255, 500, seaLife.whales);
-    if (p) seaLife.whales.push({ ...p, heading: rng() * Math.PI * 2, face: 1, t: rng() * 16, sang: false, spouts: 0 });
-  }
-  for (let i = 0; i < 170; i++) {
-    const p = spot(1, 3, 70, seaLife.schools);
-    if (!p) continue;
-    const fish = Array.from({ length: 4 + Math.floor(rng() * 3) }, () => ({ a: rng() * 6.28, r: 3 + rng() * 7, s: 0.8 + rng() * 1.2 }));
-    seaLife.schools.push({ ...p, hx: p.x, hy: p.y, vx: 0, vy: 0, fleeT: 0, jumpT: 3 + rng() * 10, jump: null, fish });
-  }
-  for (let i = 0; i < 28; i++) {
-    const p = spot(3, 30, 220, seaLife.turtles);
-    if (p) seaLife.turtles.push({ ...p, heading: rng() * Math.PI * 2, face: 1, phase: rng() * 14, diveT: 0, wakeT: 0 });
-  }
-  for (let i = 0; i < 40; i++) {
-    const p = spot(4, 255, 260, seaLife.jellies);
-    if (!p) continue;
-    const members = Array.from({ length: 3 + Math.floor(rng() * 4) }, () => ({ ox: (rng() - 0.5) * 56, oy: (rng() - 0.5) * 34, phase: rng() * 6.28, r: 2 + Math.floor(rng() * 2) }));
-    seaLife.jellies.push({ ...p, heading: rng() * Math.PI * 2, tint: ['#f4a6c8', '#a8c6f4', '#c9b0f0'][Math.floor(rng() * 3)], members });
-  }
-  for (let i = 0; i < 60; i++) {
-    const p = spot(1, 2, 140, seaLife.seals);
-    if (!p || inland[Math.floor(p.y / TILE) * MAP_W + Math.floor(p.x / TILE)]) continue;
-    seaLife.seals.push({ ...p, hx: p.x, hy: p.y, tx: p.x, ty: p.y, t: rng() * 4, up: true, phase: rng() * 6 });
-  }
-  for (let i = 0; i < 20; i++) {
-    const p = spot(2, 10, 420, seaLife.gulls);
-    if (!p) continue;
-    const birds = Array.from({ length: 3 + Math.floor(rng() * 3) }, () => ({ r: 16 + rng() * 26, a: rng() * 6.28, s: 0.45 + rng() * 0.35, alt: 34 + rng() * 22, flap: rng() * 6 }));
-    seaLife.gulls.push({ ...p, birds });
-  }
-  for (let i = 0; i < 12; i++) {
-    const p = spot(6, 255, 500, seaLife.mantas);
-    if (p) seaLife.mantas.push({ ...p, heading: rng() * Math.PI * 2, phase: rng() * 6 });
-  }
+  const scatter = (kind, ok = () => true, args = () => []) => {
+    const k = SEA_KINDS[kind];
+    for (let i = 0; i < k.n; i++) {
+      const p = spot(k.depth[0], k.depth[1], k.apart, seaLife[kind]);
+      if (p && ok(p)) seaLife[kind].push(k.make(p, rng, ...args(i)));
+    }
+  };
+  scatter('pods');
+  scatter('whales');
+  scatter('schools');
+  scatter('turtles');
+  scatter('jellies');
+  scatter('seals', (p) => !inland[Math.floor(p.y / TILE) * MAP_W + Math.floor(p.x / TILE)]);
+  scatter('gulls');
+  scatter('mantas');
   // every pod size from a lone orca to six, and one more of any size
   const podSizes = [1, 2, 3, 4, 5, 6, 1 + Math.floor(rng() * 6)].sort(() => rng() - 0.5);
-  for (let i = 0; i < 7; i++) {
-    const p = spot(10, 255, 600, seaLife.orcas);
-    if (!p) continue;
-    const n = podSizes[i];
-    const members = Array.from({ length: n }, (_, j) => ({ ox: (j - (n - 1) / 2) * 20 + rng() * 8, oy: (rng() - 0.5) * (n > 3 ? 34 : 22), phase: rng() * 6 }));
-    seaLife.orcas.push({ ...p, heading: rng() * Math.PI * 2, face: 1, members, breachT: 6 + rng() * 14, breach: null });
-  }
+  scatter('orcas', undefined, (i) => [podSizes[i]]);
   placeSeaLions(rng);
-  for (let i = 0; i < 10; i++) {
-    const p = spot(5, 255, 450, seaLife.sharks);
-    if (p) seaLife.sharks.push({ ...p, heading: rng() * Math.PI * 2, face: 1, phase: rng() * 6, restT: 0, rush: false });
+  scatter('sharks');
+}
+
+// Where a sea lion can haul out: sand or rock with open sea beside it, deep enough a little way off to slip into.
+// Gives the way to the water.
+function seaLionShore(tx, ty) {
+  const t = tileAt(tx, ty);
+  if (t !== T.SAND && t !== T.ROCK) return null;
+  for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) {
+    const wx = tx + dx * 2;
+    const wy = ty + dy * 2;
+    if (inBounds(wx, wy) && tileAt(tx + dx, ty + dy) === T.WATER && depthAt((wx + 0.5) * TILE, (wy + 0.5) * TILE) >= 1 && !inland[(ty + dy) * MAP_W + tx + dx]) return [dx, dy];
   }
+  return null;
+}
+
+// Two to four sea lions hauled out round the tile, or null if the shore there won't hold two.
+function seaLionColony(tx, ty, rng) {
+  const members = [];
+  for (let j = 0; j < 30 && members.length < 2 + Math.floor(rng() * 3); j++) {
+    const mx = tx + Math.floor(rng() * 7) - 3;
+    const my = ty + Math.floor(rng() * 5) - 2;
+    const dir = seaLionShore(mx, my);
+    if (!dir || members.some((m) => m.tx === mx && m.ty === my)) continue;
+    const lx = (mx + 0.5) * TILE;
+    const ly = (my + 0.7) * TILE;
+    if (solidAt(lx - 8, ly - 4, lx + 8, ly)) continue;
+    members.push({
+      tx: mx, ty: my, lx, ly, x: lx, y: ly, wx: lx + dir[0] * 26, wy: ly + dir[1] * 26,
+      kind: 'sealion', hp: WILD.sealion.hp, hurtT: 0,
+      state: 'lounge', t: rng() * 6, face: dir[0] ? dir[0] : rng() < 0.5 ? 1 : -1, phase: rng() * 9, barkT: 3 + rng() * 10,
+    });
+  }
+  return members.length >= 2 ? { x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, members } : null;
 }
 
 // Colonies lounge on beaches and rocky shores away from the harbour, each with a patch of water to slip into.
 function placeSeaLions(rng) {
-  const shore = (tx, ty) => {
-    const t = tileAt(tx, ty);
-    if (t !== T.SAND && t !== T.ROCK) return null;
-    for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) {
-      const wx = tx + dx * 2;
-      const wy = ty + dy * 2;
-      if (inBounds(wx, wy) && tileAt(tx + dx, ty + dy) === T.WATER && depthAt((wx + 0.5) * TILE, (wy + 0.5) * TILE) >= 1 && !inland[(ty + dy) * MAP_W + tx + dx]) return [dx, dy];
-    }
-    return null;
-  };
   const harbour = { x: shipObj.x, y: shipObj.y };
   for (let i = 0; i < 40000 && seaLife.lions.length < 16; i++) {
     const tx = Math.floor(rng() * MAP_W);
     const ty = Math.floor(rng() * MAP_H);
-    if (!shore(tx, ty) || Math.hypot((tx + 0.5) * TILE - harbour.x, (ty + 0.5) * TILE - harbour.y) < 30 * TILE) continue;
+    if (!seaLionShore(tx, ty) || Math.hypot((tx + 0.5) * TILE - harbour.x, (ty + 0.5) * TILE - harbour.y) < 30 * TILE) continue;
     if (seaLife.lions.some((c) => Math.hypot(c.x - (tx + 0.5) * TILE, c.y - (ty + 0.5) * TILE) < 260)) continue;
-    const members = [];
-    for (let j = 0; j < 30 && members.length < 2 + Math.floor(rng() * 3); j++) {
-      const mx = tx + Math.floor(rng() * 7) - 3;
-      const my = ty + Math.floor(rng() * 5) - 2;
-      const dir = shore(mx, my);
-      if (!dir || members.some((m) => m.tx === mx && m.ty === my)) continue;
-      const lx = (mx + 0.5) * TILE;
-      const ly = (my + 0.7) * TILE;
-      if (solidAt(lx - 8, ly - 4, lx + 8, ly)) continue;
-      members.push({
-        tx: mx, ty: my, lx, ly, x: lx, y: ly, wx: lx + dir[0] * 26, wy: ly + dir[1] * 26,
-        kind: 'sealion', hp: WILD.sealion.hp, hurtT: 0,
-        state: 'lounge', t: rng() * 6, face: dir[0] ? dir[0] : rng() < 0.5 ? 1 : -1, phase: rng() * 9, barkT: 3 + rng() * 10,
-      });
-    }
-    if (members.length >= 2) seaLife.lions.push({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, members });
+    const colony = seaLionColony(tx, ty, rng);
+    if (colony) seaLife.lions.push(colony);
   }
 }
 

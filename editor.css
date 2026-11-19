@@ -1,0 +1,526 @@
+/* The level editor's panels, laid over the game (index.html?editor). */
+
+.ed {
+  --ed-bg: rgba(40, 24, 12, 0.96);
+  --ed-edge: #e1a03c;
+  --ed-ink: #f6e7c1;
+  --ed-gold: #ffd36b;
+  --ed-dim: #b59a72;
+  --ed-cell: rgba(255, 236, 200, 0.07);
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  color: var(--ed-ink);
+  font: 9px/1.6 'Press Start 2P', monospace;
+  background: var(--ed-bg);
+  border: 3px solid var(--ed-edge);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: auto;
+}
+
+.ed *,
+.ed *::before {
+  box-sizing: border-box;
+  touch-action: auto;
+}
+
+.ed[hidden],
+.ed [hidden] {
+  display: none !important;
+}
+
+.ed h3 {
+  margin: 0 0 6px;
+  font: inherit;
+  font-size: 9px;
+  color: var(--ed-gold);
+  text-shadow: 1px 1px 0 #3a2414;
+}
+
+.ed button,
+.ed select,
+.ed input {
+  font: inherit;
+  color: var(--ed-ink);
+  background: #5a3a1e;
+  border: 2px solid #8a5a2c;
+  padding: 4px 6px;
+  border-radius: 0;
+}
+
+.ed input[type='range'] {
+  padding: 0;
+  accent-color: var(--ed-gold);
+  background: none;
+  border: 0;
+}
+
+.ed input[type='checkbox'] {
+  accent-color: var(--ed-gold);
+  vertical-align: middle;
+}
+
+.ed input[type='text'] {
+  background: #2a180a;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ed button {
+  cursor: pointer;
+}
+
+.ed button:hover:not(:disabled) {
+  background: #74502a;
+  border-color: var(--ed-edge);
+}
+
+.ed button:focus-visible,
+.ed select:focus-visible,
+.ed input:focus-visible {
+  outline: 2px solid var(--ed-gold);
+  outline-offset: 1px;
+}
+
+.ed button[aria-pressed='true'] {
+  color: #2a180a;
+  background: var(--ed-gold);
+  border-color: #fff2b0;
+}
+
+.ed button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ed label {
+  white-space: nowrap;
+}
+
+.ed .sep {
+  width: 2px;
+  align-self: stretch;
+  background: #8a5a2c;
+}
+
+/* ---------- top bar ---------- */
+
+#ed-top {
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  max-width: calc(100vw - 16px);
+}
+
+#ed-name {
+  width: 150px;
+}
+
+#ed-clock {
+  width: 90px;
+}
+
+/* ---------- palette, down the left ---------- */
+
+#ed-side {
+  top: 8px;
+  left: 8px;
+  bottom: 8px;
+  width: 262px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+body.editing #ed-side {
+  top: 64px;
+}
+
+#ed-tools,
+#ed-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+#ed-tools button {
+  flex: 1;
+  padding: 5px 2px;
+}
+
+#ed-tabs button {
+  padding: 4px 5px;
+  font-size: 8px;
+}
+
+#ed-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+}
+
+#ed-options button {
+  padding: 3px 5px;
+  font-size: 8px;
+}
+
+#ed-palette {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-content: start;
+  gap: 4px;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+}
+
+#ed-palette button {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ed-cell);
+  border-color: transparent;
+  font-size: 6px;
+  line-height: 1.3;
+  text-align: center;
+  overflow: hidden;
+}
+
+#ed-palette button[aria-pressed='true'] {
+  color: var(--ed-gold);
+  background: rgba(255, 211, 107, 0.18);
+  border-color: var(--ed-gold);
+}
+
+#ed-palette canvas {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+#ed-palette span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#ed-hint {
+  margin: 0;
+  color: var(--ed-dim);
+  font-size: 7px;
+}
+
+/* ---------- the right column: what's selected, breeding, the minimap ---------- */
+
+#ed-right {
+  top: 64px;
+  right: 8px;
+  max-height: calc(100vh - 72px);
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+#ed-right > section {
+  padding: 8px;
+  background: var(--ed-bg);
+  border: 3px solid var(--ed-edge);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+
+.ed .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ed .row > select,
+.ed .row > input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+#ed-inspect canvas,
+.ed .out canvas {
+  display: block;
+  margin: 4px auto;
+  image-rendering: pixelated;
+}
+
+/* ---------- combining dragons: every kind to pick two from ---------- */
+
+.ed .pair {
+  margin: 0;
+  color: var(--ed-gold);
+  font-size: 8px;
+}
+
+.ed-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  max-height: 200px;
+  margin: 6px 0 0;
+  padding: 2px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.ed-kinds button {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ed-cell);
+  border-color: transparent;
+  font-size: 6px;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+.ed-kinds button[aria-pressed='true'] {
+  color: var(--ed-gold);
+  background: rgba(255, 211, 107, 0.18);
+  border-color: var(--ed-gold);
+}
+
+.ed-kinds canvas {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.ed-kinds span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-kinds .badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  padding: 2px 3px;
+  color: #2a180a;
+  background: var(--ed-gold);
+  font-weight: normal;
+  font-size: 7px;
+  line-height: 1;
+}
+
+.ed .out {
+  margin: 6px 0 0;
+  color: var(--ed-gold);
+  text-align: center;
+}
+
+/* ---------- play mode's combine menu, dressed as the game's craft menu ---------- */
+
+#ed-breed {
+  z-index: 35;
+}
+
+#ed-breed .panel {
+  width: min(520px, calc(100vw - 48px));
+}
+
+#ed-breed canvas {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+#ed-breed-help,
+#ed-breed-say {
+  margin: -6px 0 0;
+  font-size: 8px;
+  line-height: 1.6;
+  color: #c8b48a;
+  text-align: center;
+}
+
+#ed-breed-say {
+  min-height: 1.6em;
+  margin: 0;
+  color: #f6e7c1;
+}
+
+#ed-breed-slots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#ed-breed-slots li {
+  display: flex;
+  width: 64px;
+  height: 54px;
+  background: rgba(20, 24, 40, 0.45);
+  border: 2px solid rgba(225, 160, 60, 0.75);
+}
+
+#ed-breed-slots li.empty {
+  border-style: dashed;
+  border-color: rgba(225, 160, 60, 0.3);
+}
+
+.panel #ed-breed-slots button {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+#ed-breed-list li.picked {
+  border-color: rgba(255, 211, 107, 0.9);
+}
+
+#ed-breed-list li.picked button {
+  background: #9be07a;
+}
+
+#ed-breed > .panel > button {
+  align-self: center;
+}
+
+#ed-mini {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+
+/* ---------- the status line, and the bar shown while playing ---------- */
+
+#ed-status {
+  left: 278px;
+  right: 256px;
+  bottom: 8px;
+  padding: 5px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#ed-status b {
+  color: var(--ed-gold);
+  font-weight: normal;
+}
+
+#ed-status .bad {
+  color: #ff8f6b;
+}
+
+#ed-playbar {
+  right: var(--right, 14px);
+  bottom: calc(var(--bottom, 16px) + 60px);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+}
+
+#ed-playbar h3 {
+  margin: 0;
+  text-align: center;
+}
+
+#ed-help {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 16px 20px;
+  font-size: 8px;
+  line-height: 2;
+}
+
+#ed-help h3 {
+  font-size: 11px;
+}
+
+#ed-help dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 14px;
+  margin: 8px 0 12px;
+}
+
+#ed-help dt {
+  color: var(--ed-gold);
+}
+
+#ed-help dd {
+  margin: 0;
+}
+
+/* ---------- the game's own screen while editing ---------- */
+
+html.editor #start {
+  display: none;
+}
+
+body.editing #game {
+  cursor: crosshair;
+}
+
+body.editing.ed-panning #game {
+  cursor: grabbing;
+}
+
+body.editing.ed-select #game {
+  cursor: default;
+}
+
+body.editing :is(#hotbar, #pack, #pile, #daybar, #purse, #toggles, #exposure, #actions, #chat-btn, #stick, #chat, #prompt, #bubbles, .vignette) {
+  display: none !important;
+}
+
+body:not(.editing) .ed.edit-only,
+body.editing .ed.play-only {
+  display: none !important;
+}

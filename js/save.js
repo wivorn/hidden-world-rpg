@@ -90,7 +90,7 @@ function snapshot() {
     eggStage,
     eggs: eggs.map((e) => ({ species: e.species, state: e.state, x: e.x, y: e.y, hatchT: e.hatchT, pool: !!e.pool, crater: !!e.crater })),
     dragons: dragons.map((d) => {
-      const at = flight && flight.dragon === d ? spot : d;
+      const at = flight && flight.dragon === d ? spot : d.fishing?.home || d;
       return {
         species: d.species, name: d.name, stage: d.stage, x: Math.round(at.x), y: Math.round(at.y), follower: d === follower,
         saddled: !!d.saddled, roost: d.roost ?? null, nursery: !!d.nursery, grow: +(d.grow || 0).toFixed(3),

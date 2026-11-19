@@ -252,7 +252,9 @@ const Sfx = (() => {
       tone({ type: 'triangle', f0: f, f1: f * 1.5, dur: 0.14, vol: 0.05 + step * 0.01 });
       if (step === 3) tone({ type: 'square', f0: f * 2, dur: 0.18, vol: 0.03, delay: 0.08 });
     },
+    // a fused breath sounds like both the breaths it's fused from at once
     breath(el) {
+      if (FUSED_FROM[el]) return FUSED_FROM[el].forEach((e) => this.breath(e));
       if (el === 'fire') {
         noise({ dur: 0.45, vol: 0.18, f0: 900, f1: 250, type: 'bandpass', q: 0.8, attack: 0.03 });
         tone({ type: 'sawtooth', f0: 160, f1: 90, dur: 0.3, vol: 0.04 });
@@ -271,6 +273,7 @@ const Sfx = (() => {
       }
     },
     beam(el) {
+      if (FUSED_FROM[el]) return FUSED_FROM[el].forEach((e) => this.beam(e));
       if (el === 'fire') {
         noise({ dur: 1.0, vol: 0.2, f0: 700, f1: 300, type: 'bandpass', q: 0.7, attack: 0.05 });
         tone({ type: 'sawtooth', f0: 110, f1: 80, dur: 1.0, vol: 0.05, attack: 0.05 });
@@ -292,6 +295,7 @@ const Sfx = (() => {
       }
     },
     impact(el, k = 1) {
+      if (FUSED_FROM[el]) return FUSED_FROM[el].forEach((e) => this.impact(e, k * 0.75));
       if (el === 'fire') {
         noise({ dur: 0.6, vol: 0.2 * k, f0: 1200, f1: 200, attack: 0.02 });
         for (let i = 0; i < 4; i++) noise({ dur: 0.03, vol: 0.06 * k, f0: 3000, type: 'bandpass', q: 3, delay: 0.1 + i * rand(0.05, 0.12) });

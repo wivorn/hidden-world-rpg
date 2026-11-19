@@ -38,11 +38,22 @@ const WILD_CARRIES = {
   skrill: { wings: 'big', snout: 'long' },
   tideGlider: { horns: 'frill', wings: 'big' },
 };
-// Breath colours bred dragons get for each element: a hue range round the wheel.
-const BREATH_HUES = { fire: [345, 45], sonic: [70, 165], frost: [180, 240], plasma: [255, 320], lightning: [190, 215], water: [195, 220] };
+// Pairs of breath alleles that, carried together, show neither: they fuse into a breath of their own. Neither
+// copy is hidden, so a fused breath doesn't breed true: two Steam dragons have fire, steam and water young.
+const BREATH_FUSIONS = { 'fire+water': 'steam', 'lightning+sonic': 'thunder', 'frost+plasma': 'moonbeam' };
+const FUSED_FROM = Object.fromEntries(Object.entries(BREATH_FUSIONS).map(([k, v]) => [v, k.split('+')]));
+const fusedBreath = ([a, b]) => BREATH_FUSIONS[[a, b].sort().join('+')] || null;
+// Breath colours bred dragons get for each element: a hue range round the wheel, and how strong the colour is.
+const BREATH_HUES = {
+  fire: [345, 45], sonic: [70, 165], frost: [180, 240], plasma: [255, 320], lightning: [190, 215], water: [195, 220],
+  steam: [190, 215], thunder: [42, 58], moonbeam: [215, 255],
+};
+// The saturation and lightness of a breath's main colour, for the breaths paler than a vivid 0.9 and 0.58.
+const BREATH_TONE = { steam: [0.2, 0.8], moonbeam: [0.45, 0.74] };
 
 const shownAllele = (gene, [a, b]) => (GENES[gene].indexOf(a) <= GENES[gene].indexOf(b) ? a : b);
 const hiddenAllele = (gene, pair) => (pair[0] === shownAllele(gene, pair) ? pair[1] : pair[0]);
+const shownTrait = (gene, pair) => (gene === 'breath' && fusedBreath(pair)) || shownAllele(gene, pair);
 
 // The element a breath colour reads as, for bred kinds laid before breath was a gene.
 function hueElement(hex) {
@@ -74,9 +85,10 @@ function genesOf(id) {
   return Object.fromEntries(Object.keys(GENES).map((gene) => [gene, [shown[gene], carries[gene] || shown[gene]]]));
 }
 
-const traitsOf = (genes) => Object.fromEntries(Object.entries(genes).map(([gene, pair]) => [gene, shownAllele(gene, pair)]));
+const traitsOf = (genes) => Object.fromEntries(Object.entries(genes).map(([gene, pair]) => [gene, shownTrait(gene, pair)]));
 // How many genes hold a copy the dragon doesn't show.
-const hiddenCount = (genes) => Object.entries(genes).filter(([gene, pair]) => hiddenAllele(gene, pair) !== shownAllele(gene, pair)).length;
+const hiddenCount = (genes) => Object.entries(genes)
+  .filter(([gene, pair]) => shownTrait(gene, pair) === shownAllele(gene, pair) && hiddenAllele(gene, pair) !== shownAllele(gene, pair)).length;
 
 // One copy of each gene from each parent, picked at random, now and then changed into another.
 function inheritGenes(g1, g2, r) {
@@ -122,6 +134,8 @@ function traitOrigin(id, gene) {
   const showing = parents.filter((p) => traitsOf(genesOf(p))[gene] === allele);
   if (showing.length === 2 && showing[0] !== showing[1]) return { kind: 'both' };
   if (showing.length) return { kind: 'parent', from: showing[0] };
+  // each copy came from the parent in its place
+  if (gene === 'breath' && FUSED_FROM[allele] && parents.length === 2) return { kind: 'fusion', parts: genesOf(id).breath, from: parents };
   const grand = parents.flatMap(parentIdsOf).filter((g) => DRAGON_SPECIES[g] && traitsOf(genesOf(g))[gene] === allele);
   if (grand.length) return { kind: 'throwback', from: grand[0] };
   const carrier = parents.find((p) => genesOf(p)[gene].includes(allele));

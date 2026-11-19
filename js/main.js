@@ -1850,6 +1850,10 @@ function drawBaby(b, cx, cy) {
     ctx.drawImage(fr.under, x - 36 - FLY_PAD, y - 40 - FLY_PAD);
     if (fr.over) ctx.drawImage(fr.over, x - 36 - FLY_PAD, y - 40 - FLY_PAD);
     if (b.holding && set.mouth[face]) drawHeldLog(x + set.mouth[face][0], y + set.mouth[face][1]);
+    if (b.catch && set.mouth[face]) {
+      const img = SPR.icon[b.catch];
+      ctx.drawImage(img, x + set.mouth[face][0] - (img.width >> 1), y + set.mouth[face][1] - (img.height >> 1) + 2);
+    }
     return;
   }
   const set = SPR.babyDragon[b.species][b.stage];
@@ -2200,6 +2204,7 @@ function updateGrown(b, dt) {
     updateHunt(b, dt);
     return;
   }
+  if (b.fishing || (wantsToFish(b) && startFishTrip(b))) return updateFishTrip(b, dt);
   const fetching = !!b.fetch && fetchGoing(b, dt);
   if (b.perched) {
     if (d.patT > 0) d.patT -= dt;
@@ -2426,6 +2431,143 @@ function grownMeal(b, w, dt) {
   drops.splice(drops.indexOf(food), 1);
   Sfx.gulp(earshot(o.x, o.y));
   burst(food.x, food.y - 4, ['#ffffff', EDIBLE[food.item] || '#cfdceb'], 6, 24);
+}
+
+// ---------- a grown dragon fishing for itself ----------
+
+// A grown dragon left hungry doesn't wait to be fed: it flies out to the nearest school of fish in the sea, circles
+// over it, dives in, comes up with one and eats it on the wing, then flies back to where it was. A fish it won't eat
+// it lets fall and dives again, up to FISH_TRIES times; with no fish within FISH_REACH it looks again after FISH_WAIT.
+const FISH_REACH = 2400;
+const FISH_TRIES = 3;
+const FISH_WAIT = 60;
+const FISH_CIRCLE = 1.6;
+const FISH_LIFT = 0.9;
+const FISH_GIVE_UP = 45;
+
+function wantsToFish(b) {
+  if (!dragonHungry(b) || time < (b.fishAgain ?? 0) || hop || b.hunt || b.fetch || b.meal || b.stayBy) return false;
+  return b !== follower || (!inGrotto() && !indoors);
+}
+
+// The nearest school out at sea: rivers and lakes are the player's to fish. A school is at sea if it keeps within
+// OPEN_SEA_NEAR tiles of water OPEN_SEA_DEPTH tiles from any land, which no river is wide enough for.
+const OPEN_SEA_NEAR = 6;
+const OPEN_SEA_DEPTH = 7;
+
+function openSea(s) {
+  if (s.atSea !== undefined) return s.atSea;
+  const [tx, ty] = [Math.floor(s.hx / TILE), Math.floor(s.hy / TILE)];
+  s.atSea = false;
+  for (let j = -OPEN_SEA_NEAR; j <= OPEN_SEA_NEAR && !s.atSea; j++) {
+    for (let i = -OPEN_SEA_NEAR; i <= OPEN_SEA_NEAR; i++) {
+      if (!inBounds(tx + i, ty + j) || Math.hypot(i, j) > OPEN_SEA_NEAR) continue;
+      const k = (ty + j) * MAP_W + tx + i;
+      if (map[k] === T.WATER && !inland[k] && seaDist[k] >= OPEN_SEA_DEPTH) {
+        s.atSea = true;
+        break;
+      }
+    }
+  }
+  return s.atSea;
+}
+
+function nearestSchool(x, y) {
+  let best = null;
+  let bd = FISH_REACH;
+  for (const s of seaLife.schools) {
+    const d = Math.hypot(s.x - x, s.y - y);
+    if (s.fish.length && d < bd && openSea(s)) [best, bd] = [s, d];
+  }
+  return best;
+}
+
+function startFishTrip(b) {
+  b.fishAgain = time + FISH_WAIT;
+  const s = nearestSchool(b.x, b.y);
+  if (!s) return false;
+  const home = b.perched ? { x: b.obj.x, y: b.obj.y } : null;
+  if (b.perched) takeOff(b);
+  b.fishing = { s, phase: 'out', t: 0, tries: 0, wait: 0, spin: Math.random() * Math.PI * 2, home };
+  Object.assign(b, { emote: 'exclaim', emoteT: 1.8 });
+  if (b === follower) muse(`${b.name}'s off to catch itself a fish.`);
+  return true;
+}
+
+function updateFishTrip(b, dt) {
+  const f = b.fishing;
+  const s = f.s;
+  if ((f.t += dt) > FISH_GIVE_UP) return endFishTrip(b);
+  let [tx, ty, alt, speed] = [s.x, s.y, 44, 260];
+  if (f.phase === 'circle') {
+    f.spin += dt * 2.4;
+    [tx, ty, alt, speed] = [s.x + Math.cos(f.spin) * 34, s.y + Math.sin(f.spin) * 18, 32, 200];
+    if ((f.wait -= dt) <= 0) f.phase = 'dive';
+  } else if (f.phase === 'dive') {
+    [alt, speed] = [0, 240];
+  } else if (f.phase === 'lift') {
+    [tx, ty, alt, speed] = [b.x, b.y - 10, 40, 60];
+    if ((f.wait -= dt) <= 0) eatCatch(b);
+    if (!b.fishing) return;
+  }
+  const mx = tx - b.x;
+  const my = ty - b.y;
+  const md = Math.hypot(mx, my);
+  if (md > 0.5) {
+    const step = Math.min(md, speed * dt);
+    b.x += (mx / md) * step;
+    b.y += (my / md) * step;
+  }
+  b.alt += (alt - b.alt) * (1 - Math.exp(-dt * (f.phase === 'dive' ? 6 : 3)));
+  if (md > 3) faceToward(b, mx, my);
+  const beat = Math.floor(b.flap / 4);
+  b.flap += dt * (b.alt < 12 ? 11 : 7);
+  if (Math.floor(b.flap / 4) !== beat) Sfx.flap(0.4 * earshot(b.x, b.y));
+  if (f.phase === 'out' && md < 40) {
+    if (s.fish.length) Object.assign(f, { phase: 'circle', wait: FISH_CIRCLE });
+    else if (!(f.s = nearestSchool(b.x, b.y))) endFishTrip(b);
+  } else if (f.phase === 'dive' && md < 8 && b.alt < 4) {
+    diveIn(b);
+  }
+}
+
+// Splash: the school scatters, and if it hasn't fled the lot, the dragon comes up with a fish of those waters.
+function diveIn(b) {
+  const f = b.fishing;
+  const s = f.s;
+  splash(b.x, b.y);
+  seaSplash(b.x, b.y - 2, 1.4);
+  Sfx.splash(earshot(b.x, b.y));
+  const a = Math.random() * Math.PI * 2;
+  Object.assign(s, { vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, fleeT: 0.8 });
+  if (!s.fish.length) {
+    f.phase = 'out';
+    return;
+  }
+  b.catch = pickFish({ x: s.x, y: s.y });
+  Object.assign(f, { phase: 'lift', wait: FISH_LIFT });
+}
+
+function eatCatch(b) {
+  const f = b.fishing;
+  const id = b.catch;
+  b.catch = null;
+  const saw = onScreen(b.x, b.y, cam.x, cam.y, 0);
+  if (feedDragon(b, id, saw)) {
+    Sfx.gulp(earshot(b.x, b.y));
+    return endFishTrip(b);
+  }
+  seaSplash(b.x, b.y - 2, 0.5);
+  if (++f.tries >= FISH_TRIES) return endFishTrip(b);
+  Object.assign(f, { phase: 'circle', wait: FISH_CIRCLE });
+}
+
+// It goes back to where it took off from, unless it has the player or a roost to go back to.
+function endFishTrip(b) {
+  const { home } = b.fishing;
+  b.fishing = null;
+  b.catch = null;
+  if (home && b !== follower && b.roost == null && dragonFits(home.x, home.y)) b.spot = home;
 }
 
 // ---------- a grown dragon on the hunt ----------
@@ -3901,10 +4043,18 @@ if (touchScreen.matches) chatInput.placeholder = 'Tap here to chat';
 let promptText = null;
 let hintsOn = false;
 
-// `text`, and T to pat the dragon beside the player, if there is one.
+// `text`, and T to pat the dragon beside the player, or else pet a small critter, if there is one.
 function withPat(text) {
   const d = nearPet();
-  return [text, d && `T  Pat ${d.name}`].filter(Boolean).join('   ·   ');
+  const c = !d && nearCritter();
+  return [text, d ? `T  Pat ${d.name}` : c && `T  Pet the ${WILD[c.kind].name}`].filter(Boolean).join('   ·   ');
+}
+
+function patNear() {
+  const d = nearPet();
+  if (d) return patDragon(d);
+  const c = nearCritter();
+  if (c) petCritter(c);
 }
 
 function setPrompt(text) {
@@ -4020,6 +4170,7 @@ function render() {
     drawEmote(d, cx, cy, h + babyLift(d));
   }
   for (const s of flock) if (s.emoteT > 0) drawEmote(s, cx, cy, 24);
+  if (!indoors) for (const a of animals) if (a.emoteT > 0 && alive(a)) drawEmote(a, cx, cy, SPR.wild[a.look][a.dir][0].height + 4 + a.lift);
   if (dog.emoteT > 0 && dog.state !== 'carried' && !indoors) drawEmote(dog, cx, cy, 20);
   if (playerSayT > 0) {
     const [hx, hy] = playerHead();
@@ -4084,6 +4235,8 @@ function render() {
     setPrompt(treasurePrompt());
   } else if (nearLadder()) {
     setPrompt(ladderPrompt(nearLadder()));
+  } else if (ladderCliff() && placeLabel('ladder')) {
+    setPrompt(`F  ${placeLabel('ladder')}`);
   } else if (nearCache()) {
     setPrompt('SPACE  Reach into the cairn');
   } else if (burnTarget()) {
@@ -4103,7 +4256,7 @@ function render() {
     setPrompt(sleepy() ? (hut ? 'SPACE  Sleep over at the hermit\'s until morning' : 'SPACE  Sleep until morning')
       : hut ? 'SPACE  Nap at the hermit\'s until nightfall' : 'SPACE  Nap until nightfall');
   } else if (nearTent()) {
-    const pack = primary() === 'tent' ? '   ·   F  Pack up the tent' : '';
+    const pack = primary() === 'tent' && tentNear() ? '   ·   F  Pack up the tent' : '';
     setPrompt(`SPACE  ${isNight() ? 'Sleep in the tent until morning' : 'Nap in the tent until nightfall'}${pack}`);
   } else if (inHotSpring()) {
     setPrompt('SPACE  Chill in the hot spring for 2 hours');
@@ -4337,10 +4490,11 @@ function pressKey(code, shift) {
   if (code === 'KeyF') {
     if (flight) chargeBreath();
     else if (carried) setDownEgg();
+    else if (ladderKey()) return;
     else if (carriedOut()) throwItem(carriedOut(), shift);
     else useTool();
   }
-  if (code === 'KeyT' && nearPet() && !hop && !fade && !(player.downT > 0)) patDragon(nearPet());
+  if (code === 'KeyT' && !hop && !fade && !(player.downT > 0)) patNear();
   if (code === 'KeyR') loopTrick();
   if (code === 'KeyP') toggleSound();
   if (code === 'KeyH') toggleHints();
@@ -4464,7 +4618,7 @@ function touchActions() {
   if (id && bag[id] > 1) add('SHIFT+F', throwAllLabel(id));
   if (id && !hop && !naming) add('X', `Drop the ${itemName(id)}`);
   const t = takeable();
-  if (t) add('G', t.label);
+  if (t && !acts.some((a) => a.name === actName(t.label))) add('G', t.label);
   return acts;
 }
 

@@ -3,12 +3,16 @@
 // the brambles round Old Bjorn's cache, the fallen log in the spur and the boulder stopping the cache's mouth.
 
 // Things the player has put down: { kind: 'ladder', o, x, base, k } leans on a cliff `k` rows high;
-// { kind: 'bridge' or 'ladderBridge', tiles, ns, ends } lies over water; { kind: 'campfire' or 'tent', o }.
+// { kind: 'bridge' or 'ladderBridge', tiles, ns, ends } lies over water; { kind: 'campfire' or 'tent', o }. A level's
+// own tents are `fixed`: slept in like the player's, but never packed up or moved.
 const placed = [];
 const hawk = { opened: false };
 const PLACE = { ladder: true, bridge: true, campfire: true };
 const LADDER_REACH = 2;
 const HOOK_REACH = 4;
+const HOOK_RANGE = 6 * TILE;
+const HOOK_MIN = 8;
+const PULL_SPEED = 240;
 const SPAN = { ladder: 3, bridge: 6 };
 const CURRENT = 120;
 const BURN_TIME = 1.8;
@@ -151,7 +155,7 @@ function placeThing(id) {
     if (tentNear()) return packTent(tentNear());
     const spot = tentSpot();
     if (!spot) return muse(indoors ? 'Not indoors!' : 'No room to pitch it here. Somewhere flat and open.');
-    const old = placed.find((q) => q.kind === 'tent');
+    const old = placed.find((q) => q.kind === 'tent' && !q.fixed);
     if (old) packTent(old, true);
     pitchTent(spot.x, spot.y);
     Sfx.thunk();
@@ -200,7 +204,7 @@ function nearTent() {
 // The pitched tent close enough for F to pack it up.
 function tentNear() {
   if (!canUseTool()) return null;
-  return placed.find((q) => q.kind === 'tent' && boxDist(q.o.col) < 14) || null;
+  return placed.find((q) => q.kind === 'tent' && !q.fixed && boxDist(q.o.col) < 14) || null;
 }
 
 function packTent(p, quiet = false) {
@@ -267,17 +271,23 @@ const takeHint = () => (takeable() ? `G  ${takeable().label}` : '');
 function takeBack() {
   if (hop || fade || naming) return;
   const t = takeable();
-  if (!t) return;
-  const { p } = t;
+  if (t) takeUp(t.p);
+}
+
+// Whether `p` came up; a full pack leaves it where it is.
+function takeUp(p) {
   const item = p.kind === 'campfire' ? null : p.kind === 'bridge' ? 'bridge' : 'ladder';
-  if (item && bagFull(item)) return muse('My pack\'s too full to carry it.');
+  if (item && bagFull(item)) {
+    muse('My pack\'s too full to carry it.');
+    return false;
+  }
   placed.splice(placed.indexOf(p), 1);
   if (p.kind === 'campfire') {
     removePlacedObject(p.o);
     Sfx.hiss(1);
     for (let i = 0; i < 6; i++) particles.push({ type: 'smoke', x: p.o.x + (Math.random() - 0.5) * 14, y: p.o.y - 6, vx: (Math.random() - 0.5) * 8, vy: -16 - Math.random() * 8, life: 0, max: 1.2 });
     for (let i = 0; i < 2; i++) spawnDrop('stone', p.o.x + (i - 0.5) * 14, p.o.y + 2, (i - 0.5) * 20, 4, 50);
-    return;
+    return true;
   }
   if (p.kind === 'ladder') removePlacedObject(p.o);
   else {
@@ -287,6 +297,24 @@ function takeBack() {
   give(item);
   popIcon(item, player.x, player.y - 30);
   Sfx.pickup();
+  return true;
+}
+
+// The cliff ahead that the ladder carried out of the backpack would go up or down.
+const ladderCliff = () => (carriedOut() === 'ladder' && canUseTool() ? cliffAhead() : null);
+
+// F at either end of a placed ladder takes it down, back into the hands if the backpack's slots are out; F carrying
+// one at a cliff leans it there. Whether F went to the ladder.
+function ladderKey() {
+  if (hop || fade || naming || player.chop) return false;
+  const l = nearLadder();
+  if (l) {
+    if (takeUp(l.p) && trayOpen) carryItem('ladder');
+    return true;
+  }
+  if (!ladderCliff()) return false;
+  placeThing('ladder');
+  return true;
 }
 
 // ---------- climbing ----------
@@ -310,7 +338,7 @@ function nearLadder() {
   return null;
 }
 
-const ladderPrompt = (l) => `SPACE  Climb ${l.from === 'bottom' ? 'up' : 'down'} the ladder   ·   G  Take it down`;
+const ladderPrompt = (l) => `SPACE  Climb ${l.from === 'bottom' ? 'up' : 'down'} the ladder   ·   F  Take it down`;
 
 // Hand over hand to `to`, facing the cliff the whole way, two holds to a row.
 function climbTo(to, rows, done) {
@@ -342,15 +370,53 @@ function climbLadder(l) {
   Sfx.thunk(0.5);
 }
 
-// The hook flies up (or is set at the lip) for THROW_TIME, then the player climbs the rope.
+// The nearest tree or building straight ahead, between HOOK_MIN and HOOK_RANGE off: where the hook bites and where
+// the rope pulls the player to, just short of it. Not `clear` when something's in the way, or the pull would cross a
+// ledge or the rapids; open water it pulls straight over.
+function hookAnchor() {
+  if (!outsideOrCave() || player.swimming) return null;
+  const [vx, vy] = DIR_VEC[player.dir];
+  let best = null;
+  const consider = (o, name) => {
+    const c = o.col;
+    if (!c || c.off) return;
+    const gap = vx > 0 ? c.x0 - (player.x + 5) : vx < 0 ? player.x - 5 - c.x1 : vy < 0 ? player.y - 4 - c.y1 : c.y0 - player.y;
+    const inLine = vx ? c.y0 < player.y && c.y1 > player.y - 4 : c.x0 < player.x + 5 && c.x1 > player.x - 5;
+    if (inLine && gap >= HOOK_MIN && gap <= HOOK_RANGE && !(best && gap >= best.gap)) best = { c, gap, name };
+  };
+  for (const o of hittables) if (kindOf(o) === 'tree') consider(o, 'the tree');
+  for (const b of buildings) if (!b.hidden) consider(b, ROOMS[b.room].name);
+  if (!best) return null;
+  const { c, gap, name } = best;
+  const to = { x: Math.round(player.x + vx * (gap - 1)), y: Math.round(player.y + vy * (gap - 1)) };
+  const hook = vx ? { x: vx > 0 ? c.x0 : c.x1, y: player.y - 12 } : { x: player.x, y: vy < 0 ? c.y1 - 8 : c.y0 - 4 };
+  let clear = canStand(player, to.x, to.y);
+  for (let d = 4; clear && d < gap - 1; d += 4) {
+    const x = player.x + vx * d;
+    const y = player.y + vy * d;
+    clear = !blocked(x - 5, y - 4, x + 5, y, player, true) && !isRapids(tileX(x), tileY(y));
+  }
+  return { name, hook, to, clear };
+}
+
+// The hook flies up (or is set at the lip) for THROW_TIME, then the player climbs the rope. Hooked on a tree or a
+// building, the rope pulls them in to it instead.
 function throwGrapple() {
   if (player.chop || player.grapple) return;
+  const from = { x: player.x, y: player.y - 12 };
   const c = cliffAhead();
-  if (!c) return muse(waterAhead(SPAN.bridge) ? 'Nothing over there to hook onto.' : 'Nothing up there to hook onto.');
-  if (c.k > HOOK_REACH) return muse('Too high, even for the hook.');
-  const up = c.s < 0;
-  const lip = c.base - c.k * TILE;
-  player.grapple = { t: 0, from: { x: player.x, y: player.y - 12 }, hook: { x: c.x, y: up ? lip - 2 : player.y - 4 }, to: up ? c.top : c.bottom, rows: c.k };
+  if (c) {
+    if (c.k > HOOK_REACH) return muse('Too high, even for the hook.');
+    const up = c.s < 0;
+    const lip = c.base - c.k * TILE;
+    player.grapple = { t: 0, from, hook: { x: c.x, y: up ? lip - 2 : player.y - 4 }, to: up ? c.top : c.bottom, rows: c.k };
+    Sfx.swish();
+    return;
+  }
+  const a = hookAnchor();
+  if (a && !a.clear) return muse('Something\'s in the way. The rope would never pull me through.');
+  if (!a) return muse(waterAhead(SPAN.bridge) ? 'Nothing over there to hook onto.' : 'Nothing up there to hook onto.');
+  player.grapple = { t: 0, from, hook: a.hook, to: a.to, pull: true };
   Sfx.swish();
 }
 
@@ -361,10 +427,25 @@ function updateGrapple(dt) {
   if (g.climbing || g.t < THROW_TIME) return;
   g.climbing = true;
   Sfx.thunk(0.7);
-  climbTo(g.to, g.rows, () => {
+  const done = () => {
     player.grapple = null;
     stats.hooked++;
+  };
+  if (g.pull) pullTo(g.to, done);
+  else climbTo(g.to, g.rows, done);
+}
+
+// Reeled in along the rope to `to`, feet just off the ground.
+function pullTo(to, done) {
+  const dir = player.dir;
+  const dur = Math.hypot(to.x - player.x, to.y - player.y) / PULL_SPEED;
+  startHop(to.x, to.y, 0, 0, () => {
+    player.flying = false;
+    player.dir = dir;
+    Sfx.land(0.6);
+    done();
   });
+  Object.assign(hop, { dur, arc: 4 });
 }
 
 function drawGrapple(cx, cy) {
@@ -730,6 +811,8 @@ function buildHint(id) {
   if (id === 'grapple') {
     const c = cliffAhead();
     if (c) return c.k <= HOOK_REACH ? `F  Throw the hook and climb ${c.s < 0 ? 'up' : 'down'}` : 'Too high, even for the hook';
+    const a = hookAnchor();
+    if (a && a.clear) return `F  Hook ${a.name} and pull yourself over`;
   }
   if (id === 'tent') return tentNear() ? 'F  Pack up the tent' : tentSpot() ? 'F  Pitch the tent here' : indoors ? '' : 'Find open level ground to pitch the tent';
   return '';

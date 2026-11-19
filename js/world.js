@@ -1646,6 +1646,16 @@ function chunkCanvas(ci, cj) {
 }
 
 function initGround() {
+  markSeaChunks();
+  const home = objects.find((o) => o.room === 'home');
+  const hi = Math.floor(home.x / CHUNK_PX);
+  const hj = Math.floor(home.y / CHUNK_PX);
+  for (let j = hj - 2; j <= hj + 2; j++) for (let i = hi - 3; i <= hi + 3; i++) if (i >= 0 && j >= 0 && i < CW && j < CH) chunkCanvas(i, j);
+}
+
+// Forgets every painted chunk and works out afresh which are open sea, as after the map has been redrawn.
+function markSeaChunks() {
+  chunks.clear();
   for (let cj = 0; cj < CH; cj++) {
     for (let ci = 0; ci < CW; ci++) {
       let open = (cj + 1) * CHUNK <= MAP_H;
@@ -1660,10 +1670,6 @@ function initGround() {
       if (open && !seaChunks[v]) seaChunks[v] = paintChunk(makeCanvas(CHUNK_PX, CHUNK_PX), ci, cj);
     }
   }
-  const home = objects.find((o) => o.room === 'home');
-  const hi = Math.floor(home.x / CHUNK_PX);
-  const hj = Math.floor(home.y / CHUNK_PX);
-  for (let j = hj - 2; j <= hj + 2; j++) for (let i = hi - 3; i <= hi + 3; i++) if (i >= 0 && j >= 0 && i < CW && j < CH) chunkCanvas(i, j);
 }
 
 // Draws the ground under the view, then readies a couple of the chunks just outside it.

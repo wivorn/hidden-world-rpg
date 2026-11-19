@@ -377,7 +377,11 @@ const BRED_LAST = ['wing', 'fang', 'tail', 'claw', 'scale', 'horn', 'spark', 'ba
 const BRED_PETS = ['Pip', 'Skye', 'Nyx', 'Sprout', 'Flint', 'Juniper', 'Wisp', 'Pebble', 'Saga', 'Bolt', 'Tansy', 'Rook', 'Ziggy', 'Freya', 'Moth', 'Brisk'];
 
 const lookOf = (p) => Object.fromEntries(Object.keys(DRAGON_LOOKS).map((k) => [k, p.look?.[k] ?? DRAGON_LOOKS[k][0]]));
-const lookSign = (look, hue) => `${Object.values(look).join('|')}|${Math.floor(hue / 40)}`;
+// Two kinds look alike if they share a look and roughly a colour: the same hue, or both grey, at about the same lightness.
+const lookSign = (look, hex) => {
+  const { h, s, l } = hslOf(hex);
+  return `${Object.values(look).join('|')}|${s < 0.15 ? 'grey' : Math.floor(h / 40)}|${Math.floor(l * 4)}`;
+};
 
 function hslOf(hex) {
   const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
@@ -402,39 +406,69 @@ function hsl(h, s, l) {
   return '#' + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
 }
 
-// Halfway round the colour wheel the short way.
-function mixHue(a, b) {
-  const d = ((b - a + 540) % 360) - 180;
-  return a + d / 2;
+// Colours mix in OKLab, where halfway between two colours looks halfway: black and white make a mid grey.
+function toLab(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => ((v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
 }
 
-// A kind of dragon bred from the two dragons `d1` and `d2`: one copy of every gene from each (see genes.js), with
-// their colours blended and shifted, until it looks unlike any kind already about.
+function fromLab([L, A, B]) {
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+  const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+  const rgb = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+  return '#' + rgb.map((v) => {
+    v = Math.max(0, Math.min(1, v));
+    return Math.round((v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055) * 255).toString(16).padStart(2, '0');
+  }).join('');
+}
+
+// `t` of the way from colour `a` to `b`, nudged by `shift` (in OKLab's lightness and two colour axes).
+function mixColour(a, b, t, shift = [0, 0, 0]) {
+  const [x, y] = [toLab(a), toLab(b)];
+  return fromLab(x.map((v, i) => v + (y[i] - v) * t + shift[i]));
+}
+
+// A kind of dragon bred from the two dragons `d1` and `d2`: one copy of every gene from each (see genes.js), and
+// every colour somewhere between the two parents' (black and white make a grey), until it looks unlike any kind
+// already about.
 function breedSpecies(d1, d2, seed) {
   const r = mulberry32(seed);
   const pickOf = (opts) => opts[Math.floor(r() * opts.length)];
   const [p1, p2] = [DRAGON_SPECIES[d1.species], DRAGON_SPECIES[d2.species]];
   const [g1, g2] = [genesOf(d1.species), genesOf(d2.species)];
-  const signs = new Set(Object.values(DRAGON_SPECIES).map((p) => lookSign(lookOf(p), hslOf(p.body).h)));
-  const [c1, c2] = [hslOf(p1.body), hslOf(p2.body)];
+  const signs = new Set(Object.values(DRAGON_SPECIES).map((p) => lookSign(lookOf(p), p.body)));
   let genes;
   let body;
-  let hue;
+  let t;
+  let shift;
   for (let tries = 0; tries < 40; tries++) {
     genes = inheritGenes(g1, g2, r);
     body = bodyOf(traitsOf(genes));
-    hue = r() < 0.3 ? r() * 360 : mixHue(c1.h, c2.h) + (r() - 0.5) * 140;
-    hue = ((hue % 360) + 360) % 360;
-    if (!signs.has(lookSign(lookOf(body), hue))) break;
+    t = 0.15 + r() * 0.7;
+    shift = [(r() - 0.5) * 0.06, (r() - 0.5) * 0.04, (r() - 0.5) * 0.04];
+    if (!signs.has(lookSign(lookOf(body), mixColour(p1.body, p2.body, t, shift)))) break;
   }
-  const s = 0.3 + r() * 0.45;
-  const l = r() < 0.2 ? 0.62 + r() * 0.14 : 0.22 + r() * 0.26;
-  const pale = l > 0.55;
-  const wingHue = r() < 0.5 ? hue + (r() - 0.5) * 60 : hslOf(pickOf([p1.wing, p2.wing])).h;
-  const finHue = r() < 0.5 ? hslOf(pickOf([p1.fin, p2.fin])).h + (r() - 0.5) * 40 : hue + 140 + r() * 80;
-  const eyeHue = r() * 360;
-  const breathH = breathHue(traitsOf(genes).breath, [p1, p2], r);
-  const eggHue = hue + (r() - 0.5) * 40;
+  // each part leans a little its own way from the rest, so the young aren't all one even blend
+  const mix = (a, b) => mixColour(a, b, Math.max(0, Math.min(1, t + (r() - 0.5) * 0.2)), shift);
+  const part = (key, fallback = (p) => p.body) => mix(p1[key] ?? fallback(p1), p2[key] ?? fallback(p2));
+  const belly = pickOf([p1, p2]).belly && part('belly', (p) => p.light);
+  const ridge = (p1.ridge || p2.ridge) && part('ridge', (p) => p.dark);
+  const breathEl = traitsOf(genes).breath;
+  const breathH = breathHue(breathEl, [p1, p2], r);
+  const [bs, bl] = BREATH_TONE[breathEl] || [0.9, 0.58];
+  const egg = (key) => mix(p1.egg[key], p2.egg[key]);
   // told apart without spaces or capitals, so no "Shadowfang" is bred beside the Shadow Fang
   const plain = (n) => n.replace(/ /g, '').toLowerCase();
   const names = new Set(Object.values(DRAGON_SPECIES).map((p) => plain(p.name)));
@@ -445,16 +479,16 @@ function breedSpecies(d1, d2, seed) {
   return {
     name, defaultName, parents: [p1.name, p2.name], parentIds: [d1.species, d2.species], parentNames: [d1.name, d2.name], genes,
     ...(Object.keys(body.shape).length ? { shape: body.shape } : {}),
-    body: hsl(hue, s, l), dark: hsl(hue, s, pale ? l * 0.78 : l * 0.62), light: hsl(hue, s * 0.85, Math.min(0.92, l + 0.24)),
-    wing: hsl(wingHue, s * 1.1, pale ? l * 0.92 : l * 0.95 + 0.04), eye: hsl(eyeHue, 0.9, 0.6), fin: hsl(finHue, 0.65, 0.5),
-    glint: hsl(eyeHue, 0.7, 0.92), spot: hsl(finHue, 0.55, pale ? 0.6 : 0.72), horn: hsl(40, 0.3, 0.84),
-    ...(r() < 0.55 ? { belly: hsl(hue + 25, s * 0.7, Math.min(0.84, l + 0.3)) } : {}),
+    body: mixColour(p1.body, p2.body, t, shift), dark: part('dark'), light: part('light'), wing: part('wing'), eye: part('eye'),
+    fin: part('fin'), glint: part('glint'), spot: part('spot', (p) => p.light), horn: part('horn', () => '#ece0c4'),
+    ...(belly ? { belly } : {}),
+    ...(ridge ? { ridge } : {}),
     look: body.look,
     egg: {
-      base: hsl(eggHue, 0.45, 0.42), light: hsl(eggHue, 0.45, 0.54), speck: hsl(finHue, 0.6, 0.7), speckDark: hsl(eggHue, 0.45, 0.28),
-      shine: hsl(eggHue, 0.7, 0.88), gloss: hsl(eggHue, 0.55, 0.68), glow: hsl(breathH, 0.8, 0.7),
+      base: egg('base'), light: egg('light'), speck: egg('speck'), speckDark: egg('speckDark'), shine: egg('shine'), gloss: egg('gloss'),
+      glow: hsl(breathH, 0.8, 0.7),
     },
-    breath: [hsl(breathH, 0.9, 0.58), hsl(breathH, 0.9, 0.9), hsl(breathH, 0.8, 0.4)],
+    breath: [hsl(breathH, bs, bl), hsl(breathH, bs, Math.max(0.9, bl + 0.15)), hsl(breathH, Math.max(0.1, bs - 0.1), bl - 0.18)],
     ...bredTastes(d1.species, d2.species, r),
   };
 }

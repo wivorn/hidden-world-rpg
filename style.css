@@ -352,6 +352,10 @@ body.title #toggles {
   color: #ffd36b;
 }
 
+.log-traits .fusion b {
+  color: #9fd8ff;
+}
+
 .log-mood i {
   display: inline-block;
   width: 7px;
@@ -736,6 +740,16 @@ body.title #toggles {
 
 #tinker-close {
   align-self: center;
+}
+
+#tinker-bag li.in-hand {
+  border-style: dashed;
+}
+
+#tinker-bag .tag {
+  padding: 6px 8px;
+  color: #9be07a;
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

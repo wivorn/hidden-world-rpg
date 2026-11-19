@@ -34,7 +34,10 @@ const DRAGON_LORE = {
     about: 'Swims as well as it flies. Its breath is a jet of water: it puts out fires, cools lava and bowls animals over.',
   },
 };
-const BREATH_NAMES = { plasma: 'Plasma blast', fire: 'Fire', frost: 'Frost', sonic: 'Sonic roar', lightning: 'Lightning', water: 'Water jet' };
+const BREATH_NAMES = {
+  plasma: 'Plasma blast', fire: 'Fire', frost: 'Frost', sonic: 'Sonic roar', lightning: 'Lightning', water: 'Water jet',
+  steam: 'Steam', thunder: 'Thunder', moonbeam: 'Moonbeam',
+};
 const AGE_NAMES = ['HATCHLING', 'YOUNGLING', 'JUVENILE', 'GROWN'];
 // How each shown allele reads in a bred kind's list of traits; shape genes at 'mid' go unmentioned.
 const TRAIT_WORDS = {
@@ -121,6 +124,7 @@ const ORIGIN_WORDS = {
   throwback: (o) => `skipped a generation, from ${kinName(o.from)}`,
   hidden: (o) => `hidden in ${kinName(o.from)}'s line`,
   mutation: () => 'new: a mutation',
+  fusion: (o) => `fused from ${BREATH_NAMES[o.parts[0]].toLowerCase()} (${kinName(o.from[0])}) and ${BREATH_NAMES[o.parts[1]].toLowerCase()} (${kinName(o.from[1])})`,
 };
 
 // Each trait the kind shows and where it came from.
@@ -171,6 +175,7 @@ function kindCard(id) {
 // Where a dragon is now, in words.
 function dragonWhere(d) {
   if (flight && flight.dragon === d) return 'FLYING WITH YOU';
+  if (d.fishing) return 'OFF FISHING';
   if (follower === d) return sail ? 'ON THE LONGSHIP WITH YOU' : 'FOLLOWING YOU';
   if (d.roost !== null && d.roost !== undefined) return 'AT THE DRAGON ROOST';
   if (d.nursery) return 'AT THE NURSERY';

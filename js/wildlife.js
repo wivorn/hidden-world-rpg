@@ -3,20 +3,21 @@
 // wolves, owls and bats only come out at night.
 
 // `hp`, `meat` and `hide` only for game animals; the bigger the beast, the more hides. Speeds in px/s; `shy` is how close the player can get before it bolts,
-// `range` how far from home it wanders, `box` the half-width an arrow or blade has to land within.
+// `range` how far from home it wanders, `box` the half-width an arrow or blade has to land within. A `pet` critter
+// lets the player walk right up and pet it (T); running at it still sends it off.
 const WILD = {
   deer: { name: 'deer', hp: 2, meat: 2, hide: 2, walk: 20, run: 100, shy: 72, alert: 120, range: 64, box: 10, tiles: [T.GRASS, T.DIRT], call: 'snort', every: [14, 30] },
   boar: { name: 'boar', hp: 4, meat: 3, hide: 2, walk: 14, run: 70, charge: 95, shy: 0, range: 48, box: 9, tiles: [T.GRASS, T.DIRT, T.JUNGLE], call: 'grunt', every: [6, 14] },
-  rabbit: { name: 'rabbit', hp: 1, meat: 1, hide: 1, walk: 28, run: 105, shy: 48, range: 40, box: 5, tiles: [T.GRASS], hops: true },
-  fox: { name: 'fox', walk: 22, run: 90, shy: 40, watch: 90, range: 64, box: 7, tiles: [T.SNOW, T.GRASS, T.ROCK], call: 'yip', every: [16, 34] },
+  rabbit: { name: 'rabbit', hp: 1, meat: 1, hide: 1, walk: 28, run: 105, shy: 48, range: 40, box: 5, tiles: [T.GRASS], hops: true, pet: true },
+  fox: { name: 'fox', walk: 22, run: 90, shy: 40, watch: 90, range: 64, box: 7, tiles: [T.SNOW, T.GRASS, T.ROCK], call: 'yip', every: [16, 34], pet: true },
   goat: { name: 'goat', walk: 12, run: 70, shy: 34, range: 44, box: 7, tiles: [T.ROCK, T.GRASS, T.SNOW], call: 'bleat', every: [10, 24] },
-  frog: { name: 'frog', walk: 34, shy: 26, range: 14, box: 4, tiles: [T.GRASS, T.JUNGLE, T.SAND, T.DIRT], hops: true, call: 'croak', every: [5, 12] },
+  frog: { name: 'frog', walk: 34, shy: 26, range: 14, box: 4, tiles: [T.GRASS, T.JUNGLE, T.SAND, T.DIRT], hops: true, call: 'croak', every: [5, 12], pet: true },
   sealion: { name: 'sea lion', hp: 2, meat: 3, hide: 3, box: 11 },
   snake: { name: 'snake', hp: 1, meat: 0, walk: 10, lunge: 40, strike: 170, shy: 0, range: 28, box: 7, tiles: [T.JUNGLE] },
-  javelina: { name: 'javelina', hp: 3, meat: 2, hide: 1, walk: 13, run: 66, charge: 88, shy: 0, range: 56, box: 6, tiles: [T.SAND, T.GRASS], call: 'grunt', every: [8, 16] },
+  javelina: { name: 'javelina', hp: 3, meat: 2, hide: 1, walk: 13, run: 66, charge: 88, shy: 0, range: 56, box: 6, tiles: [T.SAND, T.GRASS], call: 'grunt', every: [8, 16], pet: true },
   scorpion: { name: 'scorpion', hp: 1, meat: 0, walk: 8, lunge: 30, strike: 150, shy: 0, range: 36, box: 6, tiles: [T.SAND], venom: 3, warn: 'rattle' },
-  penguin: { name: 'penguin', walk: 9, slide: 80, shy: 38, range: 60, box: 6, tiles: [T.SNOW, T.ICE], call: 'honk', every: [7, 16] },
-  hedgehog: { name: 'hedgehog', walk: 9, shy: 30, range: 36, box: 5, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [7, 14] },
+  penguin: { name: 'penguin', walk: 9, slide: 80, shy: 38, range: 60, box: 6, tiles: [T.SNOW, T.ICE], call: 'honk', every: [7, 16], pet: true },
+  hedgehog: { name: 'hedgehog', walk: 9, shy: 30, range: 36, box: 5, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [7, 14], pet: true },
   badger: { name: 'badger', hp: 3, meat: 2, hide: 1, walk: 15, run: 72, shy: 56, range: 52, box: 8, tiles: [T.GRASS, T.DIRT], night: true, call: 'snuffle', every: [10, 20] },
   wolf: { name: 'wolf', hp: 4, meat: 3, hide: 3, walk: 24, run: 115, shy: 70, watch: 150, range: 80, box: 11, tiles: [T.GRASS, T.SNOW, T.ROCK], night: true, call: 'howl', every: [22, 30] },
   owl: { name: 'owl', shy: 44, range: 0, box: 5, night: true, call: 'hoot', every: [8, 16] },
@@ -120,6 +121,17 @@ function spawnSpot(h, rng, probe) {
   return null;
 }
 
+// One of herd `h` at the spot `spawnSpot` found, looking like `look` (a stag, an arctic fox). The level editor makes
+// them this way too. Night animals start out of sight until dark.
+function makeAnimal(h, at, look, rng) {
+  const w = WILD[h.kind];
+  return {
+    kind: h.kind, look, x: at.x, y: at.y, home: { x: at.x, y: at.y }, pond: at.pond, tree: at.tree, herd: h, dir: rng() < 0.5 ? 'left' : 'right',
+    state: w.night ? 'gone' : 'idle', timer: rng() * 3, anim: 0, lift: perchLift(at.tree), hp: w.hp || 0, hurtT: 0, fleeT: 0, target: null, stuck: 0,
+    callT: w.every ? w.every[0] + rng() * w.every[1] : 0, croakT: 0, respawnT: w.night ? rng() * 30 : 0, t: 0, phase: rng() * 6,
+  };
+}
+
 function initWildlife() {
   const rng = mulberry32(2024);
   const probe = {};
@@ -127,13 +139,7 @@ function initWildlife() {
     for (let n = 0; n < h.n; n++) {
       const at = spawnSpot(h, rng, probe);
       if (!at) continue;
-      const look = h.look || (h.kind === 'deer' && n % 3 === 0 ? 'stag' : h.kind);
-      const w = WILD[h.kind];
-      animals.push({
-        kind: h.kind, look, x: at.x, y: at.y, home: { x: at.x, y: at.y }, pond: at.pond, tree: at.tree, herd: h, dir: rng() < 0.5 ? 'left' : 'right',
-        state: w.night ? 'gone' : 'idle', timer: rng() * 3, anim: 0, lift: perchLift(at.tree), hp: w.hp || 0, hurtT: 0, fleeT: 0, target: null, stuck: 0,
-        callT: w.every ? w.every[0] + rng() * w.every[1] : 0, croakT: 0, respawnT: w.night ? rng() * 30 : 0, t: 0, phase: rng() * 6,
-      });
+      animals.push(makeAnimal(h, at, h.look || (h.kind === 'deer' && n % 3 === 0 ? 'stag' : h.kind), rng));
     }
   }
 }
@@ -257,6 +263,7 @@ function updateAnimal(a, dt) {
   const w = WILD[a.kind];
   if (a.hurtT > 0) a.hurtT -= dt;
   if (a.croakT > 0) a.croakT -= dt;
+  if (a.emoteT > 0) a.emoteT -= dt;
   if (a.state === 'down') {
     if ((a.t += dt) >= DOWN_TIME) dropMeat(a);
     return;
@@ -282,10 +289,18 @@ function updateAnimal(a, dt) {
     if ((a.frozenT -= dt) <= 0) thaw(a);
     return;
   }
+  if (a.sleepT > 0) {
+    if ((a.sleepT -= dt) <= 0) startle(a);
+    return;
+  }
   ambientCall(a, dt);
   const dist = Math.hypot(player.x - a.x, player.y - a.y);
   const near = playerAbout() && !player.swimming;
-  const shy = w.shy * (player.running ? 1.4 : 1);
+  const shy = w.pet && !player.running ? 0 : w.shy * (player.running ? 1.4 : 1);
+  if (a.state === 'petted') {
+    if ((a.timer -= dt) <= 0) Object.assign(a, { state: 'idle', timer: 1 });
+    return;
+  }
   if (w.charge) return updateBoar(a, dt, dist, near);
   if (w.lunge) return updateSnake(a, dt, dist, near);
   if (a.kind === 'penguin') return updatePenguin(a, dt, dist, near && dist < shy);
@@ -641,6 +656,36 @@ function ambientCall(a, dt) {
   }
 }
 
+// ---------- petting ----------
+
+const PET_REACH = 18;
+const PET_HOLD = 2.5;
+// Not while it's running off, charging, mid-leap or mid-pounce.
+const PETTABLE = new Set(['idle', 'graze', 'walk', 'watch', 'sit', 'curl', 'petted']);
+
+// The small critter close enough to pet.
+function nearCritter() {
+  if (!playerAbout() || player.swimming) return null;
+  let best = null;
+  let bd = PET_REACH;
+  for (const a of animals) {
+    if (!WILD[a.kind].pet || !PETTABLE.has(a.state) || a.frozenT > 0 || a.leaveT >= 0) continue;
+    const d = Math.hypot(a.x - player.x, a.y - player.y);
+    if (d < bd) [best, bd] = [a, d];
+  }
+  return best;
+}
+
+// It holds still for a moment, turned to the player, and makes its noise; a rabbit, with none, purrs.
+function petCritter(a) {
+  faceToward(player, a.x - player.x, a.y - player.y);
+  player.patAt = time;
+  Object.assign(a, { state: 'petted', timer: PET_HOLD, lift: 0, emote: 'heart', emoteT: 1.8, dir: player.x > a.x ? 'right' : 'left' });
+  const call = WILD[a.kind].call;
+  Sfx[call || 'purr'](0.6 * earshot(a.x, a.y));
+  if (a.kind === 'frog') a.croakT = 0.5;
+}
+
 function updateWildlife(dt) {
   if (player.clearT > 0) player.clearT -= dt;
   const k = player.knock;
@@ -693,6 +738,7 @@ function strikePrey(a, tool) {
 function hurtAnimal(a, dmg) {
   a.hp -= dmg;
   a.hurtT = 0.35;
+  a.sleepT = 0;
   Sfx.thunk(earshot(a.x, a.y));
   for (let i = 0; i < 5; i++) {
     particles.push({ type: 'chip', x: a.x, y: a.y - 6, vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 30, c: ['#ffffff', '#e8e0c8'][i % 2], life: 0, max: 0.4 });
@@ -772,7 +818,22 @@ function drawAnimal(a, cx, cy) {
     ctx.drawImage(img, x - Math.floor(img.width / 2) + shake, y - img.height + 1 - Math.round(a.lift));
   }
   if (a.frozenT > 0) drawIceBlock(x, y, img.width, img.height, a.frozenT);
+  if (a.sleepT > 0) drawSnores(x + 3, y - img.height - 2, a.sleepT);
   ctx.globalAlpha = 1;
+}
+
+// Little z's drifting up and away from a sleeping animal's head, each fading as it goes.
+function drawSnores(x, y, t) {
+  for (let i = 0; i < 2; i++) {
+    const u = (time * 0.7 + i * 0.5) % 1;
+    const s = i ? 2 : 3;
+    const zx = Math.round(x + u * 6 + i * 2);
+    const zy = Math.round(y - u * 10);
+    ctx.globalAlpha = Math.min(1, t) * (1 - u);
+    rect(ctx, zx, zy, s, 1, '#e8ecff');
+    for (let k = 1; k < s; k++) px(ctx, zx + s - 1 - k, zy + k, '#e8ecff');
+    rect(ctx, zx, zy + s, s, 1, '#e8ecff');
+  }
 }
 
 function wildItems(cx, cy) {

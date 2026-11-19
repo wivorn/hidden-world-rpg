@@ -103,15 +103,16 @@ function hungerHint(d) {
 
 const FEED_CHEER = { love: 25, like: 8, dislike: -6 };
 
-// `d` is offered `id`: true if it eats it. The first time it gets what it loves or hates, the player notices.
-function feedDragon(d, id) {
+// `d` is offered `id`: true if it eats it. The first time it gets what it loves or hates, the player notices, if
+// they `saw` it.
+function feedDragon(d, id, saw = true) {
   const taste = tasteOf(d, id);
   const food = itemName(id);
   cheer(d, FEED_CHEER[taste]);
   if (taste === 'dislike') {
     Object.assign(d, { emote: 'angry', emoteT: 1.8 });
     Sfx.spit(earshot(d.x, d.y));
-    if (!d.disKnown) {
+    if (saw && !d.disKnown) {
       d.disKnown = true;
       muse(`${d.name} won't touch ${food}. Not a fan!`);
     }
@@ -123,11 +124,11 @@ function feedDragon(d, id) {
     for (let i = 0; i < 6; i++) {
       particles.push({ type: 'sparkle', layer: 'sky', x: d.x + (Math.random() - 0.5) * 24, y: d.y - 14 - Math.random() * 20, vx: 0, vy: -14, life: 0, max: 0.6 + Math.random() * 0.4 });
     }
-    if (!d.favKnown) {
+    if (saw && !d.favKnown) {
       d.favKnown = true;
       muse(`${d.name} loves ${food}! That has to be its favourite.`);
     }
-  } else if (d.stage < GROWN && !growsOn(id) && !d.fruitTold) {
+  } else if (saw && d.stage < GROWN && !growsOn(id) && !d.fruitTold) {
     d.fruitTold = true;
     muse(`${d.name} likes that, but fruit won't make it grow. Fish or meat will.`);
   }

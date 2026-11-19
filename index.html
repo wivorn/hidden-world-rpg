@@ -299,6 +299,14 @@
   <script src="js/main.js"></script>
   <script src="js/save.js"></script>
   <script>
+    // index.html?editor opens the level editor over the game, sharing all of its code.
+    if (new URLSearchParams(location.search).has('editor')) {
+      document.documentElement.classList.add('editor');
+      document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: 'editor.css' }));
+      for (const src of ['js/level.js', 'js/editor.js']) document.body.append(Object.assign(document.createElement('script'), { src, async: false }));
+    }
+  </script>
+  <script>
     // Prevent mobile browsers from interpreting game touches as page zoom gestures.
     let menuTap = null;
     const moved = (touch) => Math.hypot(touch.clientX - menuTap.x, touch.clientY - menuTap.y) > 10;
