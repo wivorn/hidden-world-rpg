@@ -114,6 +114,7 @@ function snapshot() {
     stamina: player.stamina,
     roost: saveRoost(),
     nursery: saveNursery(),
+    farm: savePlots(),
   };
 }
 
@@ -185,6 +186,7 @@ function restore(s) {
   restorePlayer(s);
   restoreRoost(s.roost);
   restoreNursery(s.nursery);
+  restorePlots(s.farm);
   restoreEggs(s);
   // saves from before the rune stones that already took the egg count the stones as woken
   ruin.solved = !!s.ruin?.solved || eggs.some((e) => e.species === 'nightFury' && e.state !== 'wild');

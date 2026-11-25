@@ -9,6 +9,7 @@ const POIS = [
   { id: 'bakery', name: 'Bakery', icon: 'bread', x: 70 + OX, y: 69 + OY, words: /\b(baker|bread|oven)\b/i },
   { id: 'workshop', name: 'Carpenter', icon: 'saw', x: 95 + OX, y: 67 + OY, words: /\b(carpenter|longbows?|horn bows?)\b/i },
   { id: 'market', name: 'Market', icon: 'stall', x: 78.5 + OX, y: 56 + OY, words: /\b(market|plaza|square|stalls?)\b/i },
+  { id: 'seeds', name: 'Seed Shop', icon: 'sprout', x: 93 + OX, y: 56 + OY, words: /\b(gardener|seeds?|seed (stall|shop)|watering cans?)\b/i },
   { id: 'pen', name: 'Sheep Pen', icon: 'sheep', x: 115.5 + OX, y: 54.5 + OY, words: /\b(sheep|pen|shepherd|farm)\b/i },
   { id: 'range', name: 'Archery Range', icon: 'target', x: 97 + OX, y: 76 + OY, words: /\b(archer|archery|targets?|bullseye)\b/i },
   { id: 'gate', name: 'Southern Gate', icon: 'gate', x: 78.5 + OX, y: 92 + OY, words: /\b(southern gate|gate)\b/i },
@@ -242,6 +243,7 @@ const MAP_ICONS = {
   saw: (g) => { poly(g, [[1, 7], [9, 3], [9, 6], [2, 9]], '#c8ccd4'); for (let x = 2; x < 9; x += 2) px(g, x, 8 - Math.floor((x - 2) / 2), '#56565e'); rect(g, 8, 2, 2, 5, '#8a5a3a'); },
   bread: (g) => { ellipse(g, 5, 5, 4, 3, '#c88a3a'); rect(g, 3, 4, 1, 2, '#8a5a2a'); rect(g, 6, 4, 1, 2, '#8a5a2a'); },
   stall: (g) => { rect(g, 1, 2, 9, 2, '#c8322a'); rect(g, 1, 2, 3, 2, '#f4e6c0'); rect(g, 7, 2, 3, 2, '#f4e6c0'); rect(g, 2, 4, 1, 5, '#8a5a3a'); rect(g, 8, 4, 1, 5, '#8a5a3a'); rect(g, 2, 6, 7, 2, '#9a6a3c'); },
+  sprout: (g) => { rect(g, 1, 7, 9, 3, '#7a5232'); rect(g, 1, 8, 9, 1, '#5a3a22'); rect(g, 5, 3, 1, 5, '#3f7a2e'); ellipse(g, 3, 3, 2, 1.3, '#5aa83a'); ellipse(g, 8, 2.5, 2, 1.3, '#7ac84a'); },
   sheep: (g) => { ellipse(g, 5, 5, 4, 3, '#f4f0e6'); rect(g, 8, 4, 2, 2, MAP_INK); rect(g, 3, 8, 1, 1, MAP_INK); rect(g, 7, 8, 1, 1, MAP_INK); },
   target: (g) => { ellipse(g, 5, 5, 4, 4, '#c8322a'); ellipse(g, 5, 5, 2.5, 2.5, '#f4e6c0'); rect(g, 5, 5, 1, 1, '#c8322a'); },
   gate: (g) => { rect(g, 1, 1, 2, 8, '#8a5a3a'); rect(g, 8, 1, 2, 8, '#8a5a3a'); rect(g, 1, 2, 9, 1, '#6a4a2a'); rect(g, 1, 6, 2, 1, '#6a4a2a'); rect(g, 8, 6, 2, 1, '#6a4a2a'); },
@@ -487,7 +489,7 @@ function drawX(g, x, y, r) {
 // Where the icons were last drawn, for clicks.
 const mapHits = [];
 let flyHit = null;
-const canFlyTo = () => !!flight && flight.mode === 'fly' && !aloft() && !sky.shift;
+const canFlyTo = () => !!flight && flight.mode === 'fly' && !sky.shift;
 
 function hitAt(e) {
   const b = mapCanvas.getBoundingClientRect();

@@ -1155,8 +1155,8 @@ function renderCombine() {
         ed.parents = [];
         renderCombine();
       }, { disabled: !p.length })),
-    bred ? el('p', { class: 'out' }, iconCanvas({ type: 'dragon', species: ed.bred, stage: GROWN }, 2), el('br'),
-      `${bred.name}, from ${bred.parents.join(' and ')}. Combine again for another.`) : null,
+    ...(bred ? [el('p', { class: 'out' }, iconCanvas({ type: 'dragon', species: ed.bred, stage: GROWN }, 2), el('br'),
+      `${bred.name}, from ${bred.parents.join(' and ')}. Combine again for another.`)] : []),
   );
 }
 

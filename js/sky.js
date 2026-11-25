@@ -299,7 +299,7 @@ function lightCut(r) {
 
 // Everything that pushes back the dark: `r` is how far, `k` how strongly, and `glow` adds warm light on top.
 function nightLights(cx, cy, visible) {
-  if (aloft()) return [...playerLights(flight.x, flight.y - flight.alt - 10), ...skyLights()];
+  if (aloft()) return [...playerLights(flight.x, flight.y - flight.alt - 10), ...skyLights(), ...trailLights()];
   const out = [];
   for (const o of visible) {
     const l = SPR[o.key].light;
@@ -310,8 +310,6 @@ function nightLights(cx, cy, visible) {
     if (ROOMS[b.room].cave || !onScreen(b.x, b.y, cx, cy, 120)) continue;
     out.push({ x: doorX(b), y: b.y - 8, r: 30, k: 0.85, glow: 22 });
   }
-  const [px0, py0] = flight ? [flight.x, flight.y - flight.alt - 10] : [player.x, player.y - 10];
-  out.push(...playerLights(px0, py0));
   if (sail) {
     const d = SPR.ship.dirs[shipObj.facing];
     out.push({ x: shipObj.x + d.seat[0] - d.ox, y: shipObj.y - 34, r: 64, k: 0.95, glow: 22 });
@@ -329,19 +327,50 @@ function nightLights(cx, cy, visible) {
   }
   for (const s of smoulder) out.push({ x: s.x, y: s.y - 3, r: 12, k: 0.7 * (1 - s.t / s.max) });
   for (const f of fireflies) out.push({ x: f.x, y: f.y, r: 7, k: 0.8 * fireflyGlow(f) });
-  out.push(...festivalLights(), ...breathLights());
-  return out;
+  out.push(...festivalLights());
+  const [px0, py0] = flight ? [flight.x, flight.y - flight.alt - 10] : [player.x, player.y - 10];
+  return [...out.map(shrinkLight), ...playerLights(px0, py0), ...breathLights(), ...trailLights()];
 }
 
 // Darkens the world, cuts holes round every light, then lays warm glows, fireflies and lightning on top.
+// How strongly the low sun of sunrise or sunset lights things, 0 to 1; cloud cover all but puts it out.
+const lowSun = () => (indoors ? 0 : Math.max(0, golden() * (1 - weatherNow('grey') * 2)));
+// Which way across the view the low sun lies: east, off the right, as it comes up; west, off the left, going down.
+const sunSide = () => (clock < 0.5 ? 1 : -1);
+
+// Rosy gold at sunrise and deep orange going to red at sunset: the colour the light comes in on the sun's side,
+// the dusky violet it fades to on the far side, and the glow of the sun itself spilling in at the edge.
+const SUN_TINTS = {
+  rise: { near: [255, 164, 120], far: [140, 116, 204], glow: [255, 214, 168] },
+  set: { near: [255, 116, 46], far: [118, 58, 150], glow: [255, 168, 90] },
+};
+const rgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
+
+function drawLowSun() {
+  const k = lowSun();
+  if (k <= 0) return;
+  const t = clock < 0.5 ? SUN_TINTS.rise : SUN_TINTS.set;
+  const [sunX, farX] = sunSide() > 0 ? [viewW, 0] : [0, viewW];
+  const wash = ctx.createLinearGradient(sunX, 0, farX, 0);
+  wash.addColorStop(0, rgba(t.near, 0.38 * k));
+  wash.addColorStop(0.5, rgba(t.near, 0.18 * k));
+  wash.addColorStop(1, rgba(t.far, 0.26 * k));
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, viewW, viewH);
+  const R = viewW * 0.8;
+  const glow = ctx.createRadialGradient(sunX, viewH * 0.3, 0, sunX, viewH * 0.3, R);
+  glow.addColorStop(0, rgba(t.glow, 0.28 * k));
+  glow.addColorStop(1, rgba(t.glow, 0));
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
 function drawNight(cx, cy, visible) {
   const cave = inCave();
   const n = cave ? 1 : indoors ? 0 : nightness();
-  const warm = indoors ? 0 : golden() * (1 - weatherNow('grey') * 2);
-  if (warm > 0) {
-    ctx.fillStyle = `rgba(255,128,60,${0.18 * warm})`;
-    ctx.fillRect(0, 0, viewW, viewH);
-  }
+  drawLowSun();
   if (n > 0.01) {
     if (nightLayer.width !== viewW || nightLayer.height !== viewH) {
       nightLayer.width = viewW;
@@ -366,14 +395,15 @@ function drawNight(cx, cy, visible) {
       ctx.globalAlpha = 0.7 * n;
       ctx.drawImage(glowSprite(L.glow, L.color || '#ffb050'), Math.round(L.x - L.glow - cx), Math.round(L.y - L.glow - cy));
     }
-    for (const f of aloft() ? [] : fireflies) {
+    const flies = aloft() || worldScale() < 1 ? [] : fireflies;
+    for (const f of flies) {
       const k = fireflyGlow(f);
       if (k <= 0.05) continue;
       ctx.globalAlpha = k * n;
       ctx.drawImage(glowSprite(5, '#d8ff6a'), Math.round(f.x - 5 - cx), Math.round(f.y - 5 - cy));
     }
     ctx.globalCompositeOperation = 'source-over';
-    for (const f of aloft() ? [] : fireflies) {
+    for (const f of flies) {
       const k = fireflyGlow(f);
       if (k <= 0.2) continue;
       ctx.globalAlpha = k * n;
@@ -388,7 +418,7 @@ const lampBoost = () => 1 + (inCave() ? 0.6 : indoors ? 0 : nightness() * 0.6);
 
 function drawLightning() {
   if (weather.flash <= 0) return;
-  ctx.fillStyle = `rgba(235,242,255,${weather.flash * (indoors ? 0.12 : 0.55)})`;
+  ctx.fillStyle = `rgba(235,242,255,${weather.flash * (indoors ? 0.12 : aloft() ? 0.22 : 0.55)})`;
   ctx.fillRect(0, 0, viewW, viewH);
 }
 

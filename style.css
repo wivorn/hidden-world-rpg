@@ -1121,7 +1121,7 @@ body.title #toast {
 
 #pack-slots {
   display: grid;
-  grid-template-columns: repeat(4, 44px);
+  grid-template-columns: repeat(var(--cols, 4), 44px);
   gap: 4px;
   margin: 0;
   padding: 0;
@@ -1542,7 +1542,7 @@ body.hot .vignette {
 
 #bag-items {
   display: grid;
-  grid-template-columns: repeat(4, var(--slot));
+  grid-template-columns: repeat(var(--cols, 4), var(--slot));
 }
 
 .bag-cols section > h4 {

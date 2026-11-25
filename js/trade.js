@@ -1,4 +1,4 @@
-// The travelling merchant: every third day his ship ties up in the bay and he buys what you've gathered for coin.
+// The merchant: his ship lies at anchor in the bay and he buys what you've gathered for coin.
 
 // All money is counted in copper: ten copper to the silver, ten silver to the gold.
 let coins = 0;
@@ -12,11 +12,12 @@ function coinWords(c) {
 }
 
 // What Ottar pays for one of each, in copper.
-const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, arcticChar: 30, frostPike: 90, glacierSturgeon: 300, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600 };
+const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, arcticChar: 30, frostPike: 90, glacierSturgeon: 300, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600, carrot: 10, potato: 12, turnip: 8, cabbage: 18 };
 const WARES = [
   { id: 'torch', price: 35, text: 'Burns six hours once lit. For caves and dark nights.' },
   { id: 'arrow', n: 10, price: 60, text: 'A bundle of ten arrows.' },
   { id: 'satchel', price: 250, text: 'Straps to your pack. Room for two more things.', owned: () => has('satchel') },
+  { id: 'framePack', price: 600, text: 'An ash frame with a pack laced on. Room for four more things.', owned: () => has('framePack') },
   { id: 'goldenLure', n: 3, price: 150, text: 'Three golden lures. Golden fish bite five times as often, and rare fish far oftener.' },
   { id: 'sail', price: 300, text: 'A silk sail. The longship runs a third faster.', owned: () => upgrades.sail },
 ];
@@ -50,6 +51,7 @@ const SHOPS = {
     wares: () => [
       shopWare('axe', 60, 'Fells trees and hacks through brambles.', { name: 'Axe' }),
       shopWare('pickaxe', 150, 'Breaks ore and boulders.', { name: 'Pickaxe' }),
+      shopWare('hoe', 40, 'Digs a patch of soil in the garden fields by the scarecrows, ready for seeds.', { name: 'Hoe' }),
       shopWare('bow', 120, 'Wood and string. Arrows from the archer.', { name: 'Bow' }),
       shopWare('spear', 150, 'Long and sharp, for the hunt.', { name: 'Spear' }),
       shopWare('shield', 180, 'Iron-rimmed. Raise it to block.'),
@@ -68,6 +70,7 @@ const SHOPS = {
     wares: () => [
       shopWare('toolBelt', 200, 'Worn at the waist. Room for two more things.'),
       shopWare('pouch', 200, 'Worn on the belt. Room for two more things.'),
+      shopWare('kitbag', 350, 'Slung over the shoulder. Room for two more things.'),
       { id: 'saddle', price: 300, text: 'Double stitched. Strap it on a grown dragon and ride.' },
       { id: 'tent', price: 400, text: 'Pitch it anywhere. Nap by day to wake at nightfall, by night to wake at dawn.' },
     ],
@@ -81,6 +84,7 @@ const SHOPS = {
     wares: () => [
       shopWare('furCoat', 300, 'Fur with a wool lining. Keeps the frozen isle\'s cold out.'),
       shopWare('fireJacket', 400, 'Fire eel skin. Walk the fire mountain without a scald.'),
+      shopWare('pocketVest', 220, 'Pockets inside and out. Room for two more things.'),
     ],
     browse: 'Bring me the makings and I\'ll sew you something. Mind, fire eel skin isn\'t easy to come by!',
     hello: 'Something warm, or something fireproof? Have a look.',
@@ -89,7 +93,10 @@ const SHOPS = {
   },
   weaver: {
     title: 'THE WEAVER', who: 'the weaver', emblem: 'string',
-    wares: () => [{ id: 'string', price: 12, text: 'Spun fine and strong. For bowstrings and rope.', needs: { wool: 1 } }],
+    wares: () => [
+      { id: 'string', price: 12, text: 'Spun fine and strong. For bowstrings and rope.', needs: { wool: 1 } },
+      shopWare('haversack', 180, 'Woven wool, worn on the back. Room for two more things.'),
+    ],
     browse: 'Every bit of wool you bring, I\'ll spin into string. One for one.',
     hello: 'Need string, dear? I always keep a few lengths spare.',
     sold: 'There you are. Strong as a troll\'s beard.',
@@ -124,6 +131,21 @@ const SHOPS = {
     hello: 'Lures! Feathers, spinners, glow lures. Pick your poison.',
     sold: 'Tight lines, {lad}! Choose your lure when you cast.',
     bye: 'May the fish be biting.',
+  },
+  gardener: {
+    title: 'THE SEED SHOP', who: 'the gardener', emblem: 'carrot', sells: true,
+    wares: () => [
+      { id: 'carrotSeed', n: 3, price: 15, text: 'Three carrot seeds. Up in three days of watering.' },
+      { id: 'potatoSeed', n: 3, price: 18, text: 'Three seed potatoes. Three spuds from each plant.' },
+      { id: 'turnipSeed', n: 3, price: 12, text: 'Three turnip seeds. Cheap, cheerful and quick.' },
+      { id: 'cabbageSeed', n: 3, price: 25, text: 'Three cabbage seeds. One big head each, worth the wait.' },
+      shopWare('wateringCan', 60, 'Hold it by planted soil and press F to water. Once a day grows it a step.'),
+      shopWare('harvestBasket', 120, 'Wicker, strapped to your pack. Room for two more things.'),
+    ],
+    browse: 'Seeds for coin, and a watering can to go with them. Sell something to Ottar first, then come see me.',
+    hello: 'Seeds, seeds! What are we growing today?',
+    sold: 'Plant them in soil, water them daily, and be patient!',
+    bye: 'Happy growing!',
   },
 };
 // The board that's open, or null while it's Ottar's; and its keeper when they're close enough to speak.
@@ -177,71 +199,28 @@ function signAt(x, y) {
   return allSigns().find((o) => x >= o.x - s.ox && x < o.x - s.ox + s.img.width && y >= o.y - s.oy - 1 && y <= o.y + 2) || null;
 }
 
-// ---------- the ship's comings and goings ----------
+// ---------- the ship at anchor ----------
 
-// He's in port from the morning of every third day (days 2, 5, 8...) until the next morning.
-const merchantDue = (d = dayCount, c = clock) => (d % 3 === 2 && c >= 0.3) || (d % 3 === 0 && c < 0.3);
-const MERCHANT_OFFING = 26 * TILE;
-const merchant = { state: 'away', ship: null, npc: null, synced: false };
+// Ottar's ship lies at anchor in the bay for good, and he keeps to the beach beside it, day and night.
+const merchant = { state: 'away', ship: null, npc: null };
 
 function initTrade() {
   merchant.npc = npcs.find((n) => n.look.id === 'merchant');
   merchant.ship = Object.assign(addAbs('merchantShip', MERCHANT_DOCK.x, MERCHANT_DOCK.y), { facing: 'up', dir: 'up', hidden: true });
-  merchant.park = { x: merchant.npc.x, y: merchant.npc.y };
   renderPurse();
 }
 
 const merchantHere = () => merchant.state === 'docked';
 
-function merchantAshore(on) {
+// Once the game's under way he's put in port, ship moored and him on the beach.
+function updateMerchant() {
+  if (!started || merchantHere()) return;
+  merchant.state = 'docked';
+  merchant.ship.hidden = false;
   const n = merchant.npc;
-  Object.assign(n, on ? MERCHANT_STAND_PX() : merchant.park);
+  Object.assign(n, { x: MERCHANT_STAND.x * TILE, y: MERCHANT_STAND.y * TILE });
   n.home = { x: n.x, y: n.y };
   n.origin = { ...n.home };
-  if (!on && n.bubble) n.bubble.classList.remove('show');
-}
-const MERCHANT_STAND_PX = () => ({ x: MERCHANT_STAND.x * TILE, y: MERCHANT_STAND.y * TILE });
-
-function setMerchant(state) {
-  const o = merchant.ship;
-  merchant.state = state;
-  o.hidden = state === 'away';
-  o.facing = o.dir = state === 'leaving' ? 'down' : 'up';
-  if (state === 'away') o.y = MERCHANT_DOCK.y * TILE + MERCHANT_OFFING;
-  if (state === 'docked') o.y = MERCHANT_DOCK.y * TILE;
-  o.x = MERCHANT_DOCK.x * TILE;
-  merchantAshore(state === 'docked');
-}
-
-// The first update after loading puts him wherever the calendar says, without the sailing in.
-function updateMerchant(dt) {
-  if (!started) return;
-  const due = merchantDue();
-  const o = merchant.ship;
-  if (!merchant.synced) {
-    merchant.synced = true;
-    setMerchant(due ? 'docked' : 'away');
-    return;
-  }
-  const dock = MERCHANT_DOCK.y * TILE;
-  if (merchant.state === 'away' && due) {
-    setMerchant('arriving');
-    o.y = dock + MERCHANT_OFFING;
-    Sfx.horn(0.8);
-  } else if (merchant.state === 'arriving') {
-    const d = o.y - dock;
-    o.y -= Math.max(10, Math.min(45, d * 0.8)) * dt;
-    if (o.y <= dock + 0.5) setMerchant('docked');
-  } else if (merchant.state === 'docked' && !due) {
-    const n = merchant.npc;
-    if (!tradeOpen && Math.hypot(player.x - n.x, player.y - n.y) > 140) {
-      setMerchant('leaving');
-      Sfx.horn(0.5 * earshot(o.x, o.y));
-    }
-  } else if (merchant.state === 'leaving') {
-    o.y += Math.min(45, 10 + (o.y - dock) * 0.8) * dt;
-    if (o.y >= dock + MERCHANT_OFFING) setMerchant('away');
-  }
 }
 
 // Box of water the merchant's hull takes up, for the longship to bump into.
@@ -252,13 +231,9 @@ function merchantHull() {
 
 const hullsMeet = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
-// When he'll next be in, for the villagers to mention.
+// Where to find him, for the villagers to mention.
 function merchantNews() {
-  if (merchantHere()) return 'Ottar\'s ship is in! He\'s on the beach past the longship, buying fish, wool and ore for good coin.';
-  const left = (2 - (dayCount % 3) + 3) % 3;
-  if (left === 0 && clock < 0.3) return 'Ottar the merchant docks this morning. Bring him fish and wool, he pays in coin!';
-  if (left <= 1) return 'Ottar the merchant docks tomorrow morning. Bring him fish and wool, he pays in coin!';
-  return `Ottar the merchant sails in every third day. Next time in ${left} days. Save up some fish for him!`;
+  return 'Ottar\'s ship is anchored in the bay. He\'s on the beach past the longship, buying fish, wool and ore for good coin.';
 }
 
 // ---------- coins ----------
@@ -470,6 +445,7 @@ function buyWare(w) {
     torch: 'One torch. Keep it out of the rain, friend.',
     arrow: 'Ten arrows, fresh from the fletchers of the south.',
     satchel: 'A good satchel, that. Southern leather, double stitched.',
+    framePack: 'Carried that frame over half the mountains of Numina. Treat it kindly, friend.',
     goldenLure: 'Golden lures! The fish can\'t resist a bit of shine.',
     sail: 'Silk from the far east! I\'ll have it rigged by the time you reach your ship.',
   }[w.id]);

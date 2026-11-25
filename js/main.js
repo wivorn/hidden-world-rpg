@@ -43,7 +43,7 @@ function earshot(x, y) {
   return Math.max(0, Math.min(1, 1.3 - d / (viewW * 0.6)));
 }
 
-const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, carpenter: 200, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400, merchant: 230 };
+const VOICES = { male: 330, female: 460, chief: 150, smith: 120, baker: 380, weaver: 420, seamstress: 500, tanner: 170, carpenter: 200, gardener: 440, kid: 620, girl: 520, archer: 300, guard: 140, villager: 260, fisher: 190, hermit: 110, mom: 400, merchant: 230 };
 
 function surfaceUnder(x, y) {
   const t = tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
@@ -671,7 +671,7 @@ function updateNpc(n, dt) {
 }
 
 // After dark each shopkeeper shuts up and goes home to bed, and at dawn heads back out to work.
-const NIGHT_HOMES = { smith: 'smithy', tanner: 'tannery', weaver: 'weaverHouse', seamstress: 'seamstressHouse', baker: 'bakery', carpenter: 'workshop', fisher: 'fishShack' };
+const NIGHT_HOMES = { smith: 'smithy', tanner: 'tannery', weaver: 'weaverHouse', seamstress: 'seamstressHouse', baker: 'bakery', carpenter: 'workshop', gardener: 'cottage', fisher: 'fishShack' };
 const roomDoor = (r) => ({ x: (r.door + 0.5) * TILE, y: r.doorY * TILE - 4 });
 
 function nightHome(n) {
@@ -754,6 +754,12 @@ const WORK = {
     }
     return 0.45;
   },
+  gardener(n, o) {
+    for (let i = 0; i < 4; i++) {
+      particles.push({ type: 'drop', x: o.x + (Math.random() - 0.5) * 16, y: o.y - 12, vx: (Math.random() - 0.5) * 10, vy: 10 + Math.random() * 10, life: 0, max: 0.25 });
+    }
+    return 0.3;
+  },
   tanner(n, o) {
     o.shakeT = 0.15;
     Sfx.swish(0.5 * earshot(o.x, o.y));
@@ -799,8 +805,10 @@ const TIPS = {
     text: 'Caught a fish, {name}? Hold it over a fire and grill it. Apples bake nicely too. A hot meal puts a spring in your step!',
   },
   weaver: {
-    needed: () => !has('bow') && !has('string'),
-    text: 'Got any wool, dear? Bring it to me and I\'ll spin it into string. The shepherd has plenty, if you lend him a hand.',
+    needed: () => (!has('bow') && !has('string')) || (has('backpack') && !has('haversack') && (bag.wool || 0) >= 2),
+    text: () => (!has('bow') && !has('string')
+      ? 'Got any wool, dear? Bring it to me and I\'ll spin it into string. The shepherd has plenty, if you lend him a hand.'
+      : 'That\'s good wool you\'re carrying, dear. Bring me 4 wool and 2 string and ask for a haversack. Room for two more things.'),
   },
   fisher: {
     needed: () => eelsWanted() || (has('fishLog') && kindsCaught() < FISH_IDS.length),
@@ -809,18 +817,22 @@ const TIPS = {
       : fisherTip()),
   },
   tanner: {
-    needed: () => needsSaddle() || (has('backpack') && (!has('toolBelt') || (has('hide') && !has('pouch')))),
+    needed: () => needsSaddle() || (has('backpack') && (!has('toolBelt') || (has('hide') && (!has('pouch') || !has('kitbag'))))),
     text: () => (needsSaddle()
       ? 'Grown yourself a dragon, have you? You\'ll want a saddle before you climb on. Bring me 3 hides and ask for one.'
-      : has('toolBelt')
-        ? 'That\'s a fine hide you\'ve got! Bring me two and I\'ll stitch you a hunter\'s pouch. Room for two more things in your pack.'
-        : 'Pack filling up, {name}? Bring me two hides and I\'ll make you a tool belt with two pouches on it. Deer and boar in the south woods give hides.'),
+      : !has('toolBelt')
+        ? 'Pack filling up, {name}? Bring me two hides and I\'ll make you a tool belt with two pouches on it. Deer and boar in the south woods give hides.'
+        : !has('pouch')
+          ? 'That\'s a fine hide you\'ve got! Bring me two and I\'ll stitch you a hunter\'s pouch. Room for two more things in your pack.'
+          : 'Still short of room? Bring me 4 hides and 2 string and ask for a kit bag. Two more things, slung over your shoulder.'),
   },
   seamstress: {
-    needed: () => has('backpack') && (!has('furCoat') || !has('fireJacket')),
-    text: () => (!has('furCoat')
-      ? 'Going out to the frozen isle in that tunic, {name}? You\'d freeze solid! Bring me 4 hides and 2 wool and I\'ll sew you a thick fur coat.'
-      : 'Near the fire mountain the very air burns. Bring me 2 fire eels and 2 wool for a fireproof jacket. Eels love hot water, even the hot spring.'),
+    needed: () => has('backpack') && (!has('furCoat') || !has('fireJacket') || (!has('pocketVest') && packCramped())),
+    text: () => (!has('pocketVest') && packCramped()
+      ? 'Bursting at the seams, that pack! Bring me 1 hide, 2 wool and 1 string and ask for a pocket vest. Room for two more things.'
+      : !has('furCoat')
+        ? 'Going out to the frozen isle in that tunic, {name}? You\'d freeze solid! Bring me 4 hides and 2 wool and I\'ll sew you a thick fur coat.'
+        : 'Near the fire mountain the very air burns. Bring me 2 fire eels and 2 wool for a fireproof jacket. Eels love hot water, even the hot spring.'),
   },
   carpenter: {
     needed: () => has('bow') && upgrades.bow < BOWS.length - 1,
@@ -828,12 +840,21 @@ const TIPS = {
       ? 'That longbow could go farther yet. Bring me 2 hides, 1 iron and 1 string and ask for a horn bow.'
       : 'A bow, eh? Bring me 3 wood and 1 string and ask for a longbow. It\'ll shoot half as far again.'),
   },
+  gardener: {
+    needed: () => !stats.harvested,
+    text: () => (!has('hoe')
+      ? 'Want to grow your own, {name}? Get a hoe from the smith and dig a patch in the fields by the scarecrows. Then come back for seeds!'
+      : !has('wateringCan')
+        ? 'Seeds want water, {name}. One of my watering cans will see them right. Water them once a day.'
+        : 'Hold a seed out of your backpack and press X beside your patch to plant it. Water it each day, and a rainbow, they say, ripens anything at once.'),
+  },
   smith: {
     needed: () => has('pickaxe') && !has('torch') && !stats.caves,
     text: 'Heard of the ice cave on the frozen isle? Ice all round the mouth and black as pitch inside. Bring me 1 wood and 1 wool and I\'ll make you a torch.',
   },
 };
 
+const packCramped = () => held().length >= packSize() - 1;
 // Once the hermit or the seamstress has said a fireproof jacket is needed, until there are eels enough for one.
 const eelsWanted = () => !has('fireJacket') && (bag.eel || 0) < 2 && (stats.hermitEgg || stats.jacketAsked);
 const needsSaddle = () => !has('saddle') && dragons.some((d) => d.stage === GROWN && !d.saddled);
@@ -1288,6 +1309,10 @@ function updateFlight(dt) {
     const k = 1 - Math.exp(-dt * (steer && (ix || iy) ? 2.5 : 1.8));
     f.vx += ((steer ? ix * max : 0) - f.vx) * k;
     f.vy += ((steer ? iy * max : 0) - f.vy) * k;
+    if (f.arc) {
+      f.vx = arcSpeed(f);
+      f.vy = 0;
+    }
     if (skyBlocked(f.x + f.vx * dt, f.y)) f.vx = 0;
     f.x += f.vx * dt;
     if (skyBlocked(f.x, f.y + f.vy * dt)) f.vy = 0;
@@ -1306,7 +1331,7 @@ function updateFlight(dt) {
     f.face = octantFace(f.vx, f.vy, f.face);
   }
   const beat = Math.floor(f.flap / 4);
-  f.flap += dt * (f.mode === 'takeoff' ? 13 : boost ? 12 : speed > 20 ? 8 : 6);
+  f.flap += dt * (f.mode === 'takeoff' ? 13 : sky.shift ? skyFlap() : boost ? 12 : speed > 20 ? 8 : 6);
   if (Math.floor(f.flap / 4) !== beat) Sfx.flap(f.mode === 'takeoff' ? 1 : 0.6);
   player.x = f.x;
   player.y = f.y;
@@ -1319,6 +1344,19 @@ function updateFlight(dt) {
     });
   }
   if (boost && f.mode === 'fly' && f.loop < 0 && speed > 150) wingWind(f, speed, dt);
+  if (BREATH === 'rainbow' && f.mode === 'fly' && Math.random() < dt * (speed > 60 ? 16 : 6)) glitter(f, speed);
+}
+
+// A dragon that breathes rainbow leaves a faint glitter of colour drifting in the air behind it.
+const GLITTER = RAINBOW.map((c) => shade(c, 0.45));
+function glitter(f, speed) {
+  const [bx, by] = dragonBody(f);
+  const [ux, uy] = speed > 20 ? [f.vx / speed, f.vy / speed] : FACE_VEC[f.face || f.dir];
+  const off = (Math.random() - 0.5) * 26;
+  particles.push({
+    type: 'mote', layer: 'sky', x: bx - ux * 18 - uy * off, y: by - uy * 14 + ux * off * 0.6,
+    vx: (Math.random() - 0.5) * 6, vy: -4 - Math.random() * 6, c: GLITTER[Math.floor(Math.random() * GLITTER.length)], life: 0, max: 0.8 + Math.random() * 0.6,
+  });
 }
 
 // At full speed the air streams off both wingtips, peeling outwards as it falls behind, with longer wisps
@@ -1356,9 +1394,24 @@ const fireballs = [];
 
 const flightBob = (f) => (f.mode === 'fly' ? Math.sin(time * 3) * 2 : 0);
 
+// A rainbow breather doesn't loop: it swings across the screen in a great round arch, climbing steeply, levelling
+// over the top and swooping down the far side, and leaves a rainbow standing where it went.
+const ARC_SPAN = 300;   // px across the arch, flown sideways whichever way the dragon was heading
+const ARC_RISE = 130;   // px up at the top of it
+const ARC_TIME = 1.7;   // seconds to fly it
+
+// How fast the arching dragon goes across the ground: slow at the feet of the arch, where it's climbing or
+// dropping steeply, and fastest over the top.
+const arcSpeed = (f) => (f.arc.s * (ARC_SPAN / 2) * Math.PI * Math.sin(Math.PI * f.loop)) / ARC_TIME;
+
 // Offset and rotation of the dragon while looping; side views loop vertically, others spin.
 function loopPose(f) {
   if (f.loop < 0) return [0, 0, 0];
+  if (f.arc) {
+    const a = Math.PI * f.loop;
+    const pitch = Math.atan2(-ARC_RISE * Math.cos(a), (ARC_SPAN / 2) * Math.sin(a)) * 0.7;
+    return [0, -Math.sin(a) * ARC_RISE, pitch * f.arc.s];
+  }
   const a = f.loop * Math.PI * 2;
   if (isHorizontal(f.dir)) {
     const s = f.dir === 'right' ? 1 : -1;
@@ -1379,9 +1432,15 @@ function overWater(f) {
 
 function loopTrick() {
   const f = flight;
-  if (!f || f.mode !== 'fly' || f.loop >= 0) return;
+  if (!f || f.mode !== 'fly' || f.loop >= 0 || sky.shift) return;
   f.loop = 0;
   Sfx.whoosh();
+  if (BREATH !== 'rainbow') return;
+  const s = Math.sign(FACE_VEC[f.face || f.dir][0] || f.vx) || 1;
+  f.arc = { s };
+  // it sets off too slowly at the foot of the arch to turn by its speed, so it's turned side on here
+  f.dir = f.face = s > 0 ? 'right' : 'left';
+  startRainbowTrail();
 }
 
 function splashDive() {
@@ -1427,11 +1486,14 @@ function updateTricks(f, dt) {
   f.fireCd -= dt;
   if (f.charge != null) updateCharge(f, dt);
   if (f.loop >= 0) {
-    f.loop += dt / 0.9;
-    if (f.loop >= 1) f.loop = -1;
-    else {
+    f.loop += dt / (f.arc ? ARC_TIME : 0.9);
+    if (f.loop >= 1) {
+      f.loop = -1;
+      f.arc = null;
+    } else {
       const [bx, by] = dragonBody(f);
       particles.push({ type: 'sparkle', layer: 'sky', x: bx + (Math.random() - 0.5) * 20, y: by + (Math.random() - 0.5) * 10, vx: 0, vy: 0, life: 0, max: 0.5 });
+      trailRainbow(f);
     }
   }
 }
@@ -3328,6 +3390,7 @@ function action() {
     if (flight.mode !== 'fly' || sky.shift) return;
     if (aloft()) {
       if (nearSkyEgg()) scoopSkyEgg(nearSkyEgg());
+      else toggleAloft();
       return;
     }
     if (overCrater()) dropInCrater();
@@ -3364,6 +3427,7 @@ function action() {
   else if (nearChest()) toggleChest(true, nearChest());
   else if (nearWallMap()) takeMap();
   else if (nearGlowcap()) pickGlowcap(nearGlowcap());
+  else if (ripePlot()) harvest(ripePlot());
   else if (nearDrop()) takeFromPile();
   else if (dogFirst()) dog.state === 'lost' ? pickUpDog() : petDog();
   else if (signFirst()) openBoard(nearSign().shop);
@@ -3390,7 +3454,7 @@ function roomZoom(r) {
 function zoomTarget() {
   if (!started) return baseZoom;
   if (indoors) return roomZoom(indoors);
-  return sail || (flight && flight.mode !== 'landing' && (flight.alt > 8 || flight.mode === 'dive')) ? flyZoom : baseZoom;
+  return sail || (flight && flight.mode !== 'landing' && (flight.alt > 8 || flight.mode === 'dive' || sky.shift)) ? flyZoom : baseZoom;
 }
 
 function updateZoom(dt) {
@@ -3407,7 +3471,7 @@ function updateCamera(dt, snap) {
   }
   const mw = MAP_W * TILE;
   const mh = MAP_H * TILE;
-  const focusY = flight ? flight.y - flight.alt - 12 : sail ? player.y - 30 - (shipObj.lift || 0) * 0.6 : player.y - 10;
+  const focusY = flight ? flight.y - (sky.shift ? FLY_ALT : flight.alt) - 12 : sail ? player.y - 30 - (shipObj.lift || 0) * 0.6 : player.y - 10;
   let tx = player.x - viewW / 2;
   let ty = focusY - viewH / 2;
   // Indoors the view frames the room, following the player only if it doesn't fit.
@@ -3504,7 +3568,7 @@ function updateAmbience(dt) {
     }
     seaShare = wet / 48;
   }
-  const air = flight ? (flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) : 0;
+  const air = flight ? Math.min(1, clamp01(flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) + Math.abs(sky.rush || 0) * 0.8) : 0;
   if (indoors) Sfx.ambience(indoors.sea ? 0.6 : 0.04, 0);
   else Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
   Sfx.music(started ? musicArea() : null, indoors ? 0.6 : 1);
@@ -3560,6 +3624,7 @@ function update(dt) {
   for (const o of objects) if (o.shakeT > 0) o.shakeT -= dt;
   updateChopping(dt);
   updateDrops(dt);
+  updateFarm(dt);
   updateHens(dt);
   updateMerchant(dt);
   updateCave(dt);
@@ -3580,6 +3645,7 @@ function update(dt) {
   updateNursery();
   updatePens(dt);
   updateWildlife(dt);
+  updateBirds(dt);
   updateMap();
   for (const d of dragons) {
     if (started) updateMood(d, dt);
@@ -3597,6 +3663,7 @@ function update(dt) {
   updateJournal(dt);
   updateSea(dt);
   updateFireballs(dt);
+  updateRainbowTrails(dt);
   updateAmbience(dt);
   emitParticles(dt);
   updateParticles(dt);
@@ -3628,7 +3695,9 @@ function glowSprite(r, color) {
 
 // Warm flickering glows round fires, torches and the like; brighter after dark.
 function drawLights(cx, cy, visible) {
-  const boost = lampBoost();
+  // glows on the ground fade under the cloud going up through it
+  const boost = lampBoost() * (1 - skyFade());
+  if (!boost) return;
   ctx.globalCompositeOperation = 'lighter';
   for (const o of visible) {
     const l = SPR[o.key].light;
@@ -3692,8 +3761,10 @@ function drawAnimatedTiles(cx, cy) {
   }
 }
 
+// Shadows stretch out long, away from the sun, when it's low at either end of the day.
 function drawShadow(x, y, rx, ry, alpha = 0.22) {
-  ellipse(ctx, x, y - 1, rx, ry, `rgba(0,0,0,${alpha})`);
+  const k = lowSun();
+  ellipse(ctx, x - sunSide() * rx * 0.8 * k, y - 1, rx * (1 + k), ry, `rgba(0,0,0,${alpha})`);
 }
 
 function drawObject(o, cx, cy) {
@@ -3845,36 +3916,44 @@ function drawFallen(e, cx, cy) {
   ctx.restore();
 }
 
+// The dragon in flight as it's drawn this frame: its pose going through the deck, facing and wing frame.
+function flightLook(f) {
+  const pose = skyPose();
+  const face = pose?.face || f.face || f.dir;
+  return { pose, face, fr: flySet(f.dragon)[face][pose?.glide ? 1 : Math.floor(f.flap) % 4] };
+}
+
+// Dragon, rider and anything carried, about the dragon's body centre.
+function paintFlight(g, { pose, face, fr }) {
+  g.drawImage(fr.under, -36 - FLY_PAD, -29 - FLY_PAD);
+  const carry = carrying();
+  if (carry) g.drawImage(heldImg(), fr.seat[0] - 42, fr.seat[1] - 52);
+  // on a diagonal the rider is seen side on
+  const rider = charSprite(player.look, DRAGON_FACE_SIDES[face]?.[1] || (pose ? face : flight.dir), 0, carry);
+  g.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
+  if (fr.over) g.drawImage(fr.over, -36 - FLY_PAD, -29 - FLY_PAD);
+}
+
 function drawFlight(cx, cy) {
   const f = flight;
-  const fr = flySet(f.dragon)[f.face || f.dir][Math.floor(f.flap) % 4];
+  const look = flightLook(f);
   const [ox, oy, rot] = loopPose(f);
   ctx.save();
   ctx.translate(Math.round(f.x + ox) - cx, Math.round(f.y - f.alt - flightBob(f) + oy) - 11 - cy);
   if (rot) ctx.rotate(rot);
-  ctx.drawImage(fr.under, -36 - FLY_PAD, -29 - FLY_PAD);
-  const carry = carrying();
-  if (carry) ctx.drawImage(heldImg(), fr.seat[0] - 42, fr.seat[1] - 52);
-  // on a diagonal the rider is seen side on
-  const rider = charSprite(player.look, DRAGON_FACE_SIDES[f.face]?.[1] || f.dir, 0, carry);
-  ctx.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
-  if (fr.over) ctx.drawImage(fr.over, -36 - FLY_PAD, -29 - FLY_PAD);
+  if (look.pose?.pitch) tiltNose(ctx, look.face, look.pose.pitch);
+  paintFlight(ctx, look);
   ctx.restore();
 }
 
 function drawSky(cx, cy) {
-  const a = flight ? Math.min(1, flight.alt / FLY_ALT) : 0;
+  const a = flight ? (sky.shift ? 1 : clamp01(flight.alt / FLY_ALT)) : 0;
   if (!a) return;
   const P = 1.35;
   const spanX = viewW + 200;
   const spanY = viewH + 120;
-  ctx.globalAlpha = 0.5 * a;
-  for (const c of clouds) {
-    const sx = ((((c.x - cx * P) % spanX) + spanX) % spanX) - 100;
-    const sy = ((((c.y - cy * P) % spanY) + spanY) % spanY) - 60;
-    ctx.drawImage(c.img, Math.round(sx), Math.round(sy));
-  }
-  ctx.globalAlpha = 1;
+  const list = clouds.map((c) => [c.img, ((((c.x - cx * P) % spanX) + spanX) % spanX) - 100, ((((c.y - cy * P) % spanY) + spanY) % spanY) - 60]);
+  drawDeck(list, 0.5 * a, skyRain());
 }
 
 function drawTalkHint(n, cx, cy) {
@@ -3994,6 +4073,12 @@ function drawParticles(cx, cy, layer) {
     } else if (p.type === 'gust') {
       ctx.globalAlpha = 0.7 * (1 - t);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 6, p.y - cy - p.dy * 6, '#ffffff');
+    } else if (p.type === 'mote') {
+      ctx.globalAlpha = Math.sin(t * Math.PI) * (0.65 + 0.35 * Math.sin(p.life * 17));
+      const x = Math.round(p.x - cx);
+      const y = Math.round(p.y - cy);
+      px(ctx, x, y, p.c);
+      if (t > 0.3 && t < 0.5) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) px(ctx, x + dx, y + dy, p.c);
     } else if (p.type === 'wind') {
       ctx.globalAlpha = 0.55 * Math.sin(t * Math.PI);
       line(ctx, p.x - cx, p.y - cy, p.x - cx - p.dx * 12, p.y - cy - p.dy * 12, '#ffffff');
@@ -4082,12 +4167,16 @@ function render() {
     screenCtx.drawImage(buffer, 0, 0, viewW, viewH, 0, 0, viewW * zoom * dpr, viewH * zoom * dpr);
     return;
   }
-  const cx = Math.round(cam.x);
-  const cy = Math.round(cam.y);
+  const [sx, sy] = rushShake();
+  const camX = Math.round(cam.x) + sx;
+  const camY = Math.round(cam.y) + sy;
+  // the world below is drawn shrunk away when the dragon is high over it; everything from the clouds up isn't
+  let [cx, cy] = beginWorldView(camX, camY);
   ctx.fillStyle = PAL.ocean;
   ctx.fillRect(0, 0, viewW, viewH);
   drawGround(ctx, cx, cy, viewW, viewH);
   drawAnimatedTiles(cx, cy);
+  drawPlots(cx, cy);
   drawRapids(cx, cy);
   drawWhirlpool(cx, cy);
   drawParticles(cx, cy, 'water');
@@ -4108,11 +4197,10 @@ function render() {
     drawShadow(Math.round(e.x) - cx, Math.round(e.y) - cy, 5 - k * 2, 2 - k * 0.5);
   }
   if (hop && !hop.climb) drawShadow(Math.round(player.x) - cx, Math.round(player.y) - cy, 5, 2);
-  if (flight && !aloft()) {
-    const k = flight.alt / FLY_ALT;
-    drawShadow(Math.round(flight.x) - cx, Math.round(flight.y) - cy, 18 - k * 6, 5 - k * 1.5, 0.28 - k * 0.08);
-  }
-  const shownDragons = dragons.filter((d) => babyShown(d) && onScreen(d.x, d.y, cx, cy, 80));
+  if (flight && !aloft()) drawGroundShade(cx, cy);
+  // a baby tagging along on the wing goes up through the clouds with the dragon, so it's drawn over them
+  const skyBaby = flight && skyFade() && follower && follower.flying && babyShown(follower) ? follower : null;
+  const shownDragons = dragons.filter((d) => d !== skyBaby && babyShown(d) && onScreen(d.x, d.y, cx, cy, 80));
   const highDragons = shownDragons.filter((d) => babyLift(d) > 20);
   for (const d of shownDragons) {
     const k = Math.min(1, babyLift(d) / 50);
@@ -4128,7 +4216,7 @@ function render() {
   const dropItems = drops.filter((d) => onScreen(d.x, d.y, cx, cy, 20)).map((d) => ({ y: d.y - 2, draw: () => drawDrop(d, cx, cy) }));
   const dogItems = dog.state !== 'carried' && !indoors && onScreen(dog.x, dog.y, cx, cy, 20) ? [{ y: dog.y, draw: () => drawDog(cx, cy) }] : [];
   const henItems = indoors ? [] : hens.filter((h) => onScreen(h.x, h.y, cx, cy, 20)).map((h) => ({ y: h.y, draw: () => drawHen(h, cx, cy) }));
-  const list = visible.filter((o) => !SPR[o.key].flat).concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy)).sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
+  const list = visible.filter((o) => !SPR[o.key].flat).concat(walkers, seaSprites(cx, cy), dragonItems, sheepItems, dropItems, dogItems, henItems, wildItems(cx, cy), cropItems(cx, cy)).sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
   for (const it of list) {
     if (it.draw) it.draw();
     else if (it.isEntity) drawEntity(it, cx, cy, it.jumpT >= 0 ? Math.round(jumpLift(it)) : it.danceT > 0 ? Math.round(Math.abs(Math.sin(time * 10)) * 4) : 0);
@@ -4147,8 +4235,17 @@ function render() {
   }
   for (const d of highDragons) drawBaby(d, cx, cy);
   drawSeaSky(cx, cy);
+  endWorldView();
+  [cx, cy] = [camX, camY];
   drawSkyLayer(cx, cy);
-  if (flight) drawFlight(cx, cy);
+  drawBirds(cx, cy);
+  drawRainbowTrails(cx, cy);
+  inSkyPose(cx, cy, () => {
+    if (skyBaby) drawBaby(skyBaby, cx, cy);
+    if (flight) drawFlight(cx, cy);
+  });
+  drawSkyHigh(cx, cy);
+  drawRushLines();
   drawFireballs(cx, cy);
   drawArrows(cx, cy);
   drawDrawMeter(cx, cy);
@@ -4159,16 +4256,17 @@ function render() {
   drawWeather(cx, cy);
   drawNight(cx, cy, visible);
   if (!aloft()) {
-    drawCurrents(cx, cy);
-    drawLights(cx, cy, visible);
-    drawTorBolts(cx, cy);
+    const [wx, wy] = beginWorldView(camX, camY);
+    drawCurrents(wx, wy);
+    drawLights(wx, wy, visible);
+    drawTorBolts(wx, wy);
+    endWorldView();
   }
   drawLightning();
   if (indoors) maskRoom(cx, cy);
-  drawSkyWhiteout();
 
   for (const n of npcs) {
-    const seen = sameSpace(n) && !aloft();
+    const seen = sameSpace(n) && !aloft() && worldScale() === 1;
     if (n.bubble) n.bubble.hidden = !seen;
     if (!seen) continue;
     if (n.talkT > 0) {
@@ -4201,7 +4299,7 @@ function render() {
     const space = aloft() ? skySpacePrompt()
       : floatersNear(flight).length && overWater(flight) ? 'SPACE  Swoop down for the fish'
       : landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
-    const up = aloft() ? '  ·  U  Drop below the clouds' : canRise() ? '  ·  U  Fly up above the clouds' : '';
+    const up = aloft() ? '' : canRise() ? '  ·  U  Fly up above the clouds' : '';
     const egg = (carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '') + up;
     const breath = BREATH === 'lightning'
       ? (flight.charge == null ? 'F  Beam (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to strike' : 'Full charge! Let go of F for a storm')
@@ -4287,6 +4385,8 @@ function render() {
     setPrompt('SPACE  Take the map');
   } else if (nearGlowcap()) {
     setPrompt('SPACE  Pick the glowcap');
+  } else if (ripePlot()) {
+    setPrompt(ripeHint(ripePlot()));
   } else if (nearDrop()) {
     const pile = pileNear();
     const { item, drops: ds } = pile.find((p) => p.item === nearDrop().item) || { item: nearDrop().item, drops: [nearDrop()] };
@@ -4608,14 +4708,14 @@ function flightActions() {
   const f = flight;
   const free = f.mode === 'fly' && f.loop < 0;
   const act = (code, name, label, on) => ({ code, shift: false, name, label, off: !on });
-  const space = aloft() ? (nearSkyEgg() ? ['SCOOP', 'Scoop up the egg'] : null)
+  const space = aloft() ? (nearSkyEgg() ? ['SCOOP', 'Scoop up the egg'] : ['DOWN', 'Drop below the clouds'])
     : overCrater() ? ['DROP EGG', 'Drop the egg into the volcano']
     : floatersNear(f).length && overWater(f) ? ['SWOOP', 'Swoop down for the fish']
     : landingSpot() ? ['LAND', 'Land'] : overWater(f) ? ['DIVE', 'Splash dive'] : null;
   return [
-    act('Space', ...(space || ['LAND', aloft() ? 'Nothing to land on up here' : 'Find open ground to land']), free && !!space && !sky.shift),
+    act('Space', ...(space || ['LAND', 'Find open ground to land']), free && !!space && !sky.shift),
     act('KeyF', 'BEAM', 'Breathe (hold to charge)', canBreathe(f) && (f.fireCd <= 0 || f.charge != null)),
-    act('KeyR', 'LOOP', 'Loop', free),
+    act('KeyR', ...(BREATH === 'rainbow' ? ['ARC', 'Rainbow arc'] : ['LOOP', 'Loop']), free),
     act('KeyU', aloft() ? 'DOWN' : 'UP', aloft() ? 'Drop below the clouds' : 'Fly up above the clouds', canRise()),
   ];
 }

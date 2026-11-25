@@ -47,10 +47,10 @@ const AGE_NAMES = ['HATCHLING', 'YOUNGLING', 'JUVENILE', 'GROWN'];
 // How each shown allele reads in a bred kind's list of traits; shape genes at 'mid' go unmentioned.
 const TRAIT_WORDS = {
   breath: Object.fromEntries(Object.entries(BREATH_NAMES).map(([k, v]) => [k, `${v} breath`])),
-  horns: { horns: 'Horns', crest: 'Crest', fins: 'Head fins', frill: 'Frill', fury: 'Ear flaps', none: 'No horns' },
-  spines: { spikes: 'Back spikes', plates: 'Back plates', nubs: 'Back nubs', none: 'Smooth back' },
-  tail: { club: 'Club tail', spade: 'Spade tail', fins: 'Tail fins', fan: 'Fan tail' },
-  marks: { stripes: 'Stripes', spots: 'Spots', bubbles: 'Bubble marks', none: 'Plain scales' },
+  horns: { horns: 'Horns', crest: 'Crest', fins: 'Head fins', frill: 'Frill', fury: 'Ear flaps', antlers: 'Antlers and whiskers', none: 'No horns' },
+  spines: { spikes: 'Back spikes', plates: 'Back plates', nubs: 'Back nubs', mane: 'Cloud mane', none: 'Smooth back' },
+  tail: { club: 'Club tail', spade: 'Spade tail', fins: 'Tail fins', fan: 'Fan tail', plume: 'Plume tail' },
+  marks: { stripes: 'Stripes', spots: 'Spots', bubbles: 'Bubble marks', swirls: 'Swirl marks', none: 'Plain scales' },
   tips: { tips: 'Bright wingtips', plain: 'Plain wings' },
   neck: { stubby: 'Stubby neck', long: 'Long neck' },
   snout: { blunt: 'Blunt snout', long: 'Long snout' },

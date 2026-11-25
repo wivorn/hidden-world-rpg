@@ -265,7 +265,7 @@ function festivalNpc(n, dt) {
 }
 
 // On a feast day everyone in the village talks of nothing else, and the chief has a treat for you from the table.
-const FEST_FOLK = new Set([...VILLAGE_NPCS.map((d) => d.look), 'carpenter']);
+const FEST_FOLK = new Set([...VILLAGE_NPCS.map((d) => d.look), 'carpenter', 'gardener']);
 function festivalLines(n) {
   if (!festivalOn() || !FEST_FOLK.has(n.look.id)) return null;
   const S = seasonNow();

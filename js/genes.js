@@ -5,10 +5,10 @@
 
 // Each gene's alleles, most dominant first.
 const GENES = {
-  horns: ['horns', 'crest', 'fins', 'frill', 'fury', 'none'],
-  spines: ['spikes', 'plates', 'nubs', 'none'],
-  tail: ['club', 'spade', 'fins', 'fan'],
-  marks: ['stripes', 'spots', 'none', 'bubbles'],
+  horns: ['horns', 'crest', 'fins', 'frill', 'fury', 'antlers', 'none'],
+  spines: ['spikes', 'plates', 'nubs', 'mane', 'none'],
+  tail: ['club', 'spade', 'fins', 'fan', 'plume'],
+  marks: ['stripes', 'spots', 'none', 'bubbles', 'swirls'],
   tips: ['tips', 'plain'],
   neck: ['mid', 'stubby', 'long'],
   snout: ['mid', 'blunt', 'long'],
@@ -37,7 +37,7 @@ const WILD_CARRIES = {
   terribleTerror: { head: 'big', build: 'lean', tail: 'fan' },
   skrill: { wings: 'big', snout: 'long' },
   tideGlider: { horns: 'frill', wings: 'big' },
-  cloudDragon: { wings: 'big', horns: 'fins', tailLen: 'long' },
+  cloudDragon: { wings: 'big', horns: 'none', tailLen: 'long' },
 };
 // Pairs of breath alleles that, carried together, show neither: they fuse into a breath of their own. Neither
 // copy is hidden, so a fused breath doesn't breed true: two Steam dragons have fire, steam and water young.

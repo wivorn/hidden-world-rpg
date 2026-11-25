@@ -48,7 +48,7 @@ const ICE_TIME = 25;
 const SNOWY_TIME = 30;
 const beams = [];
 
-const canBreathe = (f) => f && f.mode === 'fly' && f.loop < 0;
+const canBreathe = (f) => f && f.mode === 'fly' && f.loop < 0 && !sky.shift;
 
 function chargeBreath() {
   const f = flight;
@@ -409,6 +409,7 @@ function breathHit(x, y, el, pal, big, beam = false) {
   const tile = tileUnder(x, y);
   const near = earshot(x, y);
   particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: pal[0], life: 0, max: big ? 0.3 : 0.2 });
+  if (el === 'water' || el === 'rainbow') farmBreath(x, y, el, BREATHS[el].radius * (big ? 1 : 0.7));
   if (el === 'rainbow') {
     rainbowHit(x, y, big, isWet(tile));
   } else if (FUSED_HITS[el]) {
@@ -796,6 +797,100 @@ function rainbowHit(x, y, big, wet) {
 function charm(a) {
   if (a.frozenT > 0) return;
   Object.assign(a, { charmT: CHARM_TIME, sleepT: 0, lift: 0, emote: 'heart', emoteT: 1.8 });
+}
+
+// A dragon that breathes rainbow leaves one hanging in the air when it arcs: a ribbon of the seven colours,
+// red on the outside, streaming off behind it as it bounds over, that lingers a while and then fades. Each one
+// only shows on the side of the cloud deck it was drawn on.
+const TRAIL_LINGER = 2.6;   // seconds a rainbow hangs in the air once the arc is done
+const TRAIL_FADE = 1.4;     // seconds it takes to fade after that
+const TRAIL_BEHIND = 14;    // px behind the dragon's middle the ribbon streams off
+const TRAIL_BAND = 2.6;     // px across each colour
+const rainbowTrails = [];
+
+function startRainbowTrail() {
+  rainbowTrails.push({ pts: [], t: 0, open: true, sky: aloft() });
+  Sfx.rainbow();
+}
+
+// Adds the point behind the looping dragon, swung round with it, to the rainbow it's drawing.
+function trailRainbow(f) {
+  const trail = rainbowTrails[rainbowTrails.length - 1];
+  if (!trail || !trail.open) return;
+  const [bx, by] = dragonBody(f);
+  const rot = loopPose(f)[2];
+  const [vx, vy] = f.arc ? [f.arc.s, 0] : FACE_VEC[f.face || f.dir];
+  // a head- or tail-on roll spins in place, so the ribbon needs to swing clear of the body
+  const reach = f.arc || isHorizontal(f.dir) ? TRAIL_BEHIND : TRAIL_BEHIND * 1.7;
+  const tx = -vx * reach;
+  const ty = -vy * reach;
+  trail.pts.push([bx + tx * Math.cos(rot) - ty * Math.sin(rot), by + tx * Math.sin(rot) + ty * Math.cos(rot)]);
+}
+
+function updateRainbowTrails(dt) {
+  for (let i = rainbowTrails.length - 1; i >= 0; i--) {
+    const r = rainbowTrails[i];
+    if (r.open && (!flight || flight.loop < 0)) r.open = false;
+    if (r.open) continue;
+    r.t += dt;
+    if (r.t > TRAIL_LINGER + TRAIL_FADE) {
+      rainbowTrails.splice(i, 1);
+      continue;
+    }
+    if (r.pts.length && r.t < TRAIL_LINGER && Math.random() < dt * 10) {
+      const [x, y] = r.pts[Math.floor(Math.random() * r.pts.length)];
+      particles.push({ type: 'sparkle', layer: 'sky', x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8, vx: 0, vy: -5, life: 0, max: 0.5 });
+    }
+  }
+}
+
+const trailFade = (r) => 1 - Math.max(0, Math.min(1, (r.t - TRAIL_LINGER) / TRAIL_FADE));
+
+function drawRainbowTrails(cx, cy) {
+  for (const r of rainbowTrails) {
+    const n = r.pts.length;
+    if (n < 2 || r.sky !== aloft()) continue;
+    // which way round it was drawn, so red goes on the outside of the curve
+    let area = 0;
+    for (let i = 0; i < n; i++) {
+      const [x0, y0] = r.pts[i];
+      const [x1, y1] = r.pts[(i + 1) % n];
+      area += x0 * y1 - x1 * y0;
+    }
+    const out = area > 0 ? -1 : 1;
+    const side = r.pts.map(([x, y], i) => {
+      const [x0, y0] = r.pts[Math.max(0, i - 1)];
+      const [x1, y1] = r.pts[Math.min(n - 1, i + 1)];
+      const d = Math.hypot(x1 - x0, y1 - y0) || 1;
+      // narrowing to a point at the tail end, and at the head once the loop's done
+      const taper = Math.min(1, i / 8, r.open ? 1 : (n - 1 - i) / 8);
+      return [x - cx, y - cy, (-(y1 - y0) / d) * out * taper, ((x1 - x0) / d) * out * taper];
+    });
+    const fade = trailFade(r) * (0.85 + 0.15 * Math.sin(time * 4));
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.18 * fade;
+    strokePath(side.map(([x, y]) => [x, y]), TRAIL_BAND * 9, '#ffffff');
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.8 * fade;
+    RAINBOW.forEach((c, b) => {
+      const off = ((RAINBOW.length - 1) / 2 - b) * TRAIL_BAND;
+      strokePath(side.map(([x, y, nx, ny]) => [x + nx * off, y + ny * off]), TRAIL_BAND + 0.6, c);
+    });
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Lights along a rainbow left in the air, for the dark (see nightLights).
+function trailLights() {
+  const out = [];
+  for (const r of rainbowTrails) {
+    if (r.sky !== aloft()) continue;
+    for (let i = 0; i < r.pts.length; i += 10) {
+      const [x, y] = r.pts[i];
+      out.push({ x, y, r: 18, k: 0.7 * trailFade(r), glow: 7, color: RAINBOW[(i / 10) % RAINBOW.length] });
+    }
+  }
+  return out;
 }
 
 // Moonlight lulls an animal to sleep where it stands, for SLEEP_TIME (see updateAnimal).

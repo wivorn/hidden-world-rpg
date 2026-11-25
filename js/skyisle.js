@@ -7,10 +7,15 @@
 // the cloud over the nest of a cloud dragon's egg. From the east side the colours come out back to front, and the
 // crystals only flicker and fizzle.
 
-const SKY_RISE = 0.9;      // seconds climbing (or dropping) into the white of the cloud deck
-const SKY_SETTLE = 0.8;    // seconds coming out the other side
-const SKY_LIFT = 90;       // px the dragon climbs above its flying height going through the deck
-const SKY_SINK = 54;       // px below its flying height it comes out of the deck, or dips into it on the way down
+const SKY_INTO = 1.2;      // seconds surging up (or falling) into the cloud deck
+const SKY_OUT = 1.1;       // seconds coasting out the other side and levelling off
+const SKY_LIFT = 50;       // px up the screen the dragon surges ahead of the camera at the top of the climb
+const SKY_SINK = 40;       // px down the screen it falls ahead of the camera in the drop
+const SKY_SWELL = 0.08;    // how much bigger it looks at the top of the surge (and smaller at the bottom of the fall)
+const SKY_PITCH = 0.5;
+const SKY_DRIFT = 60;      // px the cloud sea slides past as the dragon goes through it
+const WORLD_FAR = 0.4;     // how big the world below looks from above the clouds
+const RUSH_RATE = 2.2;     // how fast the world shrinking (or swelling) away counts as a full rush
 const SKY_SEEN = 380;      // px from the island's middle it's first made out
 const BANK_PAD = 12;       // px the dragon keeps clear of a cloud bank
 const PRISM_REACH = 48;    // px from a prism a breath can land and still turn it; prisms stand well over twice this apart
@@ -73,25 +78,192 @@ function toggleAloft() {
   Sfx.flap(1.2);
 }
 
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+// How far through its half of the shift it is: into the deck, or (once flipped) out the other side.
+const shiftU = (s) => clamp01(s.t / (s.flipped ? SKY_OUT : SKY_INTO));
+// How far through the whole shift it is, and where in that it goes through the deck.
+const FLIP_P = SKY_INTO / (SKY_INTO + SKY_OUT);
+const shiftP = (s) => (s.flipped ? FLIP_P + shiftU(s) * (1 - FLIP_P) : shiftU(s) * FLIP_P);
+
+// How far up (or down) the screen the dragon is from where the camera holds it, going through the deck. Climbing,
+// it sinks a touch as it gathers itself, then surges up faster and faster ahead of the camera; above the clouds
+// it coasts on up a little and the camera catches it up. Going down it bobs up as it drops, then falls
+// faster and faster, and under the clouds keeps falling until it flares its wings and levels off.
+function surge(s) {
+  const u = shiftU(s);
+  if (s.up && !s.flipped) return u < 0.15 ? -7 * Math.sin((Math.PI * u) / 0.15) : SKY_LIFT * ((u - 0.15) / 0.85) ** 2;
+  if (s.up) return (SKY_LIFT + 60 * u) * (1 - ease(u));
+  if (!s.flipped) return u < 0.18 ? 6 * Math.sin((Math.PI * u) / 0.18) : -SKY_SINK * ((u - 0.18) / 0.82) ** 2;
+  return -(SKY_SINK + 50 * u) * (1 - ease(u));
+}
+
+// How far the dragon's nose is tipped up (radians, down if negative) going through the deck. Climbing, it pulls
+// its nose up as it surges and levels off coasting over the top. Going down it tips its nose over into the
+// fall, and under the clouds pulls up past level as it flares, then settles.
+function skyPitch(s) {
+  const u = shiftU(s);
+  if (s.up && !s.flipped) return SKY_PITCH * ease(clamp01((u - 0.08) / 0.32));
+  if (s.up) return SKY_PITCH * (1 - ease(clamp01(u / 0.6)));
+  if (!s.flipped) return u < 0.15 ? 0.12 * Math.sin((Math.PI * u) / 0.15) : -SKY_PITCH * ease(clamp01((u - 0.15) / 0.35));
+  if (u < 0.6) return -SKY_PITCH + (SKY_PITCH + 0.15) * ease(clamp01((u - 0.2) / 0.4));
+  return 0.15 * (1 - ease((u - 0.6) / 0.4));
+}
+
+// How the dragon goes through the deck, keeping its heading both ways. Up, it beats hard and then coasts on
+// still wings over the top; down, it falls on folded wings, then flares them wide. `alt` is its height,
+// `scale` how near the eye it looks, `pitch` how far its nose is tipped up.
+function skyPose() {
+  const s = sky.shift;
+  if (!s || !flight) return null;
+  const u = shiftU(s);
+  const face = flight.face || flight.dir;
+  const off = surge(s);
+  const glide = s.up ? s.flipped && u < 0.55 : !s.flipped;
+  return { face, alt: FLY_ALT + off, scale: 1 + (SKY_SWELL * off) / (off > 0 ? SKY_LIFT : SKY_SINK), glide, pitch: skyPitch(s) };
+}
+
+const NOSE_SIDE = { right: 1, se: 1, ne: 1, left: -1, sw: -1, nw: -1 };
+
+// Tips the dragon's nose up (pitch > 0) or down about its body. Side on that turns the sprite; head on or tail on
+// it can't be turned without rolling, so its body foreshortens instead.
+function tiltNose(g, face, pitch) {
+  const side = NOSE_SIDE[face];
+  if (side) g.rotate(-pitch * side);
+  else g.scale(1, 1 - 0.35 * Math.abs(pitch));
+}
+
+// How fast its wings beat going through the deck: hard on the climb and in the flare at the bottom of the fall.
+function skyFlap() {
+  const s = sky.shift;
+  if (s.up) return s.flipped ? 6 : 15;
+  return s.flipped && shiftU(s) < 0.6 ? 13 : 6;
+}
+
+// How dark the dragon's shadow is: fading out as it climbs away from it.
+function shadowShown() {
+  return sky.shift && flight ? clamp01(1 - (flight.alt - FLY_ALT) / SKY_LIFT) : 1;
+}
+
+// How big the world below looks: it falls away smaller and smaller as the dragon climbs, faster the higher it
+// gets, and stays small under the clouds; dropping back down it swells up to meet the dragon, then slows as it
+// levels off.
+function worldScale() {
+  if (!flight || indoors) return 1;
+  const s = sky.shift;
+  if (!s) return sky.on ? WORLD_FAR : 1;
+  const p = shiftP(s);
+  return WORLD_FAR ** (s.up ? clamp01(p / FLIP_P) ** 2 : 1 - ease(clamp01((p - 0.12) / 0.7)));
+}
+
+// Draws the world below as small as it looks, shrunk about the ground under the dragon, with the view widened to
+// match so all of it that shows is drawn. Returns the camera to draw it from; endWorldView puts things back.
+let worldSaved = null;
+function beginWorldView(cx, cy) {
+  const s = worldScale();
+  if (s === 1) return [cx, cy];
+  worldSaved = [viewW, viewH];
+  ctx.save();
+  ctx.scale(s, s);
+  ctx.imageSmoothingEnabled = true;
+  viewW = Math.ceil(viewW / s);
+  viewH = Math.ceil(viewH / s);
+  return [Math.round(flight.x - (flight.x - cx) / s), Math.round(flight.y - (flight.y - cy) / s)];
+}
+
+// Where a light on the ground shows, and how far it reaches, with the world below shrunk away.
+function shrinkLight(L) {
+  const s = worldScale();
+  if (s === 1) return L;
+  return { ...L, x: flight.x + (L.x - flight.x) * s, y: flight.y + (L.y - flight.y) * s, r: Math.max(2, Math.round(L.r * s)), glow: L.glow && Math.max(2, Math.round(L.glow * s)) };
+}
+
+function endWorldView() {
+  if (!worldSaved) return;
+  [viewW, viewH] = worldSaved;
+  worldSaved = null;
+  ctx.restore();
+}
+
+// How hard the air is rushing past: + climbing, - falling, from how fast the world is shrinking or swelling.
+function updateRush(dt) {
+  const ws = worldScale();
+  const rate = sky.ws && dt > 0 ? -Math.log(ws / sky.ws) / dt / RUSH_RATE : 0;
+  sky.ws = ws;
+  const want = Math.max(-1, Math.min(1, rate));
+  sky.rush = (sky.rush || 0) + (want - (sky.rush || 0)) * (1 - Math.exp(-dt * 6));
+  if (Math.abs(sky.rush) < 0.01) sky.rush = 0;
+  const r = Math.abs(sky.rush);
+  if (r > 0.12 && Math.random() < dt * 90 * r) {
+    const down = sky.rush > 0;
+    rushLines.push({ x: Math.random() * viewW, y: down ? -40 : viewH + 40, v: (down ? 1 : -1) * (520 + Math.random() * 360), len: 14 + Math.random() * 30, a: 0.2 + Math.random() * 0.25 });
+  }
+  for (let i = rushLines.length - 1; i >= 0; i--) {
+    const l = rushLines[i];
+    l.y += l.v * dt * Math.max(0.35, r);
+    if (l.y < -80 || l.y > viewH + 80) rushLines.splice(i, 1);
+  }
+}
+
+// Thin streaks of wind whipping past the screen, down it on the climb and up it in the fall.
+const rushLines = [];
+function drawRushLines() {
+  if (!rushLines.length) return;
+  const r = Math.min(1, Math.abs(sky.rush) * 1.5);
+  ctx.fillStyle = '#ffffff';
+  for (const l of rushLines) {
+    ctx.globalAlpha = l.a * r;
+    ctx.fillRect(Math.round(l.x), Math.round(l.y), 1, Math.round(l.len));
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A tremor in the view at the height of the rush.
+const rushShake = () => {
+  const a = Math.max(0, Math.abs(sky.rush || 0) - 0.55) * 3;
+  return a ? [Math.round((Math.random() - 0.5) * 2 * a), Math.round((Math.random() - 0.5) * 2 * a)] : [0, 0];
+};
+
+// How far the cloud sea is slid from its place: it slides down into place under a dragon climbing up through it,
+// and up and away over one dropping down through it.
+const skyDrift = () => (sky.shift ? SKY_DRIFT * (1 - skyFade()) : 0);
+
+// Draws the dragon (and a baby tagging along) as big as it looks going through the deck.
+function inSkyPose(cx, cy, draw) {
+  const p = flight && skyPose();
+  if (!p || p.scale === 1) return draw();
+  const [bx, by] = dragonBody(flight);
+  ctx.save();
+  ctx.translate(Math.round(bx) - cx, Math.round(by) - cy);
+  ctx.scale(p.scale, p.scale);
+  ctx.translate(cx - Math.round(bx), cy - Math.round(by));
+  draw();
+  ctx.restore();
+}
+
+// How much of the sea of cloud shows: it gathers in under a dragon climbing up into it, all cloud by the time
+// it's through, and melts away round one falling down through it. Until it's all cloud the world below is still
+// the one in play.
+function skyFade() {
+  const s = sky.shift;
+  if (!s) return sky.on ? 1 : 0;
+  const p = shiftP(s);
+  return s.up ? ease(clamp01((p - 0.12) / (FLIP_P - 0.12))) : 1 - ease(clamp01((p - 0.2) / 0.7));
+}
+
 function updateShift(dt) {
   const s = sky.shift;
-  const f = flight;
   s.t += dt;
-  if (!s.flipped) {
-    const u = Math.min(1, s.t / SKY_RISE);
-    f.alt = FLY_ALT + (s.up ? SKY_LIFT : -SKY_SINK) * ease(u);
-    if (u < 1) return;
-    Object.assign(s, { flipped: true, t: 0 });
-    sky.on = s.up;
-    if (s.up) arriveAloft();
-    else muse('Back down under the clouds.');
-  } else {
-    const u = Math.min(1, s.t / SKY_SETTLE);
-    f.alt = FLY_ALT + (s.up ? -SKY_SINK : SKY_LIFT) * (1 - ease(u));
-    if (u < 1) return;
-    f.alt = FLY_ALT;
+  flight.alt = skyPose().alt;
+  if (shiftU(s) < 1) return;
+  if (s.flipped) {
     sky.shift = null;
+    flight.alt = FLY_ALT;
+    return;
   }
+  Object.assign(s, { flipped: true, t: 0 });
+  sky.on = s.up;
+  if (s.up) arriveAloft();
+  else muse('Back down under the clouds.');
 }
 
 function arriveAloft() {
@@ -212,6 +384,7 @@ function updateSkyIsle(dt) {
   } else if (sky.shift) {
     updateShift(dt);
   }
+  updateRush(dt);
   for (const p of skyPrisms) {
     p.rest -= dt;
     p.turnT = Math.max(0, p.turnT - dt);
@@ -297,9 +470,9 @@ function scoopSkyEgg(e) {
 
 // Prompt for SPACE up here, where there's nowhere to land.
 function skySpacePrompt() {
-  if (nearSkyEgg()) return 'SPACE  Scoop up the egg';
-  if (skyPrisms.some((p) => Math.hypot(flight.x - p.x, flight.y - p.y) < 70)) return 'Breathe on a prism to turn it';
-  return 'Nothing to land on up here';
+  if (nearSkyEgg()) return 'SPACE  Scoop up the egg  ·  U  Drop below the clouds';
+  const down = 'SPACE or U  Drop below the clouds';
+  return skyPrisms.some((p) => Math.hypot(flight.x - p.x, flight.y - p.y) < 70) ? `Breathe on a prism to turn it  ·  ${down}` : down;
 }
 
 // A grown dragon left to follow while its rider is above the clouds circles below until they come back down.
@@ -313,6 +486,29 @@ function cloudBlobs(g, blobs) {
   for (const [x, y, r] of blobs) ellipse(g, x, y + r * 0.35, r, r * 0.72, '#aab8dc');
   for (const [x, y, r] of blobs) ellipse(g, x, y, r, r * 0.74, '#e4eaf8');
   for (const [x, y, r] of blobs) ellipse(g, x - r * 0.25, y - r * 0.28, r * 0.62, r * 0.44, '#ffffff');
+}
+
+// Shadowed rim, shade, body and sunlit top of the clouds of the open sky.
+const CLOUD_TONES = {
+  white: ['#9fb0d6', '#c8d3ec', '#e8eef9', '#ffffff'],
+  warm: ['#aca6cf', '#d4cee6', '#f2ecf4', '#fffaf0'],
+  grey: ['#8794bb', '#adb8d6', '#d0d9ec', '#f0f4fb'],
+  thin: ['#b4c0de', '#cfd8ef', '#e2e9f7', '#f6f8fd'],
+  layer: ['#b0bcdc', '#cdd6ee', '#e4eaf7', '#ebf0fa'],
+  storm: ['#22263a', '#363b55', '#4b516d', '#646a88'],
+  thunder: ['#2e3349', '#4a5069', '#686e8a', '#9ca2ba'],
+};
+const CLOUD_SQUASH = 0.88;  // billows seen from above, tipped only a little towards the eye
+
+// A cloud seen from above: one mass of round billows `[x, y, r]`, lit by the sun from the top left. Its outline is
+// shaded round the lower right where it falls away, and each billow catches a soft highlight where it bulges up.
+function paintCloud(g, blobs, [rim, shade, body, top]) {
+  const q = CLOUD_SQUASH;
+  for (const [x, y, r] of blobs) ellipse(g, x + r * 0.12, y + r * 0.16, r, r * q, rim);
+  for (const [x, y, r] of blobs) ellipse(g, x, y, r * 0.96, r * 0.96 * q, shade);
+  for (const [x, y, r] of blobs) ellipse(g, x - r * 0.1, y - r * 0.12, r * 0.84, r * 0.84 * q, body);
+  blobs.sort((a, b) => a[2] - b[2]);
+  for (const [x, y, r] of blobs) ellipse(g, x - r * 0.28, y - r * 0.3, r * 0.5, r * 0.5 * q, top);
 }
 
 const bankCache = new Map();
@@ -391,41 +587,487 @@ function buildPlinthSprite() {
   return s;
 }
 
-function drawCloudSea(cx, cy) {
-  const imgs = SPR.clouds;
-  const inMaze = (x, y) => x > SKY_X0 - 40 && x < SKY_X0 + SKY_COLS * SKY_MAZE.cell + 40 && y > SKY_Y0 - 30 && y < SKY_Y0 + SKY_ROWS * SKY_MAZE.cell + 30;
-  // a far deck drifting slow beneath, then the deck at the dragon's own height
-  for (const [P, GX, GY, keep, alpha, seed] of [[0.75, 90, 44, 0.6, 0.4, 71], [1, 110, 52, 0.42, 0.85, 72]]) {
-    ctx.globalAlpha = alpha;
-    const ox = cx * P;
-    const oy = cy * P;
-    for (let gy = Math.floor((oy - 60) / GY); gy <= Math.floor((oy + viewH + 20) / GY); gy++) {
-      for (let gx = Math.floor((ox - 110) / GX); gx <= Math.floor((ox + viewW + 10) / GX); gx++) {
-        const h = hash(gx, gy, seed);
-        if (h > keep) continue;
-        const wx = gx * GX + hash(gx, gy, seed + 10) * 40;
-        const wy = gy * GY + hash(gx, gy, seed + 20) * 24;
-        // the maze's corridors stay clear, so its banks read as walls
-        if (inMaze(wx + 48 + cx * (1 - P), wy + 20 + cy * (1 - P))) continue;
-        const bob = Math.sin(time * 0.9 + h * 40) * 3;
-        ctx.drawImage(imgs[Math.floor(hash(gx, gy, seed + 30) * imgs.length)], Math.round(wx - ox), Math.round(wy - oy + bob));
+// ---------- the sea of cloud ----------
+
+// The cloud up here isn't even: it piles up thick in some places, thins to scattered puffs in others, and here
+// and there breaks open altogether onto the world far below. `skyCover` is how thick it is at a point, 0 to 1;
+// under SKY_GAP it's open sky.
+const SKY_GAP = 0.4;
+const CLOUD_DRIFT = 4;     // px a second the cloud at the dragon's height drifts east on the wind
+
+function skyCover(x, y) {
+  const octave = (size, seed) => {
+    const gx = x / size;
+    const gy = y / size;
+    const x0 = Math.floor(gx);
+    const y0 = Math.floor(gy);
+    const u = ease(gx - x0);
+    const v = ease(gy - y0);
+    const h = (i, j) => hash(x0 + i, y0 + j, seed);
+    return (h(0, 0) * (1 - u) + h(1, 0) * u) * (1 - v) + (h(0, 1) * (1 - u) + h(1, 1) * u) * v;
+  };
+  const n = octave(640, 101) * 0.7 + octave(240, 102) * 0.3;
+  return Math.max(0, Math.min(1, (n - 0.5) * 1.9 + 0.5));
+}
+
+// Clouds of each kind, several of each, every one anchored at its middle: heaped cumulus, great thunderheads
+// spreading their anvils, small puffs, broad fields of stratocumulus, and the thin wisps of cirrus high above.
+const skyClouds = {};
+
+function cloudKind(kind) {
+  return (skyClouds[kind] ||= [0, 1, 2, 3, 4, 5].map((i) => CLOUD_BUILDERS[kind](mulberry32(900 + i * 37 + kind.length * 7), i)));
+}
+
+const anchored = (s, w, h) => Object.assign(s, { ox: Math.round(w / 2), oy: Math.round(h / 2) });
+
+// A cloud sprite, with the soft shadow its billows cast on the world below.
+function cloudSprite(w, h, blobs, tones, paint = (g) => paintCloud(g, blobs, tones)) {
+  const s = anchored(sprite(w, h, paint, false), w, h);
+  s.shadow = makeCanvas(w, h);
+  const g = s.shadow.getContext('2d');
+  for (const [x, y, r] of blobs) {
+    const R = Math.round(r * 1.2);
+    g.drawImage(blob(R, '30,48,110'), Math.round(x - R), Math.round(y - R * CLOUD_SQUASH), R * 2, Math.round(R * 2 * CLOUD_SQUASH));
+  }
+  return s;
+}
+
+// Billows heaped round a few cores inside a w by h oval: big and tall at each core, smaller out towards the edge.
+function clump(r, w, h, n, small, big, cores) {
+  const pad = small * 1.3 + 3;
+  const ax = w / 2 - pad;
+  const ay = h / 2 - pad;
+  const at = Array.from({ length: cores }, () => {
+    const a = r() * Math.PI * 2;
+    const d = cores > 1 ? 0.25 + r() * 0.2 : 0;
+    return [Math.cos(a) * d, Math.sin(a) * d];
+  });
+  const blobs = [];
+  for (let k = 0; k < n; k++) {
+    const [cx, cy] = at[k % cores];
+    const a = r() * Math.PI * 2;
+    const d = Math.sqrt(r()) * (cores > 1 ? 0.75 : 1);
+    const ux = Math.max(-1, Math.min(1, cx + Math.cos(a) * d));
+    const uy = Math.max(-1, Math.min(1, cy + Math.sin(a) * d));
+    const far = Math.min(1, Math.hypot(ux, uy));
+    const rad = small + (big - small) * (1 - far) * (0.7 + r() * 0.3);
+    blobs.push([w / 2 + ux * (ax - rad * 0.8 * far), h / 2 + uy * (ay - rad * 0.8 * far), rad]);
+  }
+  return blobs;
+}
+
+const CLOUD_BUILDERS = {
+  heap(r, i) {
+    const w = 96 + Math.floor(r() * 64);
+    const h = Math.round(w * (0.62 + r() * 0.2));
+    const blobs = clump(r, w, h, 18 + Math.floor(r() * 8), 10, 24, 1 + Math.floor(r() * 2));
+    return cloudSprite(w, h, blobs, [CLOUD_TONES.white, CLOUD_TONES.warm, CLOUD_TONES.white, CLOUD_TONES.grey][i % 4]);
+  },
+  tower(r, i) {
+    // a thunderhead from above: its anvil spread wide and flat on the wind, the boiling tower punching up through
+    // the middle of it
+    const w = 170 + Math.floor(r() * 30);
+    const h = 140 + Math.floor(r() * 20);
+    const anvil = clump(r, w, h, 22, 18, 30, 1);
+    const core = clump(r, w * 0.55, h * 0.55, 14, 10, 20, 1).map(([x, y, rad]) => [x + w * 0.2 + (r() - 0.5) * 6, y + h * 0.2, rad]);
+    return cloudSprite(w, h, [...anvil, ...core], null, (g) => {
+      paintCloud(g, anvil, i % 2 ? CLOUD_TONES.grey : CLOUD_TONES.thin);
+      paintCloud(g, core, CLOUD_TONES.white);
+    });
+  },
+  thunder(r) {
+    // a thunderhead heavy with rain: a great dark anvil sheared out on the wind, and the tower boiling up through
+    // it, paler on top where it's punched up into the sun
+    const w = 140 + Math.floor(r() * 40);
+    const h = 112 + Math.floor(r() * 26);
+    const anvil = clump(r, w, h, 24, 14, 26, 2);
+    const tower = clump(r, w * 0.55, h * 0.55, 14, 10, 18, 1).map(([x, y, rad]) => [x + w * 0.2, y + h * 0.2, rad]);
+    return cloudSprite(w, h, [...anvil, ...tower], null, (g) => {
+      paintCloud(g, anvil, CLOUD_TONES.storm);
+      paintCloud(g, tower, CLOUD_TONES.thunder);
+    });
+  },
+  puff(r, i) {
+    const w = 40 + Math.floor(r() * 30);
+    const h = Math.round(w * (0.7 + r() * 0.2));
+    const blobs = clump(r, w, h, 5 + Math.floor(r() * 4), 7, 14, 1);
+    return cloudSprite(w, h, blobs, i % 3 === 1 ? CLOUD_TONES.warm : CLOUD_TONES.white);
+  },
+  sheet(r) {
+    // stratocumulus from above: a broad patchy field of small cells with threads of sky between them
+    const w = 190 + Math.floor(r() * 80);
+    const h = 90 + Math.floor(r() * 40);
+    const step = 16;
+    const seed = 400 + Math.floor(r() * 1000);
+    const blobs = [];
+    for (let y = 14; y < h - 14; y += step * 0.8) {
+      for (let x = 14; x < w - 14; x += step) {
+        const cx = x + (r() - 0.5) * 12 + ((y / (step * 0.8)) % 2) * step * 0.5;
+        const cy = y + (r() - 0.5) * 10;
+        const ex = (cx - w / 2) / (w / 2 - 14);
+        const ey = (cy - h / 2) / (h / 2 - 14);
+        // the cells run together in patches, parted by threads of open sky
+        const patch = hash(Math.floor(cx / 34), Math.floor(cy / 26), seed);
+        if (ex * ex + ey * ey > 0.8 + r() * 0.25 || patch < 0.22) continue;
+        blobs.push([cx, cy, 7 + r() * 7]);
       }
+    }
+    return cloudSprite(w, h, blobs, CLOUD_TONES.layer);
+  },
+  wisp(r) {
+    const w = 170;
+    const h = 40;
+    return anchored(sprite(w, h, (g) => {
+      // a few long brushstrokes curving the same way, thinning to nothing at their tails
+      for (let k = 0; k < 3 + Math.floor(r() * 3); k++) {
+        const y0 = 8 + r() * 24;
+        const x0 = r() * 40;
+        const len = 70 + r() * 70;
+        const bend = (r() - 0.5) * 14;
+        for (let s = 0; s < len; s += 3) {
+          const u = s / len;
+          ellipse(g, x0 + s, y0 + Math.sin(u * Math.PI) * bend, 4 * (1 - u) + 1.5, u < 0.7 ? 1 : 0.5, '#ffffff');
+        }
+      }
+    }, false), w, h);
+  },
+};
+
+// Which cloud, if any, sits in grid cell (gx, gy) of a deck; `cover` is how thick the cloud is round it.
+function deckCloud(deck, gx, gy, cover) {
+  if (cover < deck.gap) return null;
+  const k = (cover - deck.gap) / (1 - deck.gap);
+  // sparse at the edge of a gap, packed close where it's thick
+  if (hash(gx, gy, deck.seed) > 0.3 + k * 0.75) return null;
+  const pick = hash(gx, gy, deck.seed + 40);
+  const kind = deck.kinds(k, pick);
+  const set = cloudKind(kind);
+  return set[Math.floor(hash(gx, gy, deck.seed + 30) * set.length)];
+}
+
+// Decks: `P` is the parallax (under 1 is further off), `G` the grid each cloud sits in, `drift` px a second on
+// the wind, and `gap` the cover under which this deck leaves the sky open.
+const SKY_DECKS = {
+  far: {
+    P: 0.72, G: [104, 56], seed: 71, drift: CLOUD_DRIFT * 0.6, alpha: 0.5, gap: 0.3,
+    kinds: (k, p) => (p < 0.45 ? 'sheet' : p < 0.85 || k < 0.4 ? 'puff' : 'heap'),
+  },
+  near: {
+    P: 1, G: [128, 76], seed: 72, drift: CLOUD_DRIFT, alpha: 1, gap: SKY_GAP,
+    kinds: (k, p) => (k < 0.22 ? 'puff'
+      : k < 0.5 ? (p < 0.55 ? 'puff' : p < 0.85 ? 'heap' : 'sheet')
+        : p < 0.06 + k * 0.08 ? 'tower' : p < 0.78 ? 'heap' : 'sheet'),
+  },
+  high: {
+    P: 1.3, G: [240, 150], seed: 73, drift: CLOUD_DRIFT * 2.5, alpha: 0.38, gap: 0.62,
+    kinds: () => 'wisp',
+  },
+  // thunderheads towering up out of the deck when it rains
+  storm: {
+    P: 1.06, G: [200, 150], seed: 74, drift: CLOUD_DRIFT * 1.4, alpha: 1, gap: 0.12,
+    kinds: () => 'thunder',
+  },
+};
+
+// The clouds of a deck in view, back to front: [img, screen x, screen y] at each one's base, and its grid cell.
+function deckInView(deck, cx, cy) {
+  const [GX, GY] = deck.G;
+  const ox = cx * deck.P - time * deck.drift;
+  const oy = cy * deck.P;
+  // the far deck and the wisps take their gaps from their own stretch of sky, not the one at the dragon's height
+  const off = deck === SKY_DECKS.near ? 0 : deck.seed * 977;
+  const out = [];
+  for (let gy = Math.floor((oy - 120) / GY); gy <= Math.floor((oy + viewH + 120) / GY); gy++) {
+    for (let gx = Math.floor((ox - 140) / GX); gx <= Math.floor((ox + viewW + 140) / GX); gx++) {
+      const lx = (gx + 0.15 + hash(gx, gy, deck.seed + 10) * 0.7) * GX;
+      const ly = (gy + 0.15 + hash(gx, gy, deck.seed + 20) * 0.7) * GY;
+      const img = deckCloud(deck, gx, gy, skyCover(lx + off, ly + off));
+      if (!img) continue;
+      const x = lx - ox;
+      const y = ly - oy + Math.sin(time * 0.9 + gx * 1.7 + gy * 2.3) * 1.5;
+      // the maze's corridors stay clear, so its banks read as walls
+      if (deck.P < 1.1 && inMazeArea(x + cx, y + cy, img)) continue;
+      out.push([img, x, y, gx, gy]);
+    }
+  }
+  return out;
+}
+
+const inMazeArea = (x, y, img) => x + img.ox > SKY_X0 - 40 && x - img.ox < SKY_X0 + SKY_COLS * SKY_MAZE.cell + 40
+  && y + img.oy > SKY_Y0 - 30 && y - img.oy < SKY_Y0 + SKY_ROWS * SKY_MAZE.cell + 30;
+
+// How dark the cloud up here has grown with the rain falling out of it below, 0 to 1; and how stormy, for the
+// lightning flickering in the thunderheads.
+const skyRain = () => clamp01(weatherNow('rain') / WEATHER.rain.rain);
+const skyThunder = () => clamp01((weatherNow('rain') - WEATHER.rain.rain) / (1 - WEATHER.rain.rain));
+
+// A cloud dimmed to the slate of rain cloud, its shading kept.
+const STORM_TINT = '#666d84';
+function rainTwin(img) {
+  if (img.rain) return img.rain;
+  const c = makeCanvas(img.width, img.height);
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = 'multiply';
+  g.fillStyle = STORM_TINT;
+  g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'destination-in';
+  g.drawImage(img, 0, 0);
+  img.rain = c;
+  return c;
+}
+
+// A deck of cloud, `dark` of the way to rain cloud.
+function drawDeck(list, alpha, dark = 0) {
+  for (const [img, x, y] of list) {
+    const [ix, iy] = [Math.round(x - (img.ox ?? 0)), Math.round(y - (img.oy ?? 0))];
+    if (dark < 1) {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, ix, iy);
+    }
+    if (dark > 0) {
+      ctx.globalAlpha = alpha * dark;
+      ctx.drawImage(rainTwin(img), ix, iy);
     }
   }
   ctx.globalAlpha = 1;
 }
 
+// The pale blue haze over the world far below: thick under the cloud, thinner where it breaks open, so the land
+// and sea show through the gaps.
+const skyWash = makeCanvas(1, 1);
+const WASH_STEP = 40;
+function drawSkyWash(cx, cy) {
+  if (skyWash.width !== viewW || skyWash.height !== viewH) {
+    skyWash.width = viewW;
+    skyWash.height = viewH;
+  }
+  const g = skyWash.getContext('2d');
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, viewW, viewH);
+  const wet = skyRain();
+  g.fillStyle = `rgba(${Math.round(164 - 82 * wet)},${Math.round(200 - 100 * wet)},${Math.round(240 - 110 * wet)},0.9)`;
+  g.fillRect(0, 0, viewW, viewH);
+  g.globalCompositeOperation = 'destination-out';
+  const hole = blob(52, '0,0,0');
+  const ox = cx - time * CLOUD_DRIFT;
+  for (let y = Math.floor((cy - 52) / WASH_STEP) * WASH_STEP; y < cy + viewH + 52; y += WASH_STEP) {
+    for (let x = Math.floor((ox - 52) / WASH_STEP) * WASH_STEP; x < ox + viewW + 52; x += WASH_STEP) {
+      const open = Math.min(1, (SKY_GAP + 0.04 - skyCover(x, y)) / 0.14);
+      if (open <= 0) continue;
+      g.globalAlpha = open * 0.13;
+      g.drawImage(hole, Math.round(x - ox - 52), Math.round(y - cy - 52));
+    }
+  }
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'source-over';
+  ctx.drawImage(skyWash, 0, 0);
+}
+
+// Clouds at the dragon's height cast soft shadows down and away from the sun, on the haze and the far deck below.
+const CLOUD_SHADOW = [16, 24];
+function drawCloudShadows(list, alpha = 0.2) {
+  ctx.globalAlpha = alpha;
+  for (const [img, x, y] of list) {
+    if (img.shadow) ctx.drawImage(img.shadow, Math.round(x - img.ox + CLOUD_SHADOW[0]), Math.round(y - img.oy + CLOUD_SHADOW[1]));
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCloudSea(cx, cy) {
+  const dy = skyDrift();
+  const wet = skyRain();
+  drawDeck(deckInView(SKY_DECKS.far, cx, cy + dy * 0.6), SKY_DECKS.far.alpha, wet);
+  const near = deckInView(SKY_DECKS.near, cx, cy + dy);
+  drawCloudShadows(near);
+  drawDeck(near, SKY_DECKS.near.alpha, wet);
+  if (!wet) return near;
+  const heads = deckInView(SKY_DECKS.storm, cx, cy + dy * 1.1);
+  drawCloudShadows(heads, 0.4 * wet);
+  drawDeck(heads, wet);
+  drawThunderLight(heads, wet);
+  return near.concat(heads);
+}
+
+// Lightning in the thunderheads: in a storm each one flickers now and then from somewhere deep inside, and when
+// thunder cracks the one nearest lights up bright with a bolt crawling out across its anvil.
+const glowIn = makeCanvas(200, 160);
+function drawThunderLight(heads, wet) {
+  const storm = skyThunder() * wet;
+  if (!storm || !heads.length) return;
+  const near = weather.flash > 0 ? heads.reduce((a, b) => (Math.hypot(b[1] - viewW / 2, b[2] - viewH / 2) < Math.hypot(a[1] - viewW / 2, a[2] - viewH / 2) ? b : a)) : null;
+  for (const head of heads) {
+    const [img, x, y, gx, gy] = head;
+    const beat = time * 1.5 + hash(gx, gy, 75) * 50;
+    const slot = Math.floor(beat);
+    const u = beat - slot;
+    let glow = hash(gx, gy, slot) < 0.12 * storm ? Math.max(0, 1 - u * 4) * (0.55 + 0.45 * Math.sin(u * 90)) : 0;
+    if (head === near) glow = Math.max(glow, weather.flash);
+    if (glow <= 0.02) continue;
+    const g = glowIn.getContext('2d');
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, glowIn.width, glowIn.height);
+    const R = 50;
+    const [lx, ly] = [img.ox + (hash(gx, gy, slot + 7) - 0.5) * 40, img.oy + (hash(gx, gy, slot + 8) - 0.5) * 28];
+    g.drawImage(blob(R, '200,210,255'), Math.round(lx - R), Math.round(ly - R));
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(img, 0, 0);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.6 * glow;
+    ctx.drawImage(glowIn, Math.round(x - img.ox), Math.round(y - img.oy));
+    if (head === near && weather.flash > 0.3) drawCrawler(x - img.ox + lx, y - img.oy + ly, weather.flash);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+}
+
+// A bolt of lightning forking out across the top of a cloud, the same shape for the whole of one flash.
+function drawCrawler(x, y, k) {
+  const rnd = mulberry32(Math.floor(weather.boltT * 1000));
+  const fork = (x0, y0, ang, n, t) => {
+    for (let i = 0; i < n; i++) {
+      ang += (rnd() - 0.5) * 1.2;
+      const len = 7 + rnd() * 10;
+      const [x1, y1] = [x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len * 0.7];
+      line(ctx, x0, y0, x1, y1, '#f2f4ff', t);
+      if (rnd() < 0.3 && n > 2) fork(x1, y1, ang + (rnd() < 0.5 ? -0.9 : 0.9), Math.floor(n / 2), 1);
+      [x0, y0] = [x1, y1];
+    }
+  };
+  ctx.globalAlpha = k;
+  const ang = rnd() * Math.PI * 2;
+  fork(x, y, ang, 6, 2);
+  fork(x, y, ang + Math.PI, 4, 1);
+}
+
+// The dragon's shadow is its own outline, wings beating, cast down and away from the sun like the clouds' own
+// shadows. `SHADE_SUN` is how far off it falls at flying height.
+const SHADE_SUN = [9, 13];
+const SHADE_MID = [80, 70];
+const shadeOutline = makeCanvas(160, 140);
+const shadeOnCloud = makeCanvas(160, 140);
+
+// The dragon's outline in `color` into shadeOutline, `far` times its size (what it falls on being further from
+// the eye than the dragon) and lying flat, so a dragon pitched up or down casts a shorter shadow, not a tilted one.
+function castOutline(far, color) {
+  const look = flightLook(flight);
+  const [, , rot] = loopPose(flight);
+  const g = shadeOutline.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, shadeOutline.width, shadeOutline.height);
+  g.translate(...SHADE_MID);
+  if (rot) g.rotate(rot);
+  const flat = Math.cos(look.pose?.pitch || 0);
+  const side = NOSE_SIDE[look.face];
+  g.scale(far * (side ? flat : 1), far * 0.9 * (side ? 1 : flat));
+  paintFlight(g, look);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-in';
+  g.fillStyle = color;
+  g.fillRect(0, 0, shadeOutline.width, shadeOutline.height);
+}
+
+// Where the shadow's outline goes on screen: cast down and away from the sun, the further the higher it is.
+function shadeAt(h, cx, cy) {
+  const [ox] = loopPose(flight);
+  return [Math.round(flight.x + ox - cx + SHADE_SUN[0] * h) - SHADE_MID[0], Math.round(flight.y - cy + SHADE_SUN[1] * h) - SHADE_MID[1]];
+}
+
+// The dragon's shadow on the ground: its outline right under it as it lifts off or touches down, sliding away,
+// softening and paling as it climbs.
+function drawGroundShade(cx, cy) {
+  const k = shadowShown();
+  if (!k) return;
+  const h = clamp01(flight.alt / FLY_ALT);
+  castOutline(0.98 - 0.1 * h, '#000');
+  const m = shadeOnCloud.getContext('2d');
+  m.globalCompositeOperation = 'source-over';
+  m.clearRect(0, 0, shadeOnCloud.width, shadeOnCloud.height);
+  m.filter = `blur(${0.3 + 0.9 * h}px)`;
+  m.drawImage(shadeOutline, 0, 0);
+  m.filter = 'none';
+  ctx.globalAlpha = (0.3 - 0.1 * h) * k;
+  ctx.drawImage(shadeOnCloud, ...shadeAt(h, cx, cy));
+  ctx.globalAlpha = 1;
+}
+
+// The dragon's shadow on the cloud, sliding further off and paling as it climbs. It's crisp only where it lands
+// on something, cloud tops or the isle (`under`: [img, screen x, screen y] at each one's corner); through a gap it
+// falls on the world far below, where little more than a faint smudge of it is left.
+function drawDragonShade(under, cx, cy) {
+  const k = flight ? shadowShown() : 0;
+  if (!k) return;
+  const h = Math.max(0.3, flight.alt / FLY_ALT);
+  const [x, y] = shadeAt(h, cx, cy);
+  const [w, ht] = [shadeOutline.width, shadeOutline.height];
+  castOutline(0.88, '#24305e');
+
+  // just the part of it that falls on cloud
+  const m = shadeOnCloud.getContext('2d');
+  m.globalCompositeOperation = 'source-over';
+  m.clearRect(0, 0, w, ht);
+  for (const [img, ux, uy] of under) {
+    const [dx, dy] = [ux - x, uy - y];
+    if (dx < w && dy < ht && dx + img.width > 0 && dy + img.height > 0) m.drawImage(img, dx, dy);
+  }
+  m.globalCompositeOperation = 'source-in';
+  m.filter = `blur(${Math.max(0.4, 0.6 + 0.8 * (h - 1))}px)`;
+  m.drawImage(shadeOutline, 0, 0);
+  m.filter = 'none';
+
+  ctx.globalAlpha = 0.07 * k;
+  ctx.drawImage(shadeOutline, x - 4, y - 3, w + 8, ht + 6);
+  ctx.globalAlpha = 0.34 * k;
+  ctx.drawImage(shadeOnCloud, x, y);
+  ctx.globalAlpha = 1;
+}
+
+// The world as it was drawn before the cloud went over it, laid back on top to fade the cloud in or out.
+const skyUnder = makeCanvas(1, 1);
+
 function drawSkyLayer(cx, cy) {
-  if (!aloft()) return;
-  ctx.fillStyle = 'rgba(164,200,240,0.86)';
-  ctx.fillRect(0, 0, viewW, viewH);
-  drawCloudSea(cx, cy);
+  const k = skyFade();
+  if (!k) return;
+  if (k < 1) {
+    if (skyUnder.width !== buffer.width || skyUnder.height !== buffer.height) {
+      skyUnder.width = buffer.width;
+      skyUnder.height = buffer.height;
+    }
+    const g = skyUnder.getContext('2d');
+    g.clearRect(0, 0, skyUnder.width, skyUnder.height);
+    g.drawImage(buffer, 0, 0);
+  }
+  drawSkyWash(cx, cy);
+  const under = drawCloudSea(cx, cy).map(([img, x, y]) => [img, Math.round(x - img.ox), Math.round(y - img.oy)]);
   const w = SKY_COLS * SKY_MAZE.cell;
   const h = SKY_ROWS * SKY_MAZE.cell;
-  if (SKY_X0 + w + 80 > cx && SKY_X0 - 80 < cx + viewW && SKY_Y0 + h + 160 > cy && SKY_Y0 - 120 < cy + viewH) drawSkyIsle(cx, cy);
-  ctx.globalAlpha = 0.18;
-  ellipse(ctx, Math.round(flight.x) - cx, Math.round(flight.y) - cy, 14, 4, '#3a4a7a');
+  if (SKY_X0 + w + 80 > cx && SKY_X0 - 80 < cx + viewW && SKY_Y0 + h + 160 > cy && SKY_Y0 - 120 < cy + viewH) {
+    drawSkyIsle(cx, cy);
+    under.push([isleSprite, Math.round(SKY_MID.x - 90 - cx), Math.round(SKY_MID.y + 28 - 50 - cy + isleBob())]);
+  }
+  drawDragonShade(under, cx, cy);
+  if (k < 1) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1 - k;
+    ctx.drawImage(skyUnder, 0, 0);
+    ctx.restore();
+  }
   ctx.globalAlpha = 1;
+}
+
+// Wisps of cirrus high over the dragon, nearer the eye, sliding by faster than the deck below.
+// Under a rainy sky the light up here goes dull and grey too.
+function drawSkyHigh(cx, cy) {
+  const k = skyFade();
+  if (!k) return;
+  const wet = skyRain();
+  drawDeck(deckInView(SKY_DECKS.high, cx, cy + skyDrift() * 1.6), SKY_DECKS.high.alpha * k, wet * 0.6);
+  if (wet) {
+    ctx.fillStyle = `rgba(28,32,52,${0.16 * wet * k})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
 }
 
 function drawSkyIsle(cx, cy) {
@@ -577,24 +1219,6 @@ function drawSunbeam(cx, cy) {
     ctx.globalAlpha = 1;
   }
   ctx.globalCompositeOperation = 'source-over';
-}
-
-// Going through the cloud deck: everything whites out, with cloud streaming past the wrong way.
-function drawSkyWhiteout() {
-  const s = sky.shift;
-  if (!s) return;
-  const u = s.flipped ? 1 - ease(Math.min(1, s.t / SKY_SETTLE)) : ease(Math.min(1, s.t / SKY_RISE));
-  ctx.fillStyle = `rgba(238,244,255,${0.92 * u})`;
-  ctx.fillRect(0, 0, viewW, viewH);
-  const run = (s.flipped ? SKY_RISE + s.t : s.t) * 340 * (s.up ? 1 : -1);
-  ctx.globalAlpha = 0.8 * u;
-  for (let k = 0; k < 8; k++) {
-    const img = SPR.clouds[k % SPR.clouds.length];
-    const x = hash(k, 1, 81) * (viewW + 60) - 60;
-    const y = ((((hash(k, 2, 81) * (viewH + 80) + run) % (viewH + 80)) + viewH + 80) % (viewH + 80)) - 40;
-    ctx.drawImage(img, Math.round(x), Math.round(y));
-  }
-  ctx.globalAlpha = 1;
 }
 
 // Lights up here at night: the sun gap, the beam, and whatever the beam or the rainbow lights.

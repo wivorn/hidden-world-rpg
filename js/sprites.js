@@ -828,6 +828,89 @@ function buildPouch() {
   ], { S: '#d8c8a0', T: '#5a3418', P: '#b07a48', p: '#7a4e2a' });
 }
 
+// The weaver's woollen haversack: cream wool banded in her teal, a rope drawstring at the neck.
+function buildHaversack() {
+  return pixmap([
+    '....RRRR....',
+    '...R....R...',
+    '...CCCCCC...',
+    '..CCCCCCCC..',
+    '.CCCCCCCCCC.',
+    '.TTTTTTTTTT.',
+    '.CCCCCCCCCC.',
+    '.CCCCCCCCCC.',
+    '.TTTTTTTTTT.',
+    '.CCCCCCCCCC.',
+    '..DDDDDDDD..',
+  ], { R: '#c8a878', C: '#e8dcc0', T: '#3d7d78', D: '#b8a888' });
+}
+
+// The seamstress's vest, four patch pockets on it.
+function buildPocketVest() {
+  return pixmap([
+    '..VV....VV..',
+    '.VVVV..VVVV.',
+    '.VVVVVVVVVV.',
+    '.VPPVVVVPPV.',
+    '.VPPVVVVPPV.',
+    '.VVVVVVVVVV.',
+    '.VPPVVVVPPV.',
+    '.VPPVVVVPPV.',
+    '.VVVVVVVVVV.',
+    '.VVVV..VVVV.',
+    '.DDD....DDD.',
+  ], { V: '#d86a9a', P: '#a84a78', D: '#7a3458' });
+}
+
+// The tanner's kit bag: a long leather bag with two buckled straps.
+function buildKitBag() {
+  return pixmap([
+    '...SSSSSS...',
+    '..S......S..',
+    '.BBBBBBBBBB.',
+    'BBGBBBBBBGBB',
+    'BBLBBBBBBLBB',
+    'BBLBBBBBBLBB',
+    'BBLBBBBBBLBB',
+    'BBGBBBBBBGBB',
+    '.BBBBBBBBBB.',
+    '..DDDDDDDD..',
+  ], { S: '#5a3418', B: '#7a4a26', L: '#5a3418', G: '#ffd36b', D: '#4a2c16' });
+}
+
+// The gardener's wicker harvest basket, greens and carrots peeping over the rim.
+function buildHarvestBasket() {
+  return pixmap([
+    '....HHHH....',
+    '...H....H...',
+    '..H......H..',
+    '.GOGGOGGOGG.',
+    '.WwWwWwWwWW.',
+    '.wWwWwWwWwW.',
+    '.WwWwWwWwWW.',
+    '..wWwWwWwW..',
+    '..WwWwWwWw..',
+    '...DDDDDD...',
+  ], { H: '#9a6a3a', G: '#5aa83a', O: '#ee8a2a', W: '#d8b070', w: '#a8783a', D: '#7a5230' });
+}
+
+// Ottar's explorer's frame pack: an ash frame, a blanket rolled across the top and the pack laced below.
+function buildFramePack() {
+  return pixmap([
+    '.F........F.',
+    '.FRRRRRRRRF.',
+    '.FRrrrrrrRF.',
+    '.FRRRRRRRRF.',
+    '.FBBBBBBBBF.',
+    '.FBGBBBBGBF.',
+    '.FBBBBBBBBF.',
+    '.FBBBBBBBBF.',
+    '.FBBBBBBBBF.',
+    '.FDDDDDDDDF.',
+    '.F........F.',
+  ], { F: '#c49a62', R: '#3d6a8a', r: '#5a8aaa', B: '#9a6a3a', G: '#ffd36b', D: '#6a4422' });
+}
+
 // A leather strap with a brass buckle and two tool loops.
 // What the seamstress's coats look like on the hero (see drawCharacter): the fur coat for the frozen isle, and the
 // fire eel skin jacket for the volcano.
@@ -1807,13 +1890,17 @@ const DRAGON_SPECIES = {
     egg: { base: '#2a6f94', light: '#3f8fb4', speck: '#bff4ec', speckDark: '#174a66', shine: '#ffffff', gloss: '#7fd0e8', glow: '#7ff0ff' },
     breath: ['#4fb8ff', '#e8f8ff', '#1f6fd0'],
   },
+  // Warm pearl like a cloud at sunrise, with golden antlers, eyes and whiskers, a mane and tail tuft of cloud, and
+  // wingtips that shimmer through the colours of the rainbow (`iris`).
   cloudDragon: {
     name: 'Cloud Dragon', defaultName: 'Nimbus',
-    body: '#f2eefa', dark: '#c4bcdc', light: '#ffffff', wing: '#e2dcf4', eye: '#ff7ab8', fin: '#b8a8ec', glint: '#ffffff',
-    belly: '#fff6fc', spot: '#d8ccf4', shape: { neck: 1.2, tail: 1.2, chub: 0.95 },
-    look: { horns: 'frill', spines: 'nubs', tail: 'fan', marks: 'bubbles', tips: true },
+    body: '#fbf1ea', dark: '#cf9fbe', light: '#ffffff', wing: '#f6dcea', eye: '#ffc23a', fin: '#ff9ccf', glint: '#ffffff',
+    belly: '#fff2d8', spot: '#eab95e', horn: '#f2c458', ridge: '#ffffff',
+    iris: ['#ff9ab4', '#ffcf6e', '#a2ecb4', '#8ccaff', '#c2a2ff'],
+    shape: { neck: 1.3, tail: 1.35, chub: 0.88, snout: 1.1 },
+    look: { horns: 'antlers', spines: 'mane', tail: 'plume', marks: 'swirls', tips: true },
     // `specks` paints the shell's flecks in turn, one colour after another
-    egg: { base: '#e4def4', light: '#fbf8ff', speck: '#ff8ab0', specks: ['#ff6a6a', '#ffb04a', '#ffe85a', '#6adc7a', '#5ab8ff', '#8a7aff', '#d07aff'], speckDark: '#b4aad0', shine: '#ffffff', gloss: '#ffffff', glow: '#ffd0f0' },
+    egg: { base: '#f0e2ec', light: '#fff8f4', speck: '#ff8ab0', specks: ['#ff6a6a', '#ffb04a', '#ffe85a', '#6adc7a', '#5ab8ff', '#8a7aff', '#d07aff'], speckDark: '#c4a8c4', shine: '#ffffff', gloss: '#ffffff', glow: '#ffd0f0' },
     breath: ['#ff9ad0', '#ffffff', '#8a7aff'],
   },
 };
@@ -2016,13 +2103,41 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
         leaf(p, t, 1.4, i % 2 ? FIN : B);
         line(g, ...H(...p), ...H(...t), D);
       });
+    } else if (look.horns === 'antlers') {
+      // a branching antler, a tine forking off to either side partway up
+      line(g, ...H(bx, by), ...H(...at(1.1, 0.06)), HORN, Math.max(1, Math.round(1.6 * HS)));
+      line(g, ...H(...at(0.45, 0.04)), ...H(...at(0.78, -0.34)), HORN);
+      line(g, ...H(...at(0.72, 0.06)), ...H(...at(0.98, 0.32)), HORN);
+      px(g, ...H(...at(1.1, 0.06)), shade(HORN, 0.5));
     } else {
       hpoly([b1, tip, b2], B);
     }
   };
+  // With antlers come long whiskers, rippling in the wind: one from head point (x, y), trailing off along (dx, dy).
+  const wave = Math.max(0, f) * 1.6;
+  const whisker = (x, y, dx, dy) => {
+    if (look.horns !== 'antlers') return;
+    const n = Math.hypot(dx, dy) || 1;
+    const [ux, uy] = [dx / n, dy / n];
+    const pts = [0, 1, 2, 3, 4, 5].map((i) => {
+      const w = Math.sin(i * 1.25 + wave) * 1.2 * (i / 5);
+      return H(x + ux * i * 2.2 - uy * w, y + uy * i * 2.2 + ux * w);
+    });
+    for (let i = 0; i < pts.length - 1; i++) line(g, ...pts[i], ...pts[i + 1], HORN);
+  };
   // Spikes or plates along the back at body points `pts`, standing out towards `[ux, uy]`.
   const spines = (pts, [ux, uy]) => {
     if (!look.spines) return;
+    if (look.spines === 'mane') {
+      // a mane of little cloud puffs, each shadowed underneath
+      pts.forEach(([x, y], i) => {
+        const r = (i % 2 ? 2.3 : 2.9) * Math.max(1, a.head * 0.8);
+        const [mx, my] = P(x + ux * 2, y + uy * 2);
+        ellipse(g, mx, my + 0.8 * S, r * S, r * 0.8 * S, D);
+        ellipse(g, mx, my, r * S, r * 0.75 * S, pal.ridge || L);
+      });
+      return;
+    }
     if (look.spines === 'nubs') {
       for (const [x, y] of pts) poly(g, [P(x - uy * 1.2, y + ux * 1.2), P(x + ux * 2 + uy * 0.6, y + uy * 2 - ux * 0.6), P(x + uy * 1.2, y - ux * 1.2)], pal.ridge || D);
       return;
@@ -2041,6 +2156,18 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     if (look.marks === 'spots') {
       const s = Math.max(1, Math.round(1.8 * S));
       for (const [x, y] of spots) rect(g, ...P(x, y).map(Math.round), s, s, pal.spot || L);
+    }
+    // curls like the edge of a cloud
+    if (look.marks === 'swirls') {
+      const C = pal.spot || D;
+      for (const [x, y] of spots) {
+        const [sx, sy] = P(x, y).map(Math.round);
+        if (S < 0.7) {
+          px(g, sx, sy, C);
+          continue;
+        }
+        for (const [dx, dy] of [[0, 2], [0, 1], [1, 0], [2, 0], [3, 1], [2, 2]]) px(g, sx + dx, sy + dy, C);
+      }
     }
     // the light fury's clusters of little rings, a smaller one beside each
     if (look.marks === 'bubbles') {
@@ -2090,8 +2217,28 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     }
     return pts[pts.length - 1];
   };
-  // The tail's tip: a pair of fins, or the kind's club, spade or fan.
+  // The tail's tip: a pair of fins, or the kind's club, spade, fan or plume.
   const fins = ([x, y], A, Bf) => {
+    if (look.tail === 'plume') {
+      // a tuft of cloud streaming off the tip, thinning as it trails away, with wisps of colour in it
+      const k = S * a.chub;
+      const bx = (A[1][0] + Bf[1][0]) / 2;
+      const by = (A[1][1] + Bf[1][1]) / 2;
+      const n = Math.hypot(bx, by) || 1;
+      const [ux, uy] = [bx / n, by / n];
+      const puffs = [[0, 3.2, 0], [2.4, 2.8, 1], [4.6, 2.3, -1], [6.6, 1.7, 0.8], [8.2, 1.1, -0.4]]
+        .map(([d, r, s]) => [x + (ux * d - uy * s) * k, y + (uy * d + ux * s) * k, r * k]);
+      for (const [px0, py0, r] of puffs) ellipse(g, px0, py0 + 0.8 * k, r, r * 0.8, D);
+      for (const [px0, py0, r] of puffs) ellipse(g, px0, py0, r, r * 0.75, pal.ridge || L);
+      if (pal.iris && S > 0.7) {
+        pal.iris.forEach((c, i) => {
+          const d = 1.5 + i * 1.4;
+          const s = i % 2 ? 1.4 : -1.4;
+          px(g, Math.round(x + (ux * d - uy * s) * k), Math.round(y + (uy * d + ux * s) * k), c);
+        });
+      }
+      return;
+    }
     const k = (look.tail === 'spade' ? 1.3 : look.tail === 'club' ? 0.55 : 1) * S * a.chub;
     const pts = (shape) => shape.map(([dx, dy]) => [x + dx * k, y + dy * k]);
     const pa = pts(A);
@@ -2105,6 +2252,11 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
       ellipse(g, x - 0.8 * S, y - 0.8 * S, 1.6 * S * a.chub, 1.2 * S * a.chub, B);
     }
   };
+  // A kind's shimmering wingtips: the shape `pts` in bands of its `iris` colours, nested in towards the tip `at`.
+  const irisBands = (pts, at) => pal.iris.forEach((c, i) => {
+    const k = 1 - i / pal.iris.length;
+    poly(g, pts.map(([x, y]) => [at[0] + (x - at[0]) * k, at[1] + (y - at[1]) * k]), c);
+  });
   // A wing rooted at body point (x, y) spreading along the screen direction `[ax, ay]`, with its
   // membrane running along `[vx, vy]`; folded, it lies along the flank with its tip towards `[bx, by]`.
   const wing = (x, y, [ax, ay], [vx, vy], [bx, by], lift = 1) => {
@@ -2122,7 +2274,8 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     poly(g, [Q(4, -5, 0), Q(33 * sp, -9, tip), Q(26 * sp, 2, tip * 0.6), Q(17 * sp, 0, tip * 0.35), Q(10 * sp, 5, tip * 0.15), Q(4, 4, 0)], M);
     // the membrane in the shadow of the body, and the kind's coloured tips
     poly(g, [Q(4, -4, 0), wrist, Q(17 * sp, 0, tip * 0.35), Q(10 * sp, 5, tip * 0.15), Q(4, 4, 0)], shade(M, -0.16));
-    if (look.tips) poly(g, [Q(33 * sp, -9, tip), Q(29.5 * sp, -3.5, tip * 0.8), Q(26 * sp, 2, tip * 0.6), Q(27 * sp, -7.4, tip * 0.85)], FIN);
+    if (look.tips && pal.iris) irisBands([Q(33 * sp, -9, tip), Q(29.5 * sp, -3.5, tip * 0.8), Q(26 * sp, 2, tip * 0.6), Q(21 * sp, 1, tip * 0.5), Q(22 * sp, -7.8, tip * 0.65)], Q(33 * sp, -9, tip));
+    else if (look.tips) poly(g, [Q(33 * sp, -9, tip), Q(29.5 * sp, -3.5, tip * 0.8), Q(26 * sp, 2, tip * 0.6), Q(27 * sp, -7.4, tip * 0.85)], FIN);
     line(g, ...Q(4, -5, 0), ...Q(33 * sp, -9, tip), L, T(2));
     // finger bones fanning from the wrist to the scallops of the trailing edge
     line(g, ...wrist, ...Q(26 * sp, 2, tip * 0.6), D);
@@ -2145,7 +2298,8 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     poly(g, pts, near ? M : D);
     if (!fold) {
       poly(g, [pts[0], pts[1], mid(pts[1], pts[2], 0.45), mid(pts[0], pts[3], 0.6)], shade(near ? M : D, -0.14));
-      if (look.tips) poly(g, [pts[2], mid(pts[1], pts[2], 0.78), mid(pts[3], pts[2], 0.7)], FIN);
+      if (look.tips && pal.iris) irisBands([pts[2], mid(pts[1], pts[2], 0.6), mid(pts[3], pts[2], 0.45)], pts[2]);
+      else if (look.tips) poly(g, [pts[2], mid(pts[1], pts[2], 0.78), mid(pts[3], pts[2], 0.7)], FIN);
       line(g, ...mid(pts[1], pts[2], 0.45), ...pts[3], D);
       line(g, ...mid(pts[1], pts[2], 0.45), ...mid(pts[3], pts[2], 0.5), D);
     }
@@ -2186,6 +2340,8 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     ears();
     eye(2 - (1 - sn) * 2, -1 - (a.eye - 2));
     nostril(2 + 6 * sn, 1);
+    whisker(1 + 6 * sn, 2.5, -1, 0.9);
+    whisker(1 + 7 * sn, 2, -1, 0.3);
     sideWing(true);
     return H(2 + 8 * sn, 2);
   }
@@ -2225,6 +2381,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     eye(2, ey);
     nostril(-2, 3 + sn);
     nostril(1, 3 + sn);
+    for (const s of [-1, 1]) whisker(3 * s, 3 + sn, s, 0.9);
     return H(0, 4);
   }
   if (view === 'up') {
@@ -2236,6 +2393,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     hell(0, 0, 6, 5, B);
     hell(0, -1, 4, 2, M);
     ears();
+    for (const s of [-1, 1]) whisker(4 * s, -2, s * 0.6, 1);
     if (!fold) for (const s of [-1, 1]) wing(0, -2, [s, 0], [0, 1], [0, 1]);
     const c = a.chub;
     ell(0, 0, 7 * c, 10, B);
@@ -2272,6 +2430,8 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     eye(-3, -(a.eye - 2));
     eye(2, -2 - (a.eye - 2), 1);
     nostril(1 + 6 * sn, 2);
+    whisker(1 + 5 * sn, 4, -1, 0.8);
+    whisker(4 * sn, 4.5, -0.3, 1);
     return H(1 + 5 * sn, 4);
   }
   wing(-2, -3, [-0.75, -0.45], [-0.6, 0.5], [-0.8, 0.6]);
@@ -2285,6 +2445,7 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   hell(-2, -2, 3, 1.5, M);
   ears();
   eye(4, -1, 1);
+  whisker(4 + 5 * sn, -4 * sn, -0.7, 1);
   legs(-4, 4);
   const c = a.chub;
   ell(0, 0, 9, 7 * c, B);
@@ -4099,6 +4260,241 @@ function buildAxeFront() {
   });
 }
 
+// ---------- farming ----------
+
+function buildHoe() {
+  return sprite(14, 15, (g) => {
+    line(g, 2, 13, 10, 4, PAL.woodLight, 2);
+    line(g, 3, 13, 10, 5, PAL.wood);
+    poly(g, [[8, 2], [13, 4], [12, 7], [9, 4]], '#8b8b94');
+    line(g, 9, 2, 13, 4, '#c9ccd4');
+    rect(g, 9, 3, 2, 2, '#56565e');
+  });
+}
+
+// Upright in the hand, the blade jutting forward off the top of the handle, as the swing draws it.
+function buildHeldHoe() {
+  const c = sprite(10, 16, (g) => {
+    rect(g, 2, 2, 2, 13, PAL.woodLight);
+    rect(g, 3, 2, 1, 13, PAL.wood);
+    rect(g, 2, 1, 5, 2, '#8b8b94');
+    poly(g, [[6, 1], [9, 2], [9, 5], [7, 3]], '#8b8b94');
+    line(g, 4, 1, 8, 2, '#c9ccd4');
+    px(g, 9, 5, '#c9ccd4');
+  });
+  c.hx = 3;
+  return c;
+}
+
+function buildWateringCan() {
+  return sprite(16, 12, (g) => {
+    line(g, 10, 7, 14, 3, '#4f6e82', 2);
+    rect(g, 13, 1, 3, 3, '#4f6e82');
+    px(g, 15, 2, '#9ab8c8');
+    ellipse(g, 4, 3, 3, 2.5, '#2f4656');
+    g.clearRect(3, 2, 3, 2);
+    rect(g, 1, 4, 10, 7, '#6a8ea4');
+    rect(g, 1, 4, 10, 1, '#9ab8c8');
+    rect(g, 1, 10, 10, 1, '#4f6e82');
+    rect(g, 2, 6, 1, 3, '#b8d4e0');
+    rect(g, 1, 7, 10, 1, '#5a7c90');
+  });
+}
+
+function buildCarrot() {
+  return sprite(11, 13, (g) => {
+    poly(g, [[3, 4], [7, 4], [6, 9], [4, 12]], '#ee8a2a');
+    line(g, 4, 5, 4, 8, '#f8b060');
+    for (const y of [6, 9]) px(g, 6, y, '#c86a14');
+    line(g, 5, 4, 3, 0, '#4e9a3a');
+    line(g, 5, 4, 5, 0, '#6ac04a');
+    line(g, 5, 4, 8, 1, '#4e9a3a');
+  });
+}
+
+function buildPotato() {
+  return sprite(11, 10, (g) => {
+    ellipse(g, 5, 5, 4, 3, '#b88a50');
+    ellipse(g, 4, 4, 2.5, 1.5, '#d4aa70');
+    for (const [x, y] of [[3, 6], [6, 4], [7, 6]]) px(g, x, y, '#7a5428');
+  });
+}
+
+function buildTurnip() {
+  return sprite(11, 13, (g) => {
+    ellipse(g, 5, 8, 4, 3.5, '#f0e8f0');
+    ellipse(g, 5, 6, 4, 2, '#a04a9a');
+    px(g, 3, 6, '#c870c0');
+    line(g, 5, 11, 5, 12, '#d8c8d0');
+    line(g, 5, 4, 3, 0, '#5aa83a');
+    line(g, 5, 4, 7, 0, '#4e9a3a');
+  });
+}
+
+function buildCabbage() {
+  return sprite(12, 11, (g) => {
+    ellipse(g, 6, 6, 5, 4, '#4e9a3a');
+    ellipse(g, 6, 5, 3.5, 3, '#9ad468');
+    ellipse(g, 5, 4, 1.5, 1, '#c8ec98');
+    line(g, 6, 2, 6, 8, '#6ab84a');
+    line(g, 3, 6, 6, 8, '#6ab84a');
+    line(g, 9, 6, 6, 8, '#6ab84a');
+  });
+}
+
+// A paper packet of seeds with the crop painted on the front.
+function buildSeedPacket(crop) {
+  return sprite(10, 12, (g) => {
+    rect(g, 1, 2, 8, 9, '#ecdcb4');
+    rect(g, 1, 2, 8, 1, '#c8b488');
+    rect(g, 1, 10, 8, 1, '#c8b488');
+    for (const x of [1, 3, 5, 7]) px(g, x, 1, '#ecdcb4');
+    ellipse(g, 5, 6, 2.5, 2, crop.color);
+    px(g, 5, 3, crop.leaf);
+    px(g, 4, 4, crop.leaf);
+    px(g, 6, 4, crop.leaf);
+  });
+}
+
+// A few pips spat out of a fruit, with a dab of the fruit's colour to tell them apart.
+function buildFruitSeeds(fruit, pip) {
+  return sprite(10, 9, (g) => {
+    for (const [x, y] of [[2, 5], [5, 6], [4, 3], [7, 5]]) {
+      ellipse(g, x, y, 1, 1.5, pip);
+      px(g, x, y - 1, shade(pip, 0.35));
+    }
+    rect(g, 7, 1, 2, 2, fruit);
+  });
+}
+
+// A dug tile of soil, its furrows dark and glistening once it's been watered. It fills the whole tile, furrows
+// running edge to edge, so dug tiles side by side join into one bed; `open` (bits N 1, E 2, S 4, W 8) are the
+// sides with grass beyond, which get a dark lip and lose their corners where two meet.
+function buildSoil(wet, open) {
+  return sprite(16, 16, (g) => {
+    const [base, ridge, furrow, lip] = wet ? ['#4e2e18', '#64402a', '#341c0e', '#2a1408'] : ['#7a5232', '#96693e', '#5a3a22', '#4a2c16'];
+    rect(g, 0, 0, 16, 16, base);
+    for (const y of [1, 5, 9, 13]) {
+      rect(g, 0, y, 16, 1, ridge);
+      rect(g, 0, y + 1, 16, 1, furrow);
+    }
+    for (const [x, y] of [[4, 4], [10, 0], [7, 8], [12, 7], [2, 12], [14, 11]]) px(g, x, y, shade(base, 0.25));
+    if (wet) for (const [x, y] of [[5, 3], [11, 7], [8, 11], [2, 15]]) px(g, x, y, '#8aa4b4');
+    if (open & 1) rect(g, 0, 0, 16, 1, lip);
+    if (open & 2) rect(g, 15, 0, 1, 16, lip);
+    if (open & 4) rect(g, 0, 15, 16, 1, lip);
+    if (open & 8) rect(g, 0, 0, 1, 16, lip);
+    for (const [bits, x, y] of [[9, 0, 0], [3, 15, 0], [6, 15, 15], [12, 0, 15]]) {
+      if ((open & bits) === bits) g.clearRect(x, y, 1, 1);
+    }
+  }, false);
+}
+
+// What grows from a seed: [seeded, sprout, young, ripe]; the seeds themselves are drawn on the soil.
+function buildCropStages(c) {
+  const sprout = sprite(9, 8, (g) => {
+    line(g, 4, 7, 4, 4, shade(c.leaf, -0.2));
+    ellipse(g, 2.5, 3.5, 1.5, 1, c.leaf);
+    ellipse(g, 6, 3, 1.5, 1, shade(c.leaf, 0.2));
+  });
+  return [null, sprout, sprite(14, 13, (g) => drawCrop(g, c, false)), sprite(16, 18, (g) => drawCrop(g, c, true))];
+}
+
+function drawCrop(g, c, ripe) {
+  const light = shade(c.leaf, 0.25);
+  const dark = shade(c.leaf, -0.25);
+  const w = ripe ? 16 : 14;
+  const h = ripe ? 18 : 13;
+  const mx = Math.floor(w / 2);
+  if (c.shape === 'root') {
+    const tips = ripe ? [[-5, 2], [-3, 0], [0, 1], [3, 0], [5, 3]] : [[-3, 4], [0, 3], [3, 5]];
+    for (const [i, [dx, y]] of tips.entries()) {
+      line(g, mx, h - 3, mx + dx, y + 2, i % 2 ? c.leaf : dark);
+      ellipse(g, mx + dx, y + 2, 1.5, 1, i % 2 ? light : c.leaf);
+    }
+    if (ripe) {
+      ellipse(g, mx, h - 3, 3, 2, c.top || c.color);
+      rect(g, mx - 2, h - 4, 2, 1, shade(c.top || c.color, 0.35));
+    }
+  } else if (c.shape === 'bush') {
+    ellipse(g, mx, h - 6, ripe ? 6 : 4, ripe ? 5 : 4, dark);
+    ellipse(g, mx - 1, h - 7, ripe ? 4.5 : 3, ripe ? 3.5 : 2.5, c.leaf);
+    ellipse(g, mx - 2, h - 8, 2, 1.5, light);
+    if (ripe) {
+      for (const [x, y] of [[mx - 3, h - 10], [mx + 3, h - 9], [mx, h - 12]]) {
+        px(g, x, y, '#f4f0e6');
+        px(g, x, y + 1, '#f2d24a');
+      }
+      ellipse(g, mx - 4, h - 2, 2, 1.5, c.color);
+      ellipse(g, mx + 4, h - 2, 2, 1.5, c.color);
+    }
+  } else if (c.shape === 'head') {
+    for (const dx of ripe ? [-4, 4] : [-3, 3]) ellipse(g, mx + dx, h - 4, ripe ? 3 : 2.5, 2, dark);
+    if (ripe) {
+      ellipse(g, mx, h - 6, 5, 4.5, c.leaf);
+      ellipse(g, mx, h - 7, 3.5, 3, c.color);
+      ellipse(g, mx - 1, h - 8, 1.5, 1, shade(c.color, 0.35));
+      line(g, mx, h - 10, mx, h - 4, c.leaf);
+    } else {
+      ellipse(g, mx, h - 5, 3, 3, c.leaf);
+      ellipse(g, mx - 1, h - 6, 1.5, 1, light);
+    }
+  } else {
+    // a fruit seed comes up as a bush of it, hung with fruit once it's ripe
+    line(g, mx, h - 1, mx, h - 5, PAL.woodDark);
+    ellipse(g, mx, h - (ripe ? 9 : 7), ripe ? 7 : 5, ripe ? 6 : 4.5, dark);
+    ellipse(g, mx - 1, h - (ripe ? 10 : 8), ripe ? 5 : 3.5, ripe ? 4 : 3, c.leaf);
+    ellipse(g, mx - 2, h - (ripe ? 12 : 9), 2, 1.5, light);
+    if (ripe) {
+      for (const [x, y] of [[mx - 4, h - 9], [mx + 3, h - 11], [mx + 1, h - 7], [mx - 1, h - 13], [mx + 5, h - 7]]) {
+        rect(g, x, y, 2, 2, c.color);
+        px(g, x, y, shade(c.color, 0.4));
+      }
+    }
+  }
+}
+
+// The gardener's: sacks of seed and a basket of greens on the counter, carrots hanging under the awning.
+function seedGoods(g) {
+  for (const [x, c] of [[12, '#ee8a2a'], [22, '#c8a060'], [32, '#9ad468']]) {
+    ellipse(g, x, 34, 4, 4, '#c8a878');
+    ellipse(g, x, 31, 3, 1.5, c);
+    rect(g, x - 1, 29, 2, 1, '#9a7a4a');
+  }
+  ellipse(g, 46, 35, 6, 3, '#8a5a30');
+  ellipse(g, 46, 33, 5, 2, '#4e9a3a');
+  for (const x of [43, 47]) ellipse(g, x, 32, 2, 1.5, '#9ad468');
+  for (const [x, y] of [[54, 35], [57, 34], [56, 36]]) {
+    ellipse(g, x, y, 2, 1.5, '#f0e8f0');
+    px(g, x, y - 1, '#a04a9a');
+  }
+  for (const x of [14, 52]) {
+    line(g, x, 20, x, 23, PAL.woodDeep);
+    for (const dx of [-2, 0, 2]) {
+      line(g, x, 23, x + dx, 25, '#4e9a3a');
+      poly(g, [[x + dx - 1, 25], [x + dx + 1, 25], [x + dx, 30]], '#ee8a2a');
+    }
+  }
+}
+
+// A raised bed of greens by the stall, that the gardener waters.
+function buildPlanter() {
+  return sprite(28, 16, (g) => {
+    rect(g, 1, 8, 26, 7, PAL.wood);
+    rect(g, 1, 8, 26, 1, PAL.woodLight);
+    rect(g, 1, 14, 26, 1, PAL.woodDark);
+    for (const x of [1, 13, 26]) rect(g, x, 8, 1, 7, PAL.woodDark);
+    rect(g, 2, 6, 24, 3, '#5a3a22');
+    for (let x = 4; x < 25; x += 5) {
+      line(g, x, 7, x - 1, 3, '#4e9a3a');
+      line(g, x, 7, x + 1, 2, '#6ab84a');
+      px(g, x + 1, 2, '#9ad468');
+    }
+    ellipse(g, 9, 6, 2, 1.5, '#9ad468');
+    ellipse(g, 19, 6, 2, 1.5, '#9ad468');
+  });
+}
+
 function buildHeldSword() {
   return sprite(8, 16, (g) => {
     rect(g, 3, 1, 2, 10, '#c9ccd4');
@@ -4337,12 +4733,7 @@ function buildSpecies(id, pal) {
 }
 
 function buildCloud(seed) {
-  return sprite(96, 40, (g) => {
-    const r = mulberry32(seed);
-    const puffs = Array.from({ length: 5 }, (_, i) => [14 + i * 14 + r() * 6, 22 - r() * 8, 9 + r() * 7]);
-    for (const [x, y, s] of puffs) ellipse(g, x, y + 3, s, s * 0.7, '#c9dcf0');
-    for (const [x, y, s] of puffs) ellipse(g, x, y, s, s * 0.7, '#ffffff');
-  }, false);
+  return cloudSprite(96, 48, clump(mulberry32(seed), 96, 48, 12, 7, 15, 2), CLOUD_TONES.white);
 }
 
 // Bow-on (down) and stern-on (up) views of the longship, 64x94, waterline at y=86.
@@ -4560,6 +4951,7 @@ const LOOKS = {
   seamstress: { id: 'seamstress', hair: '#2b1a12', hairStyle: 'long', tunic: '#b04a6e', collar: '#f0d6a0' },
   tanner: { id: 'tanner', hair: '#4a2c18', hairStyle: 'short', beard: '#4a2c18', tunic: '#6e6a3a', pants: '#3a2c22', apron: '#8a5530' },
   carpenter: { id: 'carpenter', hair: '#c46a2a', hairStyle: 'short', beard: '#c46a2a', tunic: '#4f6a8a', pants: '#3a2c22', apron: '#c49a62' },
+  gardener: { id: 'gardener', hair: '#d8b070', hairStyle: 'braids', tunic: '#5a8a32', apron: '#c8a878', kerchief: '#e8c860' },
   kid: { id: 'kid', hair: '#5a3418', hairStyle: 'short', tunic: '#8a7550' },
   girl: { id: 'girl', hair: '#f2d064', hairStyle: 'long', tunic: '#3c6ca3', pants: '#3d4f6e' },
   archer: { id: 'archer', hair: '#3d2414', hairStyle: 'short', tunic: '#55703c' },
@@ -4907,6 +5299,7 @@ function buildSprites() {
   def('stallWeaver', { img: buildStall('#3d7d78', clothGoods), foot: { w: 64, h: 14 } });
   def('stallSeamstress', { img: buildStall('#d86a9a', garmentGoods), foot: { w: 64, h: 14 } });
   def('stallTanner', { img: buildStall('#7a4a26', leatherGoods), foot: { w: 64, h: 14 } });
+  def('planter', { img: buildPlanter(), foot: { w: 26, h: 6 }, shadow: { rx: 14, ry: 2 } });
   // `stall` is how far the counter's middle sits from the sprite's
   const shop = (stripe, goods, left, roof) => {
     const img = roof ? withRoof(roof, () => buildShopHouse(stripe, goods, left)) : buildShopHouse(stripe, goods, left);
@@ -4917,6 +5310,7 @@ function buildSprites() {
   def('shopSeamstress', shop('#d86a9a', garmentGoods, false, ['#a8452f', '#cc6448', '#7f3020', '#5a2016']));
   def('shopTanner', shop('#7a4a26', leatherGoods, true, ['#c79a4a', '#e3bd6a', '#9a7232', '#6e4f22']));
   def('shopCarpenter', shop('#5a7a3a', woodGoods, false));
+  def('shopGardener', shop('#5a8a32', seedGoods, false, ['#6a9a4a', '#8ab85e', '#4e7a36', '#36562a']));
   def('workbench', { img: buildWorkbench(), foot: { w: 26, h: 4 }, shadow: { rx: 14, ry: 2 } });
   def('oven', { img: buildOven(), foot: { w: 26, h: 7 }, shadow: { rx: 14, ry: 3 }, light: { dx: 0, dy: -8, r: 22, color: '#ff8a2a' } });
   def('sacks', { img: buildSacks(), foot: { w: 18, h: 5 } });
@@ -4959,6 +5353,7 @@ function buildSprites() {
     arrow: buildArrowIcon(), feather: buildFeather(), torch: buildTorchIcon(), gold: buildGoldNugget(), mushroom: buildGlowcapIcon(),
     lure: buildLure(), sail: buildSailIcon(), silver: buildCoin(), goldCoin: buildCoin(['#b07a1e', '#f2c94a', '#fff6c8']), copper: buildCoin(['#7a3e1c', '#c97a42', '#f4c8a0']), meat: buildMeat(false), roast: buildMeat(true),
     hide: buildHide(), satchel: buildSatchel(), pouch: buildPouch(), toolBelt: buildToolBelt(), saddle: buildSaddleIcon(),
+    haversack: buildHaversack(), pocketVest: buildPocketVest(), kitbag: buildKitBag(), harvestBasket: buildHarvestBasket(), framePack: buildFramePack(),
     ruby: buildGem('#d8322a', '#ff7a6a', '#8a1a14'), emerald: buildGem('#2fae5a', '#7ae89a', '#1a6a34'),
     goblet: buildGoblet(), crown: buildCrown(),
     plank: buildPlank(), rope: buildRope(), ladder: buildLadderIcon(), bridge: buildBridgeKit(), lightningRod: buildRodIcon(),
@@ -4970,7 +5365,13 @@ function buildSprites() {
   SPR.ui = { ...buildUiIcons(), tinker: buildTinkerIcon() };
   SPR.icon.grilledFish = buildCooked(SPR.icon.fish, 'rgba(214,140,50,0.45)', true);
   SPR.icon.bakedApple = buildCooked(SPR.icon.apple, 'rgba(110,40,10,0.45)', false);
-  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe(), torch: [buildHeldTorch(0), buildHeldTorch(1)] };
+  Object.assign(SPR.icon, {
+    hoe: buildHoe(), wateringCan: buildWateringCan(), carrot: buildCarrot(), potato: buildPotato(), turnip: buildTurnip(), cabbage: buildCabbage(),
+    ...Object.fromEntries(Object.entries(CROPS).map(([id, c]) => [seedOf(id), c.fruit ? buildFruitSeeds(c.color, c.pip) : buildSeedPacket(c)])),
+  });
+  SPR.soil = [false, true].map((wet) => Array.from({ length: 16 }, (_, open) => buildSoil(wet, open)));
+  SPR.crop = Object.fromEntries(Object.entries(CROPS).map(([id, c]) => [id, buildCropStages(c)]));
+  SPR.held = { axe: SPR.axe, sword: buildHeldSword(), spear: buildHeldSpear(), pickaxe: buildHeldPickaxe(), hoe: buildHeldHoe(), torch: [buildHeldTorch(0), buildHeldTorch(1)] };
   def('ore', { img: buildOre(false), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 } });
   def('oreSpent', { img: buildOre(true) });
   def('goldOre', { img: buildOre(false, 'gold'), foot: { w: 18, h: 6 }, shadow: { rx: 11, ry: 3 }, light: { dx: 0, dy: -8, r: 10, color: '#f2c94a' } });

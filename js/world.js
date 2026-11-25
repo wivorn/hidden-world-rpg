@@ -527,11 +527,12 @@ const ROOMS = {
     rugs: [[2.5, 3, 4, 2.4, '#a8432f']],
     furniture: [['bed', 1, 2.1], ['hearth', 4.5, 0.2], ['backpack', 2.4, 1.6], ['toolBelt', 3.4, 1.7], ['table', 7, 3.9], ['stool', 5.6, 3.7], ['stool', 8.4, 3.7], ['chest', 9.2, 1], ['barrel', 0.6, 5.7]],
   },
+  // the gardener's, behind her seed shop
   cottage: {
-    name: 'the cottage', w: 8, h: 5,
+    name: 'the gardener\'s cottage', w: 8, h: 5,
     wall: [['window', 2], ['shelf', 6]],
-    rugs: [[3, 2.6, 3, 2, '#4f7a8c']],
-    furniture: [['bed', 1, 2.1], ['hearth', 4, 0.2], ['table', 6, 3.1], ['stool', 4.7, 2.9], ['yarnBasket', 7.3, 1], ['sacks', 0.9, 4.7]],
+    rugs: [[3, 2.6, 3, 2, '#5a8a32']],
+    furniture: [['bed', 1, 2.1], ['hearth', 4, 0.2], ['planter', 6.4, 1.4], ['table', 6, 3.6], ['stool', 4.7, 3.4], ['sacks', 0.9, 4.7], ['sacks', 7.2, 4.7]],
   },
   hall: {
     name: 'the great hall', w: 16, h: 9,
@@ -1700,7 +1701,11 @@ function drawGround(g, cx, cy, w, h) {
   const j0 = Math.max(0, Math.floor(cy / CHUNK_PX));
   const i1 = Math.min(CW - 1, Math.floor((cx + w - 1) / CHUNK_PX));
   const j1 = Math.min(CH - 1, Math.floor((cy + h - 1) / CHUNK_PX));
-  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) g.drawImage(chunkCanvas(i, j), i * CHUNK_PX - cx, j * CHUNK_PX - cy);
+  // shrunk (the world far below the clouds), chunks overlap a pixel so no seam shows between them
+  const pad = g.getTransform().a < 1 ? 1 : 0;
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) g.drawImage(chunkCanvas(i, j), i * CHUNK_PX - cx, j * CHUNK_PX - cy, CHUNK_PX + pad, CHUNK_PX + pad);
+  }
   let budget = 2;
   for (let j = j0 - 1; j <= j1 + 1 && budget; j++) {
     for (let i = i0 - 1; i <= i1 + 1 && budget; i++) {
@@ -1944,10 +1949,10 @@ const NPCS = [
     lines: ['Your backpack and your father\'s old tool belt are by your bed. Take them both!', 'Don\'t forget your backpack when you go out!', 'Breakfast is on the table if you\'re hungry.'],
     nightLines: ['Your backpack and tool belt are by your bed, sweetheart.', 'It\'s dark out! Adventures can wait for the morning.', 'There\'s stew keeping warm by the fire.'],
   },
-  // the travelling merchant waits out of the world until his ship docks
+  // the merchant waits out of the world until the game starts and he's put ashore by his ship
   {
     look: 'merchant', x: MAP_W - 4, y: ROWS - 2, fixed: 'left',
-    lines: ['Silver for fish, silver for wool! Ottar buys it all!', 'I sail all of Numina. Three days round, then back here.', 'Mind the gangplank, friend.'],
+    lines: ['Silver for fish, silver for wool! Ottar buys it all!', 'I\'ve sailed all of Numina. This bay suits me best.', 'Mind the gangplank, friend.'],
     nightLines: ['Late trade? Ottar never sleeps!', 'Silver for fish, silver for wool, night or day!', 'Mind the gangplank, friend. It\'s slippery in the dark.'],
   },
   // after the merchant, so the villagers in old saves keep their places
@@ -1955,6 +1960,11 @@ const NPCS = [
     look: 'carpenter', x: 94 + OX, y: 67.5 + OY, job: { station: [92.1 + OX, 67.9 + OY], face: 'left', prop: 'workbench' },
     lines: ['Measure twice, cut once.', 'Got a bow, {lad}? Bring it here and I\'ll make it shoot farther.', 'Good yew makes a good longbow. Good horn makes a better one.', 'Every plank in this village went over my bench.'],
     nightLines: ['Can\'t saw straight in the dark. I\'ll whittle a little instead.', 'Still need that bow seen to? I\'m not too tired for that.', 'Sawdust in my beard again. Ah well.'],
+  },
+  {
+    look: 'gardener', x: 91.4 + OX, y: 57 + OY, job: { station: [89 + OX, 57.6 + OY], face: 'left', prop: 'planter' },
+    lines: ['Seeds! Carrots, potatoes, turnips, cabbages. Plant them and watch them come up.', 'Dig a patch with a hoe, {lad}, out in the fields by the scarecrows. The smith makes hoes.', 'Water your patch once a day and it grows a little each time.', 'Eat a fruit and keep the pips. They grow too, you know.'],
+    nightLines: ['The seeds sleep in the dark, same as us.', 'A drop of water before bed, and they\'ll be taller by morning.', 'Still up, {lad}? I can sell you seeds by moonlight.'],
   },
 ];
 // Where the merchant's ship ties up in the bay, east of the longship, and where he stands on the beach beside it.
@@ -2009,6 +2019,10 @@ function placeObjects() {
   addObj('workbench', 90.4, 68.4);
   addObj('logPile', 89.4, 70.6);
   signBy('carpenter', 92.3, 70.2);
+  // the gardener's seed shop, east of the square
+  shopAt('shopGardener', 91.4, 58, 'cottage');
+  addObj('planter', 87.4, 58.2);
+  signBy('gardener', 89.3, 59.4);
   addObj('bonfire', 78.5, 60);
   addObj('bannerBlue', 75.5, 56.7);
   addObj('bannerBlue', 81.5, 56.7);
@@ -2024,13 +2038,11 @@ function placeObjects() {
   addObj('houseD', 60, 86).room = 'guardHouse';
   addObj('houseC', 69, 86).room = 'fisherHouse';
   addObj('houseD', 87, 86).room = 'chiefHouse';
-  addObj('houseB', 95, 58).room = 'cottage';
   addObj('barrel', 98.3, 58.2);
   addObj('barrel', 99.2, 58);
-  addObj('bannerRed', 91.6, 58.4);
   for (const [k, x, y] of [
     ['bushPink', 73.6, 78.2], ['bushPink', 64.6, 86.2], ['barrel', 73.2, 86.3], ['bushYellow', 82.6, 86.2], ['sacks', 82.2, 77.6],
-    ['bench', 74.2, 62.6], ['bench', 82.8, 62.6], ['sacks', 87.6, 58.4],
+    ['bench', 74.2, 62.6], ['bench', 82.8, 62.6],
     ['oak', 74.5, 75.6], ['oak', 83.2, 83.4], ['bushYellow', 91.8, 79.2],
   ]) addObj(k, x, y);
 

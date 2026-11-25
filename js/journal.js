@@ -105,9 +105,9 @@ const QUESTS = [
     steps: [{ id: 'fishlog', text: () => `Catch every kind of fish (${kindsCaught()}/${FISH_IDS.length}). Press L to read the log`, done: () => kindsCaught() >= FISH_IDS.length }],
   },
   {
-    id: 'trade', title: 'The Travelling Merchant', start: () => merchant.state !== 'away' || stats.sold > 0,
+    id: 'trade', title: 'The Merchant in the Bay', start: () => merchant.state !== 'away' || stats.sold > 0,
     steps: [
-      { id: 'sold', text: () => `Sell something to Ottar${merchantHere() ? ', on the beach by his ship' : ' (his ship docks every third day)'}`, done: () => stats.sold > 0 },
+      { id: 'sold', text: () => 'Sell something to Ottar, on the beach by his ship', done: () => stats.sold > 0 },
       { id: 'bought', text: 'Buy something with your coins', done: () => stats.bought > 0 },
     ],
   },

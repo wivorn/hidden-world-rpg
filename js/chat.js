@@ -34,6 +34,7 @@ const TOPICS = [
   ['clothes', /\b(cloth(es|ing)|dress(es)?|tunics?|shirts?|cloaks?|coats?|jackets?|sew|sewing|stitch\w*|needles?|thread|outfits?|wear\w*|garments?|gear|hats?|hoods?|gloves?|mittens?|scarf|scarves|trousers|pants|sleeves?|apparel|attire|fire ?proof|warm|cold|freezing)\b/],
   ['cloth', /\b(cloth|fabric|weave|weaving|woven|looms?|yarn|wool|linen|spinning)\b/],
   ['leather', /\b(leather|hides?|tanning|tanned|boots?|belts?|pelts?|pouch(es)?)\b/],
+  ['farm', /\b(farm(ing)?|garden\w*|seeds?|plant\w*|grow(ing)?|crops?|soil|carrots?|potato(es)?|turnips?|cabbages?|vegetables?|veg|watering( ?cans?)?|harvest\w*|pips?)\b/],
   ['food', /\b(bread|food|hungry|eat|bake|baking|baked|cakes?|pies?|buns?|loaf|loaves|oven)\b/],
   ['shop', /\b(buy|sell|trade|gold|coins?|shops?|stores?|stalls?|market|wares|goods|price)\b/],
   ['backpack', /\b(back ?packs?|bag ?packs?|bags?|satchel|knapsack)\b/],
@@ -47,7 +48,7 @@ const TOPIC_EMOTES = {
   follow: 'exclaim', stop: 'dots', insult: 'angry', love: 'heart', thanks: 'heart', goodnight: 'note', bye: 'note',
   yes: 'smile', no: 'dots', wares: 'smile', name: 'smile', mood: 'smile', joke: 'smile', dance: 'note', roost: 'question', tor: 'exclaim', eel: 'exclaim', egg: 'exclaim', hatch: 'exclaim', eggFound: 'exclaim', hatched: 'heart', grown: 'exclaim',
   dragon: 'exclaim', places: 'exclaim', hunt: 'exclaim', iron: 'dots', map: 'dots', string: 'dots', dog: 'question', ship: 'dots',
-  craft: 'dots', forge: 'dots', food: 'dots', clothes: 'dots', cloth: 'dots', leather: 'dots', shop: 'dots', backpack: 'question', sheep: 'question', fish: 'dots', help: 'dots', greet: 'exclaim',
+  craft: 'dots', forge: 'dots', farm: 'smile', food: 'dots', clothes: 'dots', cloth: 'dots', leather: 'dots', shop: 'dots', backpack: 'question', sheep: 'question', fish: 'dots', help: 'dots', greet: 'exclaim',
   question: 'question', other: 'question',
 };
 
@@ -59,6 +60,7 @@ const NPC_NAMES = {
   seamstress: /\b(seamstress|tailor|dressmaker)\b/,
   tanner: /\b(tanner|leatherworker)\b/,
   carpenter: /\b(carpenter|woodworker|joiner|bowyer)\b/,
+  gardener: /\b(gardener|seed (seller|stall|shop|lady))\b/,
   kid: /\b(kid|boy)\b/,
   girl: /\b(girl|lass)\b/,
   archer: /\b(archer|hunter)\b/,
@@ -117,8 +119,9 @@ const REPLIES = {
     dog: ['Fred? That little girl\'s dog is always running off.', 'I heard barking out in the forest earlier.'],
     forge: ['The smith can help you with that.', 'Ask the smith. He makes all kinds of tools.'],
     craft: ['The smith can make you one. He\'s by the forge.', 'Ask the smith, he makes all our tools.'],
+    farm: ['The gardener keeps the seed shop, just east of the square.', 'Want to grow your own? A hoe from the smith, seeds from the gardener, a patch in the fields by the scarecrows, and water every day.'],
     food: ['The baker sells fresh bread on the square.', 'Follow the smell of bread to the baker\'s oven.'],
-    shop: ['The market is round the square: bread, cloth, clothes and leather.', 'Need a tool? The smith makes those.', 'The carpenter, south-east of the square, can make your bow shoot farther.', 'Ottar the merchant docks in the bay every third day. He pays good coin for fish and wool.'],
+    shop: ['The market is round the square: bread, cloth, clothes and leather.', 'Seeds and watering cans at the gardener\'s shop, east of the square.', 'Need a tool? The smith makes those.', 'The carpenter, south-east of the square, can make your bow shoot farther.', 'Ottar the merchant has his ship anchored in the bay. He pays good coin for fish and wool.'],
     clothes: ['The seamstress on the north side of the square makes fine clothes.', 'Need a new tunic? See the seamstress.'],
     cloth: ['The weaver works her loom on the north side of the square.', 'The weaver makes all our cloth.'],
     leather: ['The tanner is on the west road, by the forge. Follow your nose!', 'Boots and belts? The tanner\'s your man.'],
@@ -149,7 +152,8 @@ const REPLIES = {
   smith: {
     name: ['Smith. I make things out of hot metal.', 'I\'m the smith. I can make all kinds of tools for you.'],
     greet: ['Oi.', 'Mind the sparks!', 'Need a tool, {lad}?'],
-    wares: ['Axe, pickaxe, bow, sword, shield, spear, torch. You name it, I forge it.', 'All kinds! Axes, pickaxes, bows, swords, shields and spears.'],
+    wares: ['Axe, pickaxe, hoe, bow, sword, shield, spear, torch. You name it, I forge it.', 'All kinds! Axes, pickaxes, hoes, bows, swords, shields and spears.'],
+    farm: ['Digging a garden? You\'ll want a hoe. A bit of wood and a stone, and it\'s yours. Just ask.', 'Seeds are the gardener\'s business. Hoes are mine.'],
     tor: ['Lightning struck my old master\'s anvil once. Iron draws it like a lodestone draws a needle.', 'The Tor? Mad place for a forge. Every bit of metal out there fizzes in the rain.'],
     forge: [
       'Axe, pickaxe, bow, sword, shield, spear. Hand-forged, every one.',
@@ -186,7 +190,7 @@ const REPLIES = {
   },
   weaver: {
     name: ['I\'m the weaver. Wool comes in, cloth goes out.', 'Weaver. I can weave you any cloth you like.'],
-    wares: ['Linen for summer, wool for winter, in any colour you like.', 'Bolts of cloth: plain, striped or checked!'],
+    wares: ['Linen for summer, wool for winter, in any colour you like. And a woollen haversack, if your pack\'s too small.', 'Bolts of cloth: plain, striped or checked!'],
     greet: ['Hello, dear.', 'Mind the loom!'],
     cloth: ['Linen for summer, wool for winter.', 'Every colour you see, I dyed myself.'],
     sheep: ['The shepherd\'s sheep give me the finest wool.'],
@@ -200,7 +204,7 @@ const REPLIES = {
   },
   seamstress: {
     name: ['I\'m the seamstress. I make the finest clothes in the village.', 'Seamstress, dear. I can sew you anything you can wear.'],
-    wares: ['A thick fur coat for the frozen isle, a fireproof jacket for the volcano. Just ask!', 'Tunics, cloaks, a fur coat, a fireproof jacket. Bring me the makings and I\'ll sew it.'],
+    wares: ['A thick fur coat for the frozen isle, a fireproof jacket for the volcano. Just ask!', 'Tunics, cloaks, a fur coat, a fireproof jacket, a vest full of pockets. Bring me the makings and I\'ll sew it.'],
     greet: ['Oh, hello, {name}!', 'Hello, dear!'],
     clothes: [
       'Off to the frozen isle? A thick fur coat: four hides and two wool, and the cold won\'t touch you.',
@@ -221,7 +225,7 @@ const REPLIES = {
   },
   tanner: {
     name: ['Tanner. I turn hides into leather.', 'I\'m the tanner. I can make you boots, belts, a pouch or a tent.'],
-    wares: ['Tool belts and hunter\'s pouches, two hides apiece. Strong and supple!', 'Anything leather: boots, tool belts, pouches, straps.', 'A camping tent: six hides, four strings and two lengths of wood for the poles.'],
+    wares: ['Tool belts and hunter\'s pouches, two hides apiece. A big kit bag for four. Strong and supple!', 'Anything leather: boots, tool belts, pouches, straps.', 'A camping tent: six hides, four strings and two lengths of wood for the poles.'],
     greet: ['Ho there!', 'Don\'t mind the smell.'],
     leather: ['A tool belt takes two hides. Its two pouches carry what your pack can\'t.', 'A hide sits weeks in the vat before it\'s ready.'],
     hunt: ['Deer in the western woods, boar further south. Boar\'s the tastier, but it bites back.', 'Hunting? Walk, don\'t run. Deer hear a running Viking a mile off.'],
@@ -246,6 +250,26 @@ const REPLIES = {
     joke: ['Why did the carpenter go to the healer? He had a splinter of doubt!'],
     mood: ['Happy as a saw in soft pine.'],
     other: ['Aye.', 'Measure twice, cut once.'],
+  },
+  gardener: {
+    name: ['I\'m the gardener. If it grows, I\'ve grown it.', 'Gardener, seed seller, and chief carrot taster.'],
+    wares: ['Carrot, potato, turnip and cabbage seeds, watering cans to go with them, and a harvest basket to carry it all home.', 'Seeds by the three, and a sturdy watering can.'],
+    greet: ['Hello, hello! Mind the seedlings.', 'Morning! Lovely day for growing.'],
+    farm: [
+      'Dig a patch with a hoe in the fields by the scarecrows, east of the village. The hermit has a little garden too. The smith makes hoes.',
+      'Hold a seed out of your backpack and press X by your patch to plant it.',
+      'Water it once a day and it grows a step. Three good waterings and it\'s ripe.',
+      'Eat a fruit and keep the pips. Plant those and you\'ll get a little fruit bush.',
+      'They say a water dragon\'s breath waters a whole row at once. And a rainbow? Ripens anything, just like that!',
+    ],
+    craft: ['A hoe? That\'s the smith\'s work. A watering can, though, I sell.'],
+    food: ['Grow your own! Nothing tastes like a carrot you pulled yourself.', 'A turnip a day keeps the healer away.'],
+    shop: ['Seeds for coin! Have a look at my board.', 'Ottar pays well for vegetables, you know.'],
+    insult: ['Well! I\'ve pulled weeds friendlier than you.'],
+    follow: ['And leave my seedlings? Not likely!'],
+    joke: ['What did the big flower say to the little flower? Hi, bud!', 'Why did the potato cross the road? It saw a fork up ahead!'],
+    mood: ['Rooted and happy!', 'Blooming, thank you!'],
+    other: ['Mm-hm.', 'Lovely.', 'Is that so? Fancy.'],
   },
   mom: {
     name: ['I\'m your mother, {name}! Did you bump your head?', 'Your mum, silly. Who else would make your breakfast?'],
@@ -427,15 +451,15 @@ const REPLIES = {
   },
   merchant: {
     name: ['Ottar, merchant of the seven seas!', 'Ottar. I buy, I sell, I sail on.'],
-    wares: ['Torches, arrows, a golden lure, and silk for your sail. Talk to me and have a look!', 'I buy fish, meat, wool, iron, gold and glowcaps. Fair prices, mostly.'],
+    wares: ['Torches, arrows, a golden lure, silk for your sail, and a frame pack that\'s crossed every mountain in Numina. Talk to me and have a look!', 'I buy fish, meat, wool, iron, gold and glowcaps. Fair prices, mostly.'],
     greet: ['Welcome, friend! Coin in your pocket?', 'Ahoy! Ottar\'s open for business.'],
     fish: ['Cod and fire eels pay best. A golden fish? I\'d give two gold and five silver!'],
     eel: ['Fire eels! I\'ll pay well for them. Or have the seamstress sew them into a jacket, if you fancy the volcano.'],
     hunt: ['Raw meat, three silver a cut. Sailors get hungry!'],
-    places: ['The ice cave on the frozen isle has gold in its walls. Bring me some!', 'I sail all of Numina. Three days round, then back here.', 'Steer clear of the maelstrom, far out to the south-east. It swallows ships whole! Though a friend of mine swears he came back up out of it on a fountain...', 'See that knot of cloud out east that never moves? Sailors say there\'s a sky island on top of it. Only a dragon could get you up there.'],
+    places: ['The ice cave on the frozen isle has gold in its walls. Bring me some!', 'I\'ve sailed all of Numina. Now I\'ve dropped anchor here for good.', 'Steer clear of the maelstrom, far out to the south-east. It swallows ships whole! Though a friend of mine swears he came back up out of it on a fountain...', 'See that knot of cloud out east that never moves? Sailors say there\'s a sky island on top of it. Only a dragon could get you up there.'],
     follow: ['And leave my ship? Never!'],
     joke: ['How do Vikings send secret messages? By Norse code!'],
-    bye: ['Fair winds! I\'ll be back in three days.'],
+    bye: ['Fair winds! You know where to find me.'],
     other: ['Hmm? Buying or selling?', 'Everything has a price, friend.'],
   },
 };

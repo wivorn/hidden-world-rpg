@@ -128,12 +128,16 @@ function renderInventory(changed) {
   if (bagOpen) renderBag();
 }
 
+// A well-upgraded pack lays its slots out wider, so they don't run off the bottom of the screen.
+const packCols = () => (packSize() > 16 ? 6 : 4);
+
 // Every slot of the backpack, the empty ones too; picking a thing takes it out to carry instead.
 function renderTray(changed) {
   packTray.hidden = !trayOpen;
   bagBtn.setAttribute('aria-expanded', String(trayOpen));
   if (!trayOpen) return;
   packRoom.textContent = `${held().length}/${packSize()}`;
+  packSlotsEl.style.setProperty('--cols', packCols());
   packSlotsEl.replaceChildren(...packSlots.map((id) => {
     if (!id) return emptySlot();
     const li = document.createElement('li');
@@ -290,7 +294,7 @@ let bagOpen = false;
 let bagPick = null;
 
 const OUTFIT_IDS = Object.keys(ITEMS).filter((id) => ITEMS[id].outfit);
-const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow', 'featherLure', 'spinner', 'glowLure', 'goldenLure'];
+const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'haversack', 'pocketVest', 'kitbag', 'harvestBasket', 'framePack', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow', 'featherLure', 'spinner', 'glowLure', 'goldenLure'];
 const tunicId = () => `tunic_${player.look.id}`;
 
 // Opens on `pick` if given, else on the first tool or item.
@@ -404,6 +408,7 @@ function renderBag() {
   if (!hotbar.length) bagTools.append(Object.assign(document.createElement('li'), { className: 'none', textContent: 'None yet' }));
   syncPack();
   bagRoom.textContent = `${held().length}/${packSize()}`;
+  bagItems.style.setProperty('--cols', packCols());
   bagItems.replaceChildren(...packSlots.map((id) => id ? bagTile(id) : emptySlot()));
   renderPick();
 }

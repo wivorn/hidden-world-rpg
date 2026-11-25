@@ -10,6 +10,11 @@ const ITEMS = {
   toolBelt: { name: 'Tool belt', worn: true, slots: 2 },
   satchel: { name: 'Travel satchel', worn: true, slots: 2 },
   pouch: { name: 'Hunter\'s pouch', worn: true, slots: 2, plural: 'hunter\'s pouches' },
+  haversack: { name: 'Woollen haversack', worn: true, slots: 2 },
+  pocketVest: { name: 'Pocket vest', worn: true, slots: 2 },
+  kitbag: { name: 'Kit bag', worn: true, slots: 2 },
+  harvestBasket: { name: 'Harvest basket', worn: true, slots: 2 },
+  framePack: { name: 'Explorer\'s frame pack', worn: true, slots: 4 },
   map: { name: 'Map', worn: true },
   mapPiece: { name: 'Map piece', worn: true, stack: true, plural: 'map pieces' },
   runeNote: { name: 'Sailor\'s note', worn: true },
@@ -82,13 +87,15 @@ const ITEMS = {
   campfire: { name: 'Campfire kit', stack: true, plural: 'campfire kits' },
   tent: { name: 'Camping tent', tool: true },
   grapple: { name: 'Grappling hook', tool: true },
+  hoe: { name: 'Hoe', tool: true },
+  wateringCan: { name: 'Watering can', tool: true },
 };
 // The hotbar's order. Arrows show as a count on the bow.
-const TOOLS = ['axe', 'pickaxe', 'sword', 'spear', 'bow', 'rod', 'grapple', 'tent', 'shield', 'torch'];
+const TOOLS = ['axe', 'pickaxe', 'hoe', 'sword', 'spear', 'bow', 'rod', 'wateringCan', 'grapple', 'tent', 'shield', 'torch'];
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !ITEMS[id].tool;
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0, torLanded: 0, torSeen: 0, torBuzz: 0, torTouch: 0, torRods: 0, iceHoles: 0, maelstrom: 0, jetRides: 0, skyRises: 0, skyIsle: 0, prisms: 0, rainbow: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0, torLanded: 0, torSeen: 0, torBuzz: 0, torTouch: 0, torRods: 0, iceHoles: 0, maelstrom: 0, jetRides: 0, skyRises: 0, skyIsle: 0, prisms: 0, rainbow: 0, tilled: 0, planted: 0, ripened: 0, harvested: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -129,6 +136,11 @@ const RECIPES = [
     done: 'Finest blade this side of the sea. Use it well, {lad}.',
   },
   {
+    item: 'hoe', maker: 'smith', words: /\bhoes?\b/, time: 1.8, needs: { wood: 1, stone: 1 },
+    start: 'A hoe? Going to grow your own, are we? A bit of wood and a flat stone...',
+    done: 'There! Take it out to the fields by the scarecrows, east of the village, and press F to dig yourself a patch.',
+  },
+  {
     item: 'lightningRod', maker: 'smith', words: /\blightning ?(rods?|conductors?)\b/, time: 2.2, needs: { iron: 2 }, batch: 6,
     start: 'Lightning rods? Planning to call down the sky, are we? Stand back from the anvil...',
     done: 'There. Point it skyward and stand well clear when the storm comes.',
@@ -149,10 +161,26 @@ const RECIPES = [
     start: 'Two hides for a tool belt? Let me cut you a good long strap...',
     done: 'There! Two good pouches on it, so you can carry two more things.',
   },
+  // ahead of the pouch, which answers to any old bag
+  {
+    item: 'kitbag', maker: 'tanner', words: /\bkit ?bags?\b/, time: 2.8, needs: { hide: 4, string: 2 },
+    start: 'A kit bag? Four hides, stitched double with two strings. Big enough for half a boar...',
+    done: 'There! Sling it over your shoulder and you\'ve room for two more things.',
+  },
   {
     item: 'pouch', maker: 'tanner', words: /\b(pouch(es)?|bags?|satchels?)\b/, time: 2.4, needs: { hide: 2 },
     start: 'Two good hides! A bit of scraping, a bit of stitching...',
     done: 'A hunter\'s pouch. Strap it to your pack and you\'ve room for two more things.',
+  },
+  {
+    item: 'haversack', maker: 'weaver', words: /\b(haversacks?|rucksacks?|knapsacks?)\b/, time: 2.6, needs: { wool: 4, string: 2 },
+    start: 'A haversack? Four good tufts of wool and two lengths of string. Let me get the loom going...',
+    done: 'Woven tight, it\'ll never fray. Room for two more things, dear.',
+  },
+  {
+    item: 'pocketVest', maker: 'seamstress', words: /\b(pocket ?vests?|vests?|waistcoats?|pockets?)\b/, time: 2.6, needs: { hide: 1, wool: 2, string: 1 },
+    start: 'A vest full of pockets? A hide for the outside, wool for the lining. Arms up...',
+    done: 'Pockets everywhere! Room for two more things, and the vest itself takes none.',
   },
   {
     item: 'furCoat', maker: 'seamstress', words: /\b(fur ?coats?|coats?|furs?|parkas?|cloaks?)\b/, time: 3, needs: { hide: 4, wool: 2 },
@@ -255,6 +283,7 @@ function spawnDrop(item, x, y, vx = 0, z = 0, vz = 70, vy = 0) {
 // The `i`th of several dropped at once lands a little to the side of the last, in a heap of three across.
 function dropItem(id, i = 0) {
   if (!has(id) || !started || naming || flight || sail || hop || player.swimming) return;
+  if (!i && SEED_CROP[id] && plantSpot()) return plantSeed(id, plantSpot());
   bag[id]--;
   renderInventory();
   const fire = id === 'wood' && fireNear(player.x, player.y);
@@ -528,6 +557,7 @@ let anvil = null;
 const MADE_AT = {
   seamstress: 'That\'s the seamstress\'s work. Her house is on the north side of the square.',
   tanner: 'That\'s the tanner\'s work. He\'s on the west road, by the forge.',
+  weaver: 'That\'s the weaver\'s work. Her loom is on the north side of the square.',
 };
 
 // Returns true when `n` makes what was asked for and has answered.
@@ -844,7 +874,7 @@ const TOOL_FOR = {
 // Chores win over game, so a rabbit underfoot doesn't get in the way of the woodcutting.
 const CHORES = new Set(['tree', 'stump', 'fence', 'barrel', 'ore', 'gold', 'boulder', 'crystal', 'bramble', 'log']);
 const SWUNG = new Set(Object.values(TOOL_FOR).flat());
-const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', cherries: '#a01830', plum: '#5a2466', peach: '#f09a5a', orange: '#ee8a1a', lemon: '#e8d02a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', bread: '#c08a4a', honeyCake: '#f2b01a', mushroom: '#5affd8', roast: '#9a4a1e' };
+const EDIBLE = { apple: '#c8322a', pear: '#b5c94a', banana: '#f2d24a', pineapple: '#e8b13a', cherries: '#a01830', plum: '#5a2466', peach: '#f09a5a', orange: '#ee8a1a', lemon: '#e8d02a', berries: '#7a3fa0', coconut: '#f4efe2', grilledFish: '#c8823a', bakedApple: '#8a3a1a', bread: '#c08a4a', honeyCake: '#f2b01a', mushroom: '#5affd8', roast: '#9a4a1e', carrot: '#ee8a2a', potato: '#c8a060', turnip: '#e8dcec', cabbage: '#9ad468' };
 
 const canUseTool = () => !flight && !sail && !hop && !carrying() && !player.swimming && grounded() && !(player.downT > 0);
 // The rod is the one tool that also works from the deck, once the ship has all but stopped.
@@ -905,6 +935,8 @@ function useTool() {
     else toggleTorch();
   } else if (id === 'grapple') throwGrapple();
   else if (id === 'tent') placeThing('tent');
+  else if (id === 'hoe') useHoe();
+  else if (id === 'wateringCan') pourCan();
 }
 
 // What could be done here with something from the pack. Only the bag's buttons do it; the prompt just says so.
@@ -928,6 +960,7 @@ function swing(tool, o, prey = null, hole = null) {
 }
 
 function toolHit(c) {
+  if (c.till) return tillSoil(c.till);
   if (c.prey) return strikePrey(c.prey, c.tool);
   if (c.hole) return chipIce(c.hole, c.tool);
   const o = c.o;
@@ -937,7 +970,7 @@ function toolHit(c) {
 // The prompt for what F does with the selection, or a nudge to pick the thing that would help here.
 function toolHint() {
   const out = carriedOut();
-  if (out) return [`F  Throw ${out === 'wood' ? 'a log' : `the ${itemName(out)}`}`, bag[out] > 1 && `SHIFT+F  ${throwAllLabel(out)}`].filter(Boolean).join('   ·   ');
+  if (out) return [plantHint(out), `F  Throw ${out === 'wood' ? 'a log' : `the ${itemName(out)}`}`, bag[out] > 1 && `SHIFT+F  ${throwAllLabel(out)}`].filter(Boolean).join('   ·   ');
   if (player.cook) return `${COOK_VERB[player.cook.id].replace(/e?$/, 'ing')} the ${itemName(player.cook.id)}...`;
   const id = primary();
   const f = player.fishing;
@@ -951,7 +984,7 @@ function toolHint() {
   if (need && outfit !== need && has(need)) return `E  Put on your ${itemName(need)}`;
   if (sail) return has('rod') && castSpot() ? readyRod : '';
   if (!canUseTool()) return '';
-  const build = buildHint(id);
+  const build = buildHint(id) || farmHint(id);
   if (build) return build;
   if (id === 'torch') return flame.out ? `F  Put the torch out   ·   ${torchHours()}h of burn left` : `F  Light the torch${flame.left > 0 ? ` (${torchHours()}h of burn left)` : ''}`;
   if (SWUNG.has(id)) {
@@ -1301,6 +1334,7 @@ function eat(id) {
   Sfx.munch();
   // a hot meal fills the stamina bar right up; a bite of anything else gives some of it back
   restStamina(MEALS[id] ? 1 : 0.4);
+  leaveSeeds(id);
   for (let i = 0; i < 6; i++) {
     particles.push({
       type: 'chip', x: player.x + (Math.random() - 0.5) * 4, y: player.y - 12, vx: (Math.random() - 0.5) * 40, vy: -30 - Math.random() * 30,
@@ -1729,6 +1763,7 @@ function swingPose(t, len = CHOP_TIME) {
 // Whatever the player is doing with a tool, drawn behind them when they face away.
 function drawHeldTool(e, x, top, behind) {
   if (behind !== (e.dir === 'up')) return;
+  if (e.pour) drawPour(e, x, top);
   if (e.chop) drawSwing(e, x, top);
   if (e.fishing) drawFishingLine(e, x, top);
   else if (e.windup) drawWindup(e, x, top);

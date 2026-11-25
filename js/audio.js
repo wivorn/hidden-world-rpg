@@ -361,6 +361,10 @@ const Sfx = (() => {
       if (off) tone({ type: 'square', f0: f, f1: f * 0.5, dur: 0.25, vol: 0.025 });
       else tone({ type: 'triangle', f0: f, dur: 0.6, vol: 0.06 });
     },
+    // a rainbow drawn across the sky in a loop: a run of notes up the scale, ringing like glass
+    rainbow() {
+      [0, 4, 7, 12, 16].forEach((n, i) => tone({ type: 'triangle', f0: 523.25 * 2 ** (n / 12), dur: 0.5, vol: 0.035, delay: i * 0.09 }));
+    },
     dolphin(k = 1) {
       for (let i = 0; i < 3; i++) tone({ f0: rand(1700, 2100), f1: rand(2500, 3200), dur: 0.07, vol: 0.05 * k, delay: i * 0.09 });
     },
