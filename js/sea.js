@@ -69,36 +69,6 @@ function buildSeaArt() {
   ].map((rows) => sprite(11, 4, (g) => rows.forEach((r, y) => [...r].forEach((c, x) => c !== '.' && px(g, x, y, ink[c]))), false));
   Object.assign(SEA_ART, { turtle, turtleL: turtle.map(mirror), seal, sealL: mirror(seal), gull });
 
-  // orcas: the back and tall fin as they roll at the surface, and the whole animal for a breach
-  const ink2 = '#15181d';
-  const orcaBack = sprite(32, 15, (g) => {
-    ellipse(g, 16, 12, 14, 4, ink2);
-    ellipse(g, 15, 10, 10, 1.5, '#2c323a');
-    ellipse(g, 11, 10.5, 3, 1, '#8a929c');
-    poly(g, [[12, 10], [15, 0], [17, 1], [18, 10]], ink2);
-    line(g, 15, 1, 16, 8, '#2c323a');
-    ellipse(g, 25, 10.5, 2, 1, '#f4f4ef');
-  });
-  const orca = sprite(36, 16, (g) => {
-    poly(g, [[6, 9], [0, 4], [2, 9], [0, 14]], ink2);
-    ellipse(g, 18, 9, 13, 4.5, ink2);
-    ellipse(g, 20, 11.5, 9, 1.5, '#f4f4ef');
-    poly(g, [[12, 7], [14, 0], [16, 1], [18, 6]], ink2);
-    ellipse(g, 11, 6.5, 2.5, 1, '#8a929c');
-    ellipse(g, 26, 6.5, 2.5, 1, '#f4f4ef');
-    poly(g, [[19, 12], [21, 16], [24, 13]], ink2);
-    poly(g, [[30, 8], [33, 9], [30, 11]], ink2);
-    px(g, 28, 8, '#f4f4ef');
-  });
-  // spy-hopping orca, upright with its head out of the water and facing right
-  const orcaSpy = sprite(16, 26, (g) => {
-    poly(g, [[4, 26], [4, 10], [6, 3], [8, 0], [10, 1], [12, 5], [13, 12], [13, 26]], ink2);
-    line(g, 5, 9, 5, 22, '#2c323a');
-    poly(g, [[10, 3], [12, 6], [13, 11], [12, 22], [10, 22], [10, 10]], '#f4f4ef');
-    poly(g, [[6, 8], [8, 7], [8, 12], [6, 13]], '#f4f4ef');
-    poly(g, [[4, 18], [1, 23], [4, 22]], ink2);
-    poly(g, [[13, 18], [15, 23], [13, 22]], ink2);
-  });
   // sea lions: lying on the shore with the head down or raised, and a head at the surface while swimming
   const fur = '#5e4230';
   const lion = [0, 1].map((up) => sprite(22, 16, (g) => {
@@ -129,10 +99,7 @@ function buildSeaArt() {
     px(g, 4, 3, '#10141c');
     px(g, 9, 4, '#10141c');
   });
-  Object.assign(SEA_ART, {
-    orcaBack, orcaBackL: mirror(orcaBack), orca, orcaL: mirror(orca), orcaSpy, orcaSpyL: mirror(orcaSpy),
-    lion, lionL: lion.map(mirror), lionHead, lionHeadL: mirror(lionHead),
-  });
+  Object.assign(SEA_ART, { lion, lionL: lion.map(mirror), lionHead, lionHeadL: mirror(lionHead) });
 }
 
 const seaLife = { pods: [], whales: [], schools: [], turtles: [], jellies: [], seals: [], gulls: [], mantas: [], orcas: [], lions: [], sharks: [] };
@@ -197,7 +164,9 @@ const SEA_KINDS = {
   orcas: {
     name: 'Orcas', n: 7, depth: [10, 255], apart: 600,
     make: (p, rng, n = 1 + Math.floor(rng() * 6)) => {
-      const members = Array.from({ length: n }, (_, j) => ({ ox: (j - (n - 1) / 2) * 20 + rng() * 8, oy: (rng() - 0.5) * (n > 3 ? 34 : 22), phase: rng() * 6 }));
+      const members = Array.from({ length: n }, (_, j) => ({ ox: ((j - (n - 1) / 2) * 20 + rng() * 8) * ORCA_SEA_K, oy: (rng() - 0.5) * (n > 3 ? 34 : 22) * ORCA_SEA_K, phase: rng() * 6 }));
+      // seeded apart from `rng`, so as not to shift where everything after the orcas is placed
+      members.forEach((m, j) => { m.look = orcaLook(Math.floor(p.x) * 31 + Math.floor(p.y) * 17 + j * 7919, orcaRole(j, n)); });
       return { ...p, heading: rng() * Math.PI * 2, face: 1, members, breachT: 6 + rng() * 14, breach: null };
     },
   },
@@ -554,6 +523,8 @@ function updateOrcas(p, dt) {
     const ox = p.x;
     swimAlong(p, 30, 6, dt);
     if (Math.abs(p.x - ox) > 0.01) p.face = p.x > ox ? 1 : -1;
+    p.turn = orcaTurn(p.turn ?? p.heading, p.heading, dt);
+    p.dir = orcaDir(p.turn, p.dir);
   }
   for (const m of p.members) {
     const up = orcaUp(m);
@@ -569,7 +540,7 @@ function updateOrcas(p, dt) {
     if (b.t >= BREACH_TIME) {
       p.breach = null;
       if (near > 0) {
-        seaSplash(p.x + b.m.ox + p.face * 26, p.y + b.m.oy, 1.8);
+        seaSplash(p.x + b.m.ox + p.face * 26 * ORCA_SEA_K, p.y + b.m.oy, 1.8 * ORCA_SEA_K);
         Sfx.splash(0.6 * near);
       }
     }
@@ -599,7 +570,10 @@ function updateSpyHop(p, near, dt) {
   if (p.breach || (p.spyT = (p.spyT ?? 8 + Math.random() * 20) - dt * (orcaCurious(p) ? 5 : 1)) > 0) return false;
   p.spyT = 14 + Math.random() * 24;
   if (near <= 0) return false;
-  const m = p.members[Math.floor(Math.random() * p.members.length)];
+  // calves stay down with their mothers
+  const up = p.members.filter((o) => o.look.role !== 'calf');
+  if (!up.length) return false;
+  const m = up[Math.floor(Math.random() * up.length)];
   p.spy = { m, t: 0, face: p.face };
   seaSplash(p.x + m.ox, p.y + m.oy, 0.6);
   if (Math.random() < 0.5) Sfx.orca(near);
@@ -618,7 +592,7 @@ function updateShark(s, dt) {
   const dx = player.x - s.x;
   const dy = player.y - s.y;
   const d = Math.hypot(dx, dy);
-  s.rush = player.swimming && !deep.on && !indoors && !sail && !flight && !(s.restT > 0) && d < SHARK_SCENT && depthAt(player.x, player.y) >= 2;
+  s.rush = player.swimming && !pal.surf && !deep.on && !indoors && !sail && !flight && !(s.restT > 0) && d < SHARK_SCENT && depthAt(player.x, player.y) >= 2;
   const ox = s.x;
   if (s.rush) {
     const turn = Math.atan2(dy, dx) - s.heading;
@@ -789,11 +763,11 @@ function drawSeaUnder(cx, cy) {
     ellipse(ctx, Math.round(w.x - w.face * 24 - cx), Math.round(w.y - cy), 6, 3, '#16304f');
   }
   for (const p of seaLife.orcas) {
-    if (!onScreen(p.x, p.y, cx, cy, 80)) continue;
+    if (!onScreen(p.x, p.y, cx, cy, 80 * ORCA_SEA_K)) continue;
     ctx.globalAlpha = 0.3;
     for (const m of p.members) {
       if (m.up || busy(p, m)) continue;
-      ellipse(ctx, Math.round(p.x + m.ox - cx), Math.round(p.y + m.oy - cy), 12, 3, '#16304f');
+      ellipse(ctx, Math.round(p.x + m.ox - cx), Math.round(p.y + m.oy - cy), 12 * ORCA_SEA_K * m.look.size, 3 * ORCA_SEA_K, '#16304f');
     }
   }
   drawPalUnder(cx, cy);
@@ -974,7 +948,7 @@ function seaSprites(cx, cy) {
     if (s.up && onScreen(s.x, s.y, cx, cy)) out.push({ y: s.y, draw: () => drawSeal(s, cx, cy) });
   }
   for (const p of seaLife.orcas) {
-    if (!onScreen(p.x, p.y, cx, cy, 80)) continue;
+    if (!onScreen(p.x, p.y, cx, cy, 80 * ORCA_SEA_K)) continue;
     for (const m of p.members) {
       const y = p.y + m.oy;
       if (p.breach && p.breach.m === m) out.push({ y, draw: () => drawBreach(p, m, cx, cy) });
@@ -1019,46 +993,56 @@ function drawSharkFin(s, cx, cy) {
   ctx.globalAlpha = 1;
 }
 
+// Only what's above the water shows: the top `h` rows of a sprite, its middle (from the left, facing right) on `x`.
+function drawOrcaTop(s, face, h, x, y) {
+  const img = face > 0 ? s.img : s.imgL;
+  const left = x - Math.round(face > 0 ? s.cx : img.width - s.cx);
+  ctx.drawImage(img, 0, 0, img.width, h, left, y - h, img.width, h);
+}
+
 function drawOrcaBack(p, m, cx, cy) {
   const u = ((time + m.phase) % ORCA_CYCLE) / ORCA_UP;
-  const h = Math.round(Math.sin(u * Math.PI) * 10);
-  const x = Math.round(p.x + m.ox + (u - 0.5) * 16 * p.face - cx) - 16;
+  const s = orcaStill(m.look, 'back');
+  const h = Math.round(Math.sin(u * Math.PI) * s.rise);
+  const x = Math.round(p.x + m.ox + (u - 0.5) * 16 * ORCA_SEA_K * p.face - cx);
   const y = Math.round(p.y + m.oy - cy);
-  const img = p.face > 0 ? SEA_ART.orcaBack : SEA_ART.orcaBackL;
-  if (h > 0) ctx.drawImage(img, 0, 0, 32, h + 2, x, y - h - 2, 32, h + 2);
+  if (h > 0) drawOrcaTop(s, p.face, h, x, y);
   ctx.globalAlpha = 0.7;
-  ellipse(ctx, x + 16, y - 1, 12 + Math.sin(time * 3 + m.phase), 1.5, PAL.foam);
+  ellipse(ctx, x, y - 1, (12 * m.look.size + Math.sin(time * 3 + m.phase)) * ORCA_SEA_K, 1.5 * ORCA_SEA_K, PAL.foam);
   ctx.globalAlpha = 1;
 }
 
 function drawBreach(p, m, cx, cy) {
   const u = p.breach.t / BREACH_TIME;
-  const h = Math.sin(u * Math.PI) * 30;
-  const img = p.face > 0 ? SEA_ART.orca : SEA_ART.orcaL;
-  const x = p.x + m.ox + (u - 0.2) * 34 * p.face - cx;
+  const h = Math.sin(u * Math.PI) * 30 * ORCA_SEA_K;
+  const v = orcaView(m.look, p.face > 0 ? ORCA_RIGHT : ORCA_LEFT, ORCA_SEA_LEN);
+  const f = Math.floor(time * 10) % ORCA_FRAMES;
+  const [mx, my] = v.at(f, 0.45, 0, 0);
+  const x = p.x + m.ox + (u - 0.2) * 34 * ORCA_SEA_K * p.face - cx;
   const y = p.y + m.oy - cy;
   ctx.globalAlpha = 0.25;
-  ellipse(ctx, Math.round(x), Math.round(y), 12, 3, '#16304f');
+  ellipse(ctx, Math.round(x), Math.round(y), 12 * ORCA_SEA_K * m.look.size, 3 * ORCA_SEA_K, '#16304f');
   ctx.globalAlpha = 1;
   ctx.save();
-  ctx.translate(Math.round(x), Math.round(y - h - 4));
+  ctx.translate(Math.round(x), Math.round(y - h - 4 * ORCA_SEA_K));
   ctx.rotate((u - 0.5) * 1.4 * p.face);
-  ctx.drawImage(img, -18, -8);
+  ctx.drawImage(v.frame(f).img, -Math.round(mx), -Math.round(my));
   ctx.restore();
 }
 
 function drawSpyHop(p, m, cx, cy) {
   const u = p.spy.t / SPY_TIME;
   const out = Math.min(u / SPY_RISE, (1 - u) / SPY_RISE, 1);
-  const h = Math.round((1 - (1 - out) ** 2) * 21 + (out === 1 ? Math.sin(p.spy.t * 3) : 0));
+  const s = orcaStill(m.look, 'spy');
+  const h = Math.round((1 - (1 - out) ** 2) * s.rise + (out === 1 ? Math.sin(p.spy.t * 3) : 0));
   if (h <= 0) return;
   // it turns to look the other way halfway through
   const face = u > 0.35 && u < 0.7 ? -p.spy.face : p.spy.face;
   const x = Math.round(p.x + m.ox - cx);
   const y = Math.round(p.y + m.oy - cy);
-  ctx.drawImage(face > 0 ? SEA_ART.orcaSpy : SEA_ART.orcaSpyL, 0, 0, 16, h, x - 8, y - h, 16, h);
+  drawOrcaTop(s, face, h, x, y);
   ctx.globalAlpha = 0.75;
-  ellipse(ctx, x, y, 7 + Math.sin(time * 4) * 0.7, 1.6, PAL.foam);
+  ellipse(ctx, x, y, (7 * m.look.size + Math.sin(time * 4) * 0.7) * ORCA_SEA_K, 1.6 * ORCA_SEA_K, PAL.foam);
   ctx.globalAlpha = 1;
 }
 

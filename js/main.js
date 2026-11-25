@@ -448,6 +448,7 @@ function strokeSplash(side) {
 }
 
 function updateSwim(dt) {
+  if (pal.surf) return updateSurf(dt);
   if (sweptAlong(dt)) return;
   const [ix, iy] = readInput();
   player.sprinting = !!(ix || iy) && canSprint() && !carrying();
@@ -3831,6 +3832,8 @@ function drawStrokeArm(e, x, y, side, u) {
 }
 
 function drawEntity(e, cx, cy, lift = 0) {
+  // on the orca's back the player is drawn along with it
+  if (e === player && pal.surf && !hop) return;
   if (e.swimming && inWater(e.x, e.y)) return drawSwimmer(e, cx, cy);
   if (e.downT > 0) return drawFallen(e, cx, cy);
   const x = Math.round(e.x) - cx;
@@ -4275,7 +4278,7 @@ function render() {
     endWorldView();
   }
   drawLightning();
-  drawDeepHud(cx, cy);
+  drawDeepHud();
   if (indoors) maskRoom(cx, cy);
 
   for (const n of npcs) {
@@ -4334,7 +4337,7 @@ function render() {
   } else if (nearMount() === 'ship' && !treasureFirst()) {
     setPrompt(`SPACE  Board the ship${diveHint()}`);
   } else if (swimAct()) {
-    setPrompt(`SPACE  ${swimAct()[0]}${diveHint()}`);
+    setPrompt(`SPACE  ${swimAct()[0]}${diveHint()}${pal.surf ? '   ·   SHIFT  Full speed' : ''}`);
   } else if (feedTarget()) {
     setPrompt(withPat(`SPACE  Feed the ${itemName(carriedOut())} to ${feedTarget().name}   ·   ${toolHint()}`));
   } else if (roostLeave()) {

@@ -32,15 +32,24 @@ const DIVE_FADE = 0.4;
 // On the orca's fin, and SHIFT has it put on a burst of speed.
 const RIDE_SPEED = 150;
 const RIDE_DASH = 2.3;
+// Standing on its back at the surface: how fast it goes, the burst SHIFT gives, how long it's drawn, and how far
+// above its spine the water comes, in lengths.
+const SURF_SPEED = 105;
+const SURF_DASH = 1.6;
+const SURF_LEN = ORCA_SEA_LEN;
+const SURF_WATERLINE = 0.025;
 
 const deep = {
   on: false, air: 10, ship: false, bell: null, ride: false, dark: 0, vx: 0, vy: 0,
   bubbles: [], bubbleT: 0, warnT: 0, warned: '', lowWarned: false, found: {},
 };
-// The befriended orca: hidden until wanted, then swimming in from out of view.
+// The befriended orca: hidden until wanted, then swimming in from out of view. `turn` is its heading, swinging round
+// after the way it's going, and `dir` which of the ORCA_DIRS ways it's drawn; `m.look` is the one it was in its pod,
+// and `surf` whether the player's standing on its back.
+const PAL_LOOK = [1, 'cow'];
 const pal = {
-  friend: false, fed: 0, shown: false, x: 0, y: 0, vx: 0, vy: 0, face: 1, side: 1,
-  m: { ox: 0, oy: 0, phase: 0, up: false }, breach: null, breachT: 8, leaveT: 0,
+  friend: false, fed: 0, shown: false, x: 0, y: 0, vx: 0, vy: 0, face: 1, side: 1, turn: 0, dir: ORCA_RIGHT, surf: false,
+  m: { ox: 0, oy: 0, phase: 0, up: false, look: orcaLook(...PAL_LOOK) }, breach: null, breachT: 8, leaveT: 0,
 };
 
 // The open sea's depth at a spot, in tiles from land; 0 on land, on a reef or in a lake.
@@ -206,6 +215,7 @@ function updateDeep(dt) {
   if (deep.ride) {
     Object.assign(pal, { x: player.x, y: player.y + 2, vx: deep.vx, vy: deep.vy });
     if (Math.abs(deep.vx) > 5) pal.face = deep.vx > 0 ? 1 : -1;
+    palTurn(deep.vx, deep.vy, dt);
   }
 
   // a stream of bubbles off the orca's tail at full speed
@@ -414,7 +424,7 @@ function feedOrca() {
   useUp(id);
   p.spy.fed = true;
   p.spy.t = Math.max(p.spy.t, SPY_TIME * 0.8);
-  popIcon(id, x, y - 24);
+  popIcon(id, x, y - 24 * ORCA_SEA_K);
   seaSplash(x, y, 0.8);
   Sfx.gulp(1);
   Sfx.orca(1);
@@ -426,7 +436,9 @@ function feedOrca() {
 
 function befriendOrca(p, m) {
   pal.friend = true;
-  Object.assign(pal, { x: p.x + m.ox, y: p.y + m.oy, vx: 0, vy: 0, shown: true, face: p.face, side: 1, breach: null, breachT: 5, leaveT: 0 });
+  const dir = p.face > 0 ? ORCA_RIGHT : ORCA_LEFT;
+  Object.assign(pal, { x: p.x + m.ox, y: p.y + m.oy, vx: 0, vy: 0, shown: true, face: p.face, dir, turn: orcaAngle(dir), side: 1, breach: null, breachT: 5, leaveT: 0 });
+  pal.m.look = m.look;
   p.members.splice(p.members.indexOf(m), 1);
   p.spy = null;
   toast('A NEW FRIEND', 'An orca swims with you now');
@@ -438,7 +450,7 @@ function befriendOrca(p, m) {
 function palNear() {
   if (!pal.shown || deep.ride || pal.breach || fade) return false;
   const at = sail ? shipMid() : player;
-  return Math.hypot(pal.x - at.x, pal.y - at.y) < (sail ? 80 : deep.on ? 56 : 40);
+  return Math.hypot(pal.x - at.x, pal.y - at.y) < (deep.on ? 56 : (sail ? 80 : 40) * ORCA_SEA_K);
 }
 
 function shipDiveOk() {
@@ -523,7 +535,9 @@ const bellHint = () => (canLowerBell() ? '   ·   B  Lower the diving bell' : ''
 // What SPACE does for a swimmer out at sea, as [label, do it].
 function swimAct() {
   if (!player.swimming || deep.on || indoors || fade) return null;
-  return orcaFeedable() ? ['Toss a fish to the orca', feedOrca] : null;
+  if (pal.surf) return ['Jump off the orca', hopOffOrca];
+  if (orcaFeedable()) return ['Toss a fish to the orca', feedOrca];
+  return palNear() ? ['Hop on the orca', hopOnOrca] : null;
 }
 
 function swimHint() {
@@ -532,6 +546,202 @@ function swimHint() {
   const note = z > gearZone() ? `Too deep to dive here without ${DEEP_ZONES[z].needs}` : '';
   const dive = diveAct() ? `U  ${diveAct()[0]}` : '';
   return [note, dive, 'Swim to a beach or low shore to climb out'].filter(Boolean).join('   ·   ');
+}
+
+// ---------- surfing on the orca ----------
+
+const surfView = (dir) => orcaView(pal.m.look, dir, SURF_LEN, true, SURF_WATERLINE);
+// How far back along the orca the rider stands, just behind the fin.
+const SURF_STAND = 0.62;
+// How high up the fin, in px above its back, the rider holds on: about chest high, or near the top of a short fin.
+const SURF_GRIP = 8;
+
+// Where the rider's feet are on its back, behind the fin: across from the orca's spot in the world and up from it.
+function surfSeat() {
+  const v = surfView(pal.dir);
+  const [mx, my] = v.at(0, 0.45, 0, 0);
+  const [fx, fy] = v.at(0, SURF_STAND, 0, orcaGirth(SURF_STAND)[0]);
+  return { x: pal.x + fx - mx, y: pal.y, lift: my - fy };
+}
+
+// Where the rider's hands are on the view's frame `f`: on the trailing edge of the fin, one either side of it and
+// the one a little below the other.
+function surfGrips(v, f) {
+  const look = pal.m.look;
+  const fin = orcaFin(look);
+  const q = Math.min(fin.H * 0.8, SURF_GRIP / (SURF_LEN * look.size));
+  // the trailing edge runs down from the tip to the root
+  const edgeX = (h) => {
+    for (let i = 1; i < fin.trail.length; i++) {
+      const [xa, qa] = fin.trail[i - 1];
+      const [xb, qb] = fin.trail[i];
+      if (h <= qa && h >= qb) return xa + ((xb - xa) * (h - qa)) / (qb - qa || 1);
+    }
+    return fin.trail[fin.trail.length - 1][0];
+  };
+  return [[q, 0.04], [q * 0.6, -0.04]].map(([h, side]) => {
+    const gx = edgeX(h);
+    return v.at(f, gx, side, orcaGirth(gx)[0] - 0.006 + h);
+  });
+}
+
+// An arm from the shoulder to the hand; `hand` false when the hand's out of sight in front of them.
+function drawGripArm(sx, sy, hx, hy, far, hand = true) {
+  const look = player.look;
+  const sleeve = shade(look.coat ? look.coat.dark : shade(look.tunic, -0.25), far ? -0.2 : 0);
+  line(ctx, sx, sy, hx, hy, '#22160f', 3);
+  line(ctx, sx, sy, hx, hy, sleeve);
+  if (!hand) return;
+  rect(ctx, hx - 2, hy - 2, 4, 4, '#22160f');
+  rect(ctx, hx - 1, hy - 1, 2, 2, look.skin || PAL.skin);
+}
+
+// It won't go into the shallows, any more than when it's swimming along with the player.
+const surfFree = (x, y) => seaDepth(x, y) >= PAL_DEPTH;
+
+function hopOnOrca() {
+  Object.assign(pal, { surf: true, breach: null, warned: false });
+  Object.assign(player, { swimming: false, sprinting: false });
+  const seat = surfSeat();
+  startHop(seat.x, seat.y, 0, seat.lift, () => {
+    Object.assign(player, { x: pal.x, y: pal.y, flying: false, swimming: true, frame: 0 });
+    seaSplash(pal.x, pal.y, 0.8);
+    Sfx.splash(0.5);
+    Sfx.orca(0.7);
+    if (!stats.orcaSurfs++) muse('Whoa, I\'m up on its back! Hold on... and SHIFT should really get it going.');
+  });
+}
+
+// Off to one side of the way it's going, into the water.
+function hopOffOrca() {
+  const v = Math.hypot(pal.vx, pal.vy);
+  const [ux, uy] = v > 10 ? [pal.vx / v, pal.vy / v] : [pal.face, 0];
+  const spot = [[-uy * 20, ux * 16], [uy * 20, -ux * 16], [-ux * 24, -uy * 18]]
+    .map(([dx, dy]) => ({ x: player.x + dx, y: player.y + dy }))
+    .find((p) => seaDepth(p.x, p.y) >= 1 && !onLand(p.x, p.y)) || { x: player.x, y: player.y };
+  const seat = surfSeat();
+  pal.surf = false;
+  pal.side = pal.x > spot.x ? 1 : -1;
+  Object.assign(player, { x: seat.x, y: seat.y, swimming: false, sprinting: false });
+  startHop(spot.x, spot.y, seat.lift, 0, () => {
+    Object.assign(player, { flying: false, swimming: true });
+    splash(player.x, player.y);
+    seaSplash(player.x, player.y, 0.8);
+    Sfx.splash();
+  });
+}
+
+// In place of swimming while on its back: it goes where the player steers, with a burst at SHIFT that doesn't tire.
+function updateSurf(dt) {
+  const [ix, iy] = readInput();
+  const moving = !!(ix || iy);
+  const dashing = moving && boosting();
+  if (dashing && !player.sprinting) Sfx.orca(0.5);
+  player.sprinting = dashing;
+  updateStamina(dt, false, moving);
+  const top = SURF_SPEED * (dashing ? SURF_DASH : 1);
+  const len = Math.hypot(ix, iy) || 1;
+  const k = 1 - Math.exp(-dt * (moving ? 2.5 : 1.5));
+  pal.vx += ((ix / len) * top - pal.vx) * k;
+  pal.vy += ((iy / len) * top - pal.vy) * k;
+  const nx = player.x + pal.vx * dt;
+  if (surfFree(nx, player.y)) player.x = nx;
+  else surfBlocked('vx');
+  const ny = player.y + pal.vy * dt;
+  if (surfFree(player.x, ny)) player.y = ny;
+  else surfBlocked('vy');
+  Object.assign(pal, { x: player.x, y: player.y });
+  if (moving) faceToward(player, ix, iy);
+  player.frame = 0;
+  const v = Math.hypot(pal.vx, pal.vy);
+  if (Math.abs(pal.vx) > 5) pal.face = pal.vx > 0 ? 1 : -1;
+  palTurn(pal.vx, pal.vy, dt);
+  if (v < 20) return;
+  // a wake spreading out behind, and spray thrown up off its head at full speed
+  const ux = pal.vx / v;
+  const uy = pal.vy / v;
+  const back = SURF_LEN * pal.m.look.size * 0.5;
+  if (Math.random() < dt * v * 0.2) {
+    particles.push({ type: 'wake', layer: 'water', x: player.x - ux * back + (Math.random() - 0.5) * 8, y: player.y - uy * back * 0.6 + (Math.random() - 0.5) * 4, vx: -ux * 12, vy: -uy * 12, life: 0, max: 1 });
+  }
+  if (v > SURF_SPEED * 1.15 && Math.random() < dt * 30) {
+    const s = Math.random() < 0.5 ? 1 : -1;
+    particles.push({ type: 'drop', x: player.x + ux * back * 0.8, y: player.y - 2 + uy * back * 0.5, vx: -uy * s * 30 + ux * 20, vy: ux * s * 10 - 30 - Math.random() * 20, life: 0, max: 0.4 });
+  }
+  if (Math.random() < dt * 1.5) Sfx.swim(0.7);
+}
+
+function surfBlocked(axis) {
+  pal[axis] = 0;
+  if (pal.warned) return;
+  pal.warned = true;
+  muse('The orca won\'t swim into the shallows. I\'ll have to jump off and swim in from here.');
+}
+
+// The orca's back, fin and beating tail out of the water, the rest of it dim beneath, and the rider standing on it.
+function drawSurf(cx, cy) {
+  const v = surfView(pal.dir);
+  const speed = Math.hypot(pal.vx, pal.vy);
+  const f = Math.floor(time * (speed > SURF_SPEED * 1.15 ? 14 : speed > 20 ? 9 : 4)) % ORCA_FRAMES;
+  const fr = v.frame(f);
+  const [mx, my] = v.at(0, 0.45, 0, 0);
+  const x = Math.round(pal.x - mx) - cx;
+  const y = Math.round(pal.y - my) - cy;
+  ctx.globalAlpha = 0.35;
+  ctx.drawImage(fr.under, x, y);
+  // foam round it where it breaks the surface, and a bow wave pushed up ahead of it
+  const L = SURF_LEN * pal.m.look.size;
+  ctx.globalAlpha = 0.45;
+  for (let t = 0.1; t < 0.95; t += 0.12) {
+    const [wx, wy] = v.at(f, t, 0, SURF_WATERLINE);
+    const r = orcaGirth(t)[1] * L + 2;
+    ellipse(ctx, x + wx, y + wy, r, r * 0.5, PAL.foam);
+  }
+  if (speed > 20) {
+    const [sx, sy] = v.at(f, 0.04, 0, SURF_WATERLINE);
+    ellipse(ctx, x + sx, y + sy, 3 + speed / 40, 1.5 + speed / 80, PAL.foam);
+  }
+  ctx.globalAlpha = 1;
+  ctx.drawImage(fr.img, x, y);
+  if (hop) {
+    if (orcaAhead(pal.dir)) ctx.drawImage(fr.over, x, y);
+    return;
+  }
+  const [fx, fy] = v.at(f, SURF_STAND, 0, orcaGirth(SURF_STAND)[0]);
+  const rx = x + Math.round(fx);
+  const top = y + Math.round(fy) - 21;
+  const facing = orcaFacing(pal.dir);
+  // with an egg in their arms they've no hand free for the fin
+  if (carrying()) {
+    drawHeldEgg(rx, top);
+    ctx.drawImage(charSprite(player.look, facing, 0, true), rx - 8, top);
+    if (orcaAhead(pal.dir)) ctx.drawImage(fr.over, x, y);
+    return;
+  }
+  // drawn without its own arms (as if climbing or patting), and given them reaching to the fin; seen from behind,
+  // the arms go forward past the body to it
+  const side = facing === 'left' || facing === 'right';
+  const grips = surfGrips(v, f).map(([gx, gy]) => [Math.round(x + gx), Math.round(y + gy)]);
+  const arms = () => {
+    if (side) {
+      // the far arm, to the lower grip on the far side of the fin, goes first and darker
+      drawGripArm(rx, top + 12, ...grips[1], true);
+      drawGripArm(rx, top + 11, ...grips[0], false);
+      return;
+    }
+    if (facing === 'up') {
+      // from behind only the upper arms show, reaching forward past the head
+      drawGripArm(rx - 5, top + 13, rx - 4, top + 9, false, false);
+      drawGripArm(rx + 4, top + 13, rx + 3, top + 9, false, false);
+      return;
+    }
+    grips.sort((a, b) => a[0] - b[0]);
+    drawGripArm(rx - 4, top + 11, ...grips[0], false);
+    drawGripArm(rx + 4, top + 11, ...grips[1], false);
+  };
+  ctx.drawImage(charSprite(player.look, facing, 0, false, false, !side, side), rx - 8, top);
+  if (orcaAhead(pal.dir)) ctx.drawImage(fr.over, x, y);
+  arms();
 }
 
 // ---------- the orca ----------
@@ -549,13 +759,15 @@ function palWanted() {
 const palAnchor = () => (sail ? shipMid() : player);
 
 function updatePal(dt) {
+  // off its back however the swim ended: boarding the ship, a dive, a dragon swooping down
+  if (pal.surf && (deep.on || flight || sail || indoors || !pal.shown || (!hop && !player.swimming))) pal.surf = false;
   if (!pal.friend) return;
   const want = palWanted();
   if (!pal.shown) {
     if (want && !fade) spawnPal();
     return;
   }
-  if (deep.ride) return;
+  if (deep.ride || pal.surf) return;
   const at = palAnchor();
   if (!want) {
     // swims off out to sea, gone once out of sight
@@ -585,7 +797,7 @@ function updatePal(dt) {
   if (pal.breach) {
     if ((pal.breach.t += dt) >= BREACH_TIME) {
       pal.breach = null;
-      seaSplash(pal.x + pal.face * 26, pal.y, 1.8);
+      seaSplash(pal.x + pal.face * 26 * ORCA_SEA_K, pal.y, 1.8 * ORCA_SEA_K);
       Sfx.splash(0.6 * earshot(pal.x, pal.y));
     }
   } else if ((pal.breachT -= dt) <= 0) {
@@ -613,6 +825,14 @@ function steerPal(tx, ty, top, dt) {
   if (seaDepth(pal.x, ny) >= 2) pal.y = ny;
   else pal.vy *= -0.3;
   if (Math.abs(pal.vx) > 6) pal.face = pal.vx > 0 ? 1 : -1;
+  palTurn(pal.vx, pal.vy, dt);
+}
+
+// Swinging round after the way it's going, unless it's all but still.
+function palTurn(vx, vy, dt) {
+  if (Math.hypot(vx, vy) < 8) return;
+  pal.turn = orcaTurn(pal.turn, Math.atan2(vy, vx), dt);
+  pal.dir = orcaDir(pal.turn, pal.dir);
 }
 
 // Beside the ship, off to one side of a swimmer, or circling a diver; never in the shallows, where it waits instead
@@ -625,19 +845,19 @@ function palTarget(at) {
     if (v > 20) {
       const ux = sail.vx / v;
       const uy = sail.vy / v;
-      tx = at.x - uy * 44 * pal.side + ux * 10;
-      ty = at.y + ux * 30 * pal.side + uy * 10;
+      tx = at.x + (-uy * 44 * pal.side + ux * 10) * ORCA_SEA_K;
+      ty = at.y + (ux * 30 * pal.side + uy * 10) * ORCA_SEA_K;
     } else {
-      tx = at.x + pal.side * 50;
-      ty = at.y + 20;
+      tx = at.x + pal.side * 50 * ORCA_SEA_K;
+      ty = at.y + 20 * ORCA_SEA_K;
     }
   } else if (deep.on) {
     const a = time * 0.5;
     tx = at.x + Math.cos(a) * 84;
     ty = at.y + Math.sin(a) * 50;
   } else {
-    tx = at.x + pal.side * 28;
-    ty = at.y + 10;
+    tx = at.x + pal.side * 28 * ORCA_SEA_K;
+    ty = at.y + 10 * ORCA_SEA_K;
   }
   if (seaDepth(tx, ty) >= PAL_DEPTH) return [tx, ty];
   for (let k = 1; k <= 10; k++) {
@@ -668,7 +888,8 @@ function spawnPal() {
 
 // At the surface: its back and fin rolling up now and then, a breach, and its shape under the water between.
 function palSprites(cx, cy) {
-  if (!pal.shown || deep.on || !onScreen(pal.x, pal.y, cx, cy, 80)) return [];
+  if (!pal.shown || deep.on || !onScreen(pal.x, pal.y, cx, cy, 80 * ORCA_SEA_K)) return [];
+  if (pal.surf) return [{ y: pal.y, draw: () => drawSurf(cx, cy) }];
   const p = { x: pal.x, y: pal.y, face: pal.face, breach: pal.breach };
   if (pal.breach) return [{ y: pal.y, draw: () => drawBreach(p, pal.m, cx, cy) }];
   if (orcaUp(pal.m)) return [{ y: pal.y, draw: () => drawOrcaBack(p, pal.m, cx, cy) }];
@@ -676,9 +897,9 @@ function palSprites(cx, cy) {
 }
 
 function drawPalUnder(cx, cy) {
-  if (!pal.shown || deep.on || pal.breach || orcaUp(pal.m) || !onScreen(pal.x, pal.y, cx, cy, 80)) return;
+  if (!pal.shown || deep.on || pal.surf || pal.breach || orcaUp(pal.m) || !onScreen(pal.x, pal.y, cx, cy, 80 * ORCA_SEA_K)) return;
   ctx.globalAlpha = 0.3;
-  ellipse(ctx, Math.round(pal.x - cx), Math.round(pal.y - cy), 12, 3, '#16304f');
+  ellipse(ctx, Math.round(pal.x - cx), Math.round(pal.y - cy), 12 * ORCA_SEA_K * pal.m.look.size, 3 * ORCA_SEA_K, '#16304f');
   ctx.globalAlpha = 1;
 }
 
@@ -1179,12 +1400,15 @@ function lifeItems(cx, cy, out) {
   }
   for (const m of seaLife.mantas) if (onScreen(m.x, m.y, cx, cy, 60)) out.push({ y: m.y, draw: () => drawMantaDeep(m, cx, cy) });
   for (const p of seaLife.orcas) {
-    if (!onScreen(p.x, p.y, cx, cy, 90)) continue;
+    if (!onScreen(p.x, p.y, cx, cy, 160)) continue;
     for (const m of p.members) {
       if (busy(p, m)) continue;
-      const y = p.y + m.oy + Math.sin(time * 1.4 + m.phase) * 2;
-      const f = Math.floor(time * 3 + m.phase * 2) % 4;
-      out.push({ y, draw: () => drawBig((p.face > 0 ? orcaArt().side : orcaArt().sideL)[f], p.x + m.ox, y, cx, cy) });
+      // spread wider than at the surface, as they're drawn bigger down here
+      const k = ORCA_DEEP_LEN / ORCA_SEA_LEN;
+      const y = p.y + m.oy * k * 0.75 + Math.sin(time * 1.4 + m.phase) * 2;
+      // the big ones beat their tails slower
+      const f = Math.floor(time * 6 / m.look.size + m.phase * 2) % ORCA_FRAMES;
+      out.push({ y, draw: () => drawOrcaDeep(m.look, p.dir ?? (p.face > 0 ? ORCA_RIGHT : ORCA_LEFT), f, p.x + m.ox * k, y, cx, cy) });
     }
   }
   for (const s of seaLife.sharks) if (onScreen(s.x, s.y, cx, cy, 60)) out.push({ y: s.y, draw: () => drawBig(s.face > 0 ? A.shark : A.sharkL, s.x, s.y, cx, cy) });
@@ -1245,7 +1469,6 @@ const GEAR_INK = {
   fin: '#2f8a6a', finL: '#56b890', strap: '#3a3f48', glass: '#7ad0f0', glassL: '#e8faff', snorkel: '#e8a43a',
   brass: '#c98a2e', brassL: '#f2c46a', brassD: '#8a5a1e', port: '#3a6a8a', portL: '#bfe8ff', lantern: '#4a5560', glow: '#5ff0d8',
 };
-const ORCA_INK = { k: '#161b24', k2: '#28313f', rim: '#43536a', w: '#eef3f6', saddle: '#8d98a6', eye: '#7a8a9e', fin: '#2c3644' };
 const KICK = [0, 1, 0, -1];
 
 // The player's colours and the diving gear they have on, which every swimming and riding pose is drawn from.
@@ -1469,164 +1692,49 @@ function swimVert(c, f, down) {
   });
 }
 
-// The orca, at its own size and to scale with the diver (a female orca is about three and a half times as long as a
-// person), traced from a reference drawing: in profile, and from above heading down or up the screen. Four frames of
-// the tail beating.
-// Drawn facing left, mirrored to face right: k black, w white, g the grey saddle, e the eye.
-const ORCA_MAP = [
-  '.........................................kkk........................................',
-  '........................................kkk.........................................',
-  '.......................................kkkk.........................................',
-  '.......................................kkkk.........................................',
-  '......................................kkkkk.........................................',
-  '.....................................kkkkkk.........................................',
-  '.....................................kkkkkk.........................................',
-  '....................................kkkkkkkk........................................',
-  '...................................kkkkkkkkk........................................',
-  '.................................kkkkkkkkkggg.......................................',
-  '...........................kkkkkkkkkkkkggggggggg....................................',
-  '......................kkkkkkkkkkkkkkkkkggggggkkkkkk.................................',
-  '..................kkkkkkkkkkkkkkkkkkkkkkggggkkkkkkkkk...............................',
-  '...............kkkkkkkkkkkkkkkkkkkkkkkkkgggkkkkkkkkkkkkk............................',
-  '............kkkkkkkkkkkkkkkkkkkkkkkkkkkkggkkkkkkkkkkkkkkkk..........................',
-  '..........kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.......................',
-  '........kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.....................',
-  '......kkkkkkkkwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk...................',
-  '....kkkkkkkwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.................',
-  '...kkkkkkkwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk...............',
-  '..kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk..............',
-  '..kkkkekkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk............',
-  '.kkkkkkkkkwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwwwwwwkkkkkkkkkkkkkk...........',
-  '.kkkkkkwwwwwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwwwwwwwwwwkkkkkkkkkkkkk.........',
-  'kkkkkwwwwwwwwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwwwwwwwwwwwkkkkkkkkkkkkkk........',
-  'kkkwwwwwwwwwwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwwwwwwwwwwwkkkkkkkkkkkkkkkkk......',
-  '.kwwwwwwwwwwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkk.....',
-  '...wwwwwwwwwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.....',
-  '......wwwwwwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkwwwwwwwkkkkkkkkkkkkkkkkkkkkkkkkkkkk....',
-  '..............wwwwwwkkkkkkkkwwwwwwwwwwwwwwwwwwwwwwwwwk...................kkkkkkkk...',
-  '....................kkkkkkkk.................................................kwwkk..',
-  '.....................kkkkkkk.....................................................kk.',
-  '......................kkkkkk......................................................kk',
-  '.........................kk.......................................................kk',
-  '..................................................................................kk',
-];
-const ORCA_TAIL = 62;
-
-function orcaSide(f) {
-  const I = ORCA_INK;
-  const W = ORCA_MAP[0].length;
-  const colors = { k: I.k, w: I.w, g: I.saddle, e: I.eye };
-  const c = sprite(W, ORCA_MAP.length + 4, (g) => {
-    for (let x = 0; x < W; x++) {
-      const dy = x > ORCA_TAIL ? Math.round(KICK[f] * ((x - ORCA_TAIL) / (W - ORCA_TAIL)) ** 2 * 2.5) : 0;
-      let edge = 0;
-      ORCA_MAP.forEach((row, y) => {
-        const ch = row[x];
-        if (ch === '.') return;
-        const color = ch === 'k' && edge === 0 ? I.rim : ch === 'k' && edge === 1 && x < 70 ? I.k2 : colors[ch];
-        px(g, W - 1 - x, y + 1 + dy, color);
-        edge++;
-      });
-    }
-  }, false);
-  return outline(c, '#0a0d14');
-}
-
-// Seen from above: `u` runs from the tip of the flukes (0) to the snout (1), widest just behind the flippers.
-const ORCA_LEN = 68;
-function orcaHalfWidth(u) {
-  if (u < 0.3) return 2 + (u - 0.17) / 0.13;
-  if (u < 0.62) return 3 + ((u - 0.3) / 0.32) * 5;
-  if (u < 0.82) return 8 - ((u - 0.62) / 0.2) * 0.6;
-  return 7.4 * Math.sqrt(Math.max(0, 1 - ((u - 0.82) / 0.185) ** 2));
-}
-const ORCA_FIN = 0.58;
-
-function orcaTop(f, down) {
-  const I = ORCA_INK;
-  const L = ORCA_LEN;
-  const Y = (u) => (down ? 4 + u * L : 71 - u * L);
-  const bb = (KICK[f] * 1.5) / L;
-  const sp = [1, 0.85, 1, 0.85][f];
-  const fl = KICK[f] * 0.012;
-  const c = sprite(40, 76, (g) => {
-    const P = (pts) => pts.map(([x, u]) => [x, Y(u)]);
-    poly(g, P([[18, 0.2], [22, 0.2], [22, 0.14], [20 + 15 * sp, 0.05 + bb], [20 + 14 * sp, 0.015 + bb], [20 + 5 * sp, 0.04], [20, 0.02],
-      [20 - 5 * sp, 0.04], [20 - 14 * sp, 0.015 + bb], [20 - 15 * sp, 0.05 + bb], [18, 0.14]]), I.k);
-    for (const s of [1, -1]) {
-      const X = (x) => 20 + s * x;
-      poly(g, P([[X(7), 0.75], [X(16), 0.67 + fl], [X(15.5), 0.62 + fl], [X(6.5), 0.68]]), I.k);
-    }
-    for (let a = Math.round(0.17 * L); a <= L; a++) {
-      const u = a / L;
-      const w = Math.round(orcaHalfWidth(u));
-      const y = Math.round(Y(u));
-      if (w < 1) continue;
-      rect(g, 20 - w, y, 2 * w, 1, I.k);
-      if (u > 0.22 && u < 0.96) rect(g, 19, y, 2, 1, I.k2);
-      if (u > 0.3) px(g, 20 - w, y, I.rim);
-      if (u >= 0.85 && u <= 0.92) {
-        rect(g, 21 - w, y, 2, 1, I.w);
-        rect(g, 17 + w, y, 2, 1, I.w);
-      }
-      if (u >= 0.49 && u <= 0.54 && w > 2) rect(g, 21 - w, y, 2 * w - 2, 1, u > 0.5 && u < 0.53 ? I.saddle : shade(I.saddle, -0.3));
-    }
-    if (down) {
-      rect(g, 18, Math.round(Y(0.97)), 4, 1, I.w);
-      rect(g, 19, Math.round(Y(0.99)), 2, 1, I.w);
-    }
-    const yb = Math.round(Y(ORCA_FIN));
-    const tip = down ? 14 : 10;
-    rect(g, 21, yb - tip + 2, 1, tip - 1, '#0c0f15');
-    poly(g, [[19, yb + 1], [21, yb + 1], [20.6, yb - tip], [19.4, yb - tip]], I.fin);
-    rect(g, 19, yb - tip + 1, 1, tip, I.rim);
-  }, false);
-  return outline(c, '#0a0d14');
-}
-
-let orcaArtCache = null;
-function orcaArt() {
-  if (orcaArtCache) return orcaArtCache;
-  const side = [0, 1, 2, 3].map(orcaSide);
-  orcaArtCache = {
-    side, sideL: side.map(mirror),
-    down: [0, 1, 2, 3].map((f) => orcaTop(f, true)),
-    up: [0, 1, 2, 3].map((f) => orcaTop(f, false)),
-  };
-  return orcaArtCache;
-}
-
-// The diver lying along the orca's back behind the dorsal fin, the body tilted down the slope of it toward the tail,
-// both hands on the fin. Drawn in the orca sprite's own coordinates, facing right.
-function riderSide(c, f) {
-  const k = KICK[f];
-  return sprite(ORCA_MAP[0].length, ORCA_MAP.length + 4, (g) => {
-    g.translate(0, 1);
-    const farLeg = [[23, 12], [14, 16 - k]];
-    const nearLeg = [[23, 14], [14, 18 + k]];
-    const farArm = [[30, 9], [40, 6]];
-    const nearArm = [[30, 11], [36, 10], [40, 8]];
+// The diver along the orca's back behind the dorsal fin, both hands on it: side on, lying along the slope of its
+// back from their seat `S` forward to `B` below the fin (so on a diagonal tilted with it), the head kept upright,
+// and gripping the fin at `G`. Laid out as if gripping at (40, 7) on a back sloping 3.5px up over 17px; drawn on a
+// W x H canvas in the orca sprite's coordinates, facing right. Gives the sprite and where the head is on it.
+function riderSide(c, f, W, H, G, S, B) {
+  const k = KICK[f >> 1];
+  const turn = Math.atan2(B[1] - S[1], B[0] - S[0]) - Math.atan2(-3.5, 17);
+  const cs = Math.cos(turn);
+  const sn = Math.sin(turn);
+  const M = ([x, y]) => [G[0] + (x - 40) * cs - (y - 7) * sn, G[1] + (x - 40) * sn + (y - 7) * cs];
+  const head = M([34.5, 8]);
+  const img = sprite(W, H, (g) => {
+    const farLeg = [[23, 12], [14, 16 - k]].map(M);
+    const nearLeg = [[23, 14], [14, 18 + k]].map(M);
+    const farArm = [[30, 9], [40, 6]].map(M);
+    const nearArm = [[30, 11], [36, 10], [40, 8]].map(M);
+    const seg = (a, b, color, t) => line(g, ...M(a), ...M(b), color, t);
     limb(g, farLeg, c.farPants);
     footAt(g, c, farLeg, true);
     limb(g, nearLeg, c.pants);
     footAt(g, c, nearLeg);
     limb(g, farArm, shade(c.tunD, -0.25));
     handAt(g, c, farArm);
-    line(g, 23, 13, 30, 10, c.tun, 4);
-    line(g, 22, 14, 29, 11, c.tunD);
-    rect(g, 24, 11, 1, 4, c.belt);
-    if (c.collar) rect(g, 30, 8, 1, 4, c.collar);
-    if (c.look.pack) line(g, 25, 10, 28, 8, PACK, 2);
-    if (c.lantern) lanternAt(g, 25, 15);
-    headSide(g, c, 31, 5);
+    seg([23, 13], [30, 10], c.tun, 4);
+    seg([22, 14], [29, 11], c.tunD);
+    seg([24, 11], [24, 14], c.belt);
+    if (c.collar) seg([30, 8], [30, 11], c.collar);
+    if (c.look.pack) seg([25, 10], [28, 8], PACK, 2);
+    if (c.lantern) lanternAt(g, ...M([25, 15]).map(Math.round));
+    headSide(g, c, Math.round(head[0] - 3.5), Math.round(head[1] - 3));
     limb(g, nearArm, c.tunD);
     handAt(g, c, nearArm);
   });
+  return { img, head };
 }
 
-function riderTop(c, f, down) {
-  const k = KICK[f];
-  return sprite(40, 76, (g) => {
+// From above, heading down the screen (face first) or up it; laid out as if gripping the fin at (20, 29) going down
+// and (20, 32) going up.
+function riderTop(c, f, down, W, H, G) {
+  const k = KICK[f >> 1];
+  const [dx, dy] = [Math.round(G[0]) - 20, Math.round(G[1]) - (down ? 29 : 32)];
+  const img = sprite(W, H, (g) => {
+    g.translate(dx, dy);
     if (down) {
       for (const [x, s] of [[18, 1], [22, -1]]) {
         const leg = [[x, 16], [x, 11 + k * s]];
@@ -1666,6 +1774,7 @@ function riderTop(c, f, down) {
     }
     headBack(g, c, 17, 33);
   });
+  return { img, head: [dx + 20, dy + (down ? 26 : 36)] };
 }
 
 const swimCache = new Map();
@@ -1681,19 +1790,37 @@ function swimSprite(dir, f) {
   return s;
 }
 
+// The orca heading `dir` with the diver on its back: the sprite, the spot on it over the orca's position, and
+// where the diver's head is. Heading down the screen the fin is nearer than the diver, so it's drawn over them.
 const rideCache = new Map();
 function rideSprite(dir, f) {
   const c = diverLook();
-  const key = `${diverKey(c)}|${dir}|${f}`;
+  const look = pal.m.look;
+  const key = `${diverKey(c)}|${look.seed}|${look.role}|${dir}|${f}`;
   let s = rideCache.get(key);
   if (!s) {
-    const side = dir === 'left' || dir === 'right';
-    const base = side ? orcaArt().side[f] : orcaArt()[dir][f];
-    s = makeCanvas(base.width, base.height);
-    const g = s.getContext('2d');
-    g.drawImage(base, 0, 0);
-    g.drawImage(side ? riderSide(c, f) : riderTop(c, f, dir === 'down'), 0, 0);
-    if (dir === 'left') s = mirror(s);
+    const right = orcaMirror(dir) ?? dir;
+    const ahead = orcaAhead(right);
+    const v = orcaView(look, right, ORCA_DEEP_LEN, ahead);
+    const fr = v.frame(f);
+    const [gx, gz] = orcaGrip(look);
+    const top = (x, z = 0) => v.at(f, x, 0, orcaGirth(x)[0] + z);
+    const G = top(gx, gz);
+    const r = orcaUpright(right) ? riderTop(c, f, ahead, v.W, v.H, G)
+      : riderSide(c, f, v.W, v.H, G, top(0.62), top(gx));
+    let img = makeCanvas(v.W, v.H);
+    const g = img.getContext('2d');
+    g.drawImage(fr.img, 0, 0);
+    g.drawImage(r.img, 0, 0);
+    if (ahead) g.drawImage(fr.over, 0, 0);
+    let { ax } = v;
+    let [hx] = r.head;
+    if (right !== dir) {
+      img = mirror(img);
+      ax = v.W - ax;
+      hx = v.W - hx;
+    }
+    s = { img, ax, ay: v.ay, head: [hx, r.head[1]] };
     rideCache.set(key, s);
   }
   return s;
@@ -1708,9 +1835,11 @@ function diverPose() {
   const moving = Math.hypot(deep.vx, deep.vy) > 6;
   if (deep.ride) {
     const v = Math.hypot(deep.vx, deep.vy);
-    const f = Math.floor(time * (v > RIDE_SPEED * 1.3 ? 14 : moving ? 8 : 3)) % 4;
-    if (side) return { img: rideSprite(dir, f), dx: -42, dy: -26 + bob, head: [r ? -8 : 7, -17 + bob], top: -26 + bob };
-    return { img: rideSprite(dir, f), dx: -20, dy: -52 + bob, head: [0, (dir === 'down' ? -26 : -16) + bob], top: -52 + bob };
+    const f = Math.floor(time * (v > RIDE_SPEED * 1.3 ? 28 : moving ? 16 : 6)) % ORCA_FRAMES;
+    const s = rideSprite(pal.dir, f);
+    const dx = -Math.round(s.ax);
+    const dy = -Math.round(s.ay) + bob;
+    return { img: s.img, dx, dy, head: [s.head[0] + dx, s.head[1] + dy], top: s.head[1] + dy - 9 };
   }
   const f = moving ? player.frame : Math.floor(time * 1.5) % 4;
   if (side) return { img: swimSprite(dir, f), dx: -18, dy: -16 + bob, head: [r ? 8 : -9, -9 + bob], top: -16 + bob };
@@ -1728,16 +1857,15 @@ function drawDiver(cx, cy) {
   ctx.drawImage(p.img, Math.round(player.x + p.dx - cx), Math.round(player.y + p.dy - cy));
 }
 
-// The orca swimming free down here: side on, or from above when it's going mostly up or down the screen.
+// An orca swimming free down here, heading `dir`, its position at (x, y).
+function drawOrcaDeep(look, dir, f, x, y, cx, cy) {
+  const v = orcaView(look, dir);
+  ctx.drawImage(v.frame(f).img, Math.round(x - v.ax - cx), Math.round(y - v.ay - cy));
+}
+
 function drawPalDeep(cx, cy) {
-  const O = orcaArt();
-  const f = Math.floor(time * 4) % 4;
-  const bob = Math.round(Math.sin(time * 1.5) * 2);
-  if (Math.hypot(pal.vx, pal.vy) > 8 && Math.abs(pal.vy) > Math.abs(pal.vx) * 1.2) {
-    ctx.drawImage((pal.vy > 0 ? O.down : O.up)[f], Math.round(pal.x - 20 - cx), Math.round(pal.y - 52 + bob - cy));
-  } else {
-    ctx.drawImage((pal.face > 0 ? O.side : O.sideL)[f], Math.round(pal.x - 42 - cx), Math.round(pal.y - 26 + bob - cy));
-  }
+  const f = Math.floor(time * 8) % ORCA_FRAMES;
+  drawOrcaDeep(pal.m.look, pal.dir, f, pal.x, pal.y + Math.round(Math.sin(time * 1.5) * 2), cx, cy);
 }
 
 function drawBubbles(cx, cy) {
@@ -1799,14 +1927,15 @@ function deepLights() {
   return out;
 }
 
-// Air left, as bubbles over the diver's head: one for every five seconds, drawn over the dark.
-function drawDeepHud(cx, cy) {
+// Air left, as a row of bubbles just under the clock: one for every five seconds, drawn over the dark.
+function drawDeepHud() {
   if (!deep.on || fade) return;
   const max = airMax();
   const n = Math.ceil(max / 5);
   const left = Math.ceil(deep.air / 5);
-  const x0 = Math.round(player.x - cx - (n * 6 - 2) / 2);
-  const y = Math.round(diverTop()[1] - cy - 5);
+  const r = clockEl.getBoundingClientRect();
+  const x0 = Math.round((r.left + r.right) / 2 / zoom - (n * 6 - 2) / 2);
+  const y = Math.ceil(r.bottom / zoom) + 4;
   const low = deep.air < max * 0.3 && !inBell();
   const blink = low && Math.floor(time * 4) % 2;
   for (let i = 0; i < n; i++) {
@@ -1828,7 +1957,7 @@ function drawDeepHud(cx, cy) {
 function saveDeep() {
   const b = seabed();
   return {
-    pal: { friend: pal.friend, fed: pal.fed },
+    pal: { friend: pal.friend, fed: pal.fed, look: [pal.m.look.seed, pal.m.look.role] },
     found: { ...deep.found },
     clams: b.clams.flatMap((c, i) => (c.day > -99 ? [[i, +c.day.toFixed(2)]] : [])),
     shells: b.shells.flatMap((s, i) => (s.day === dayCount ? [i] : [])),
@@ -1839,7 +1968,9 @@ function saveDeep() {
 
 function restoreDeep(s) {
   if (!s) return;
-  Object.assign(pal, s.pal);
+  const { look, ...rest } = s.pal || {};
+  Object.assign(pal, rest);
+  pal.m.look = orcaLook(...(look || PAL_LOOK));
   Object.assign(deep.found, s.found);
   const b = seabed();
   for (const [i, day] of s.clams || []) if (b.clams[i]) b.clams[i].day = day;
