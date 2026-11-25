@@ -261,6 +261,9 @@ const MAP_ICONS = {
   storm: (g) => { ellipse(g, 4, 4, 3, 2, '#5a6070'); ellipse(g, 7, 3, 4, 3, '#6a7080'); rect(g, 1, 5, 10, 1, '#4a5060'); poly(g, [[6, 6], [4, 9], [6, 9], [5, 12], [8, 8], [6, 8], [7, 6]], '#ffd23a'); },
   whirl: (g) => { ellipse(g, 6, 6, 5.5, 4.5, '#3f8fb4'); ellipse(g, 6, 6, 3.5, 2.8, '#2a6f94'); for (const [x, y] of [[2, 4], [3, 3], [5, 2], [8, 3], [9, 5], [9, 7], [7, 9], [4, 8], [5, 5], [7, 6]]) px(g, x, y, '#e8faff'); ellipse(g, 6, 6, 1.2, 1, '#0d2a3a'); },
   cloud: (g) => { ['#e8443a', '#f4b43a', '#4fa648', '#3a7ad8'].forEach((c, i) => { for (let x = 1 + i; x <= 11 - i; x++) px(g, x, 1 + i + Math.round(Math.abs(x - 6) ** 2 / (8 - i)), c); }); ellipse(g, 4, 8, 3, 2, '#f4f6ff'); ellipse(g, 8, 8, 3.5, 2.5, '#ffffff'); rect(g, 1, 10, 10, 1, '#b8c4dc'); },
+  kelp: (g) => { rect(g, 0, 10, 12, 2, '#c8b47a'); for (const [x, h, c] of [[2, 8, '#3e6a1e'], [5, 10, '#5a8a2a'], [8, 7, '#3e6a1e'], [10, 9, '#5a8a2a']]) { rect(g, x, 10 - h, 1, h, c); px(g, x + 1, 10 - h + 2, '#7aa83a'); px(g, x - 1, 10 - h + 5, '#7aa83a'); } },
+  wreck: (g) => { poly(g, [[0, 8], [2, 5], [10, 5], [12, 8], [10, 10], [2, 10]], '#5a4632'); rect(g, 3, 6, 6, 3, '#2a2018'); for (let x = 3; x < 9; x += 2) rect(g, x, 6, 1, 3, '#7a6448'); line(g, 3, 1, 9, 11, '#8a6a48'); px(g, 11, 4, '#e8d06a'); },
+  trench: (g) => { ellipse(g, 6, 6, 6, 5, '#1d3f63'); poly(g, [[1, 3], [5, 5], [7, 4], [11, 8], [7, 7], [5, 8]], '#050a14'); ellipse(g, 6, 6, 1.5, 1.2, '#9fc0ff'); px(g, 6, 5, '#ffffff'); },
   jungle: (g) => { ellipse(g, 6, 9, 5, 2, '#e8d49a'); rect(g, 6, 3, 1, 6, '#8a5a3a'); poly(g, [[1, 4], [6, 1], [11, 4], [6, 3]], '#2f7d3a'); poly(g, [[2, 6], [6, 2], [10, 6], [6, 4]], '#4fa648'); },
 };
 let mapIcons = null;

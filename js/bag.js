@@ -294,7 +294,7 @@ let bagOpen = false;
 let bagPick = null;
 
 const OUTFIT_IDS = Object.keys(ITEMS).filter((id) => ITEMS[id].outfit);
-const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'haversack', 'pocketVest', 'kitbag', 'harvestBasket', 'framePack', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow', 'featherLure', 'spinner', 'glowLure', 'goldenLure'];
+const GEAR = ['backpack', 'toolBelt', 'satchel', 'pouch', 'haversack', 'pocketVest', 'kitbag', 'harvestBasket', 'framePack', 'divingMask', 'swimFins', 'divingHelmet', 'glowLantern', 'map', 'mapPiece', 'runeNote', 'fishLog', 'arrow', 'featherLure', 'spinner', 'glowLure', 'goldenLure'];
 const tunicId = () => `tunic_${player.look.id}`;
 
 // Opens on `pick` if given, else on the first tool or item.

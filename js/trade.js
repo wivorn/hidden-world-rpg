@@ -2,7 +2,7 @@
 
 // All money is counted in copper: ten copper to the silver, ten silver to the gold.
 let coins = 0;
-const upgrades = { sail: false, bow: 0, tools: {} };
+const upgrades = { sail: false, bow: 0, tools: {}, bell: false };
 const purseEl = document.getElementById('purse');
 const COIN_KINDS = [['goldCoin', 'gold', 100], ['silver', 'silver', 10], ['copper', 'copper', 1]];
 const coinParts = (c) => COIN_KINDS.map(([icon, name, v]) => ({ icon, name, n: v === 100 ? Math.floor(c / v) : Math.floor(c / v) % 10 }));
@@ -12,7 +12,7 @@ function coinWords(c) {
 }
 
 // What Ottar pays for one of each, in copper.
-const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, arcticChar: 30, frostPike: 90, glacierSturgeon: 300, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600, carrot: 10, potato: 12, turnip: 8, cabbage: 18 };
+const PRICES = { fish: 8, mackerel: 20, pufferfish: 100, trout: 15, salmon: 40, cod: 30, cavefish: 40, eel: 50, anglerfish: 120, emberKoi: 120, crystalFish: 150, arcticChar: 30, frostPike: 90, glacierSturgeon: 300, goldenFish: 250, wool: 15, iron: 40, gold: 100, mushroom: 25, meat: 30, hide: 35, ruby: 150, emerald: 150, goblet: 250, crown: 600, pearl: 120, deepPearl: 1500, seashell: 6, carrot: 10, potato: 12, turnip: 8, cabbage: 18 };
 const WARES = [
   { id: 'torch', price: 35, text: 'Burns six hours once lit. For caves and dark nights.' },
   { id: 'arrow', n: 10, price: 60, text: 'A bundle of ten arrows.' },
@@ -20,8 +20,16 @@ const WARES = [
   { id: 'framePack', price: 600, text: 'An ash frame with a pack laced on. Room for four more things.', owned: () => has('framePack') },
   { id: 'goldenLure', n: 3, price: 150, text: 'Three golden lures. Golden fish bite five times as often, and rare fish far oftener.' },
   { id: 'sail', price: 300, text: 'A silk sail. The longship runs a third faster.', owned: () => upgrades.sail },
+  { id: 'divingMask', price: 120, text: 'Glass and a breathing reed. See clearly underwater, stay down twice as long and dive out over the reef.', owned: () => has('divingMask') },
+  { id: 'swimFins', price: 150, text: 'Sealskin fins. Swim half as fast again, on the water and under it.', owned: () => has('swimFins') },
+  { id: 'divingHelmet', price: 450, text: 'Brass, with a bellows of air. A whole minute under, down into the deep water.', owned: () => has('divingHelmet') },
+  { id: 'glowLantern', price: 200, text: 'Glowing jelly sealed in glass. It lights the dark depths, where a torch won\'t burn.', owned: () => has('glowLantern') },
+  {
+    id: 'divingBell', price: 500, text: 'Hangs from your longship. Stop out at sea and lower it with B: fresh air at the bottom, even over the abyss.',
+    owned: () => upgrades.bell, buy: () => { upgrades.bell = true; toast('UPGRADE', 'Diving bell'); },
+  },
 ];
-const WARE_NAMES = { sail: 'Silk sail' };
+const WARE_NAMES = { sail: 'Silk sail', divingBell: 'Diving bell' };
 
 // Each craftsperson's board: what they make and from what, and once the player has had any coin, for how much. The
 // sign by their stall opens it (Space, or a click), and so does B beside them once there's coin.
@@ -334,7 +342,7 @@ function renderTrade() {
     if (k > 1) li.append(tradeButton('ALL', `Sell all ${k} for ${coinWords(PRICES[id] * k)}`, `sellAll-${id}`, true, () => sellItem(id, k)));
     return li;
   });
-  if (!sell.length && !shop) sell.push(Object.assign(document.createElement('li'), { className: 'none', textContent: 'Nothing he wants. He buys fish, meat, hides, wool, iron, gold, glowcaps and treasure.' }));
+  if (!sell.length && !shop) sell.push(Object.assign(document.createElement('li'), { className: 'none', textContent: 'Nothing he wants. He buys fish, meat, hides, wool, iron, gold, glowcaps, pearls and treasure.' }));
   tradeSell.replaceChildren(...sell);
   tradeBuy.replaceChildren(...(shop ? shop.wares() : WARES).map((w) => {
     const li = document.createElement('li');
@@ -448,6 +456,11 @@ function buyWare(w) {
     framePack: 'Carried that frame over half the mountains of Numina. Treat it kindly, friend.',
     goldenLure: 'Golden lures! The fish can\'t resist a bit of shine.',
     sail: 'Silk from the far east! I\'ll have it rigged by the time you reach your ship.',
+    divingMask: 'Spit on the glass before you go under. Keeps it clear, friend.',
+    swimFins: 'Fins! You\'ll swim like a seal. Look like one too, mind.',
+    divingHelmet: 'Southern brass, that helmet. Breathe slow and it\'ll keep you down a whole minute.',
+    glowLantern: 'Jelly from the deep, sealed in glass. It glows brighter the darker it gets.',
+    divingBell: 'A diving bell! I\'ll have it slung from your longship by the time you get aboard. Stop the ship and lower it with B.',
   }[w.id]);
   renderTrade();
 }

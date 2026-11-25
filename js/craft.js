@@ -67,6 +67,13 @@ const ITEMS = {
   emerald: { name: 'Emerald', stack: true, plural: 'emeralds' },
   goblet: { name: 'Golden goblet', stack: true, plural: 'golden goblets' },
   crown: { name: 'Golden crown', stack: true, plural: 'golden crowns' },
+  divingMask: { name: 'Diving mask', worn: true },
+  swimFins: { name: 'Swim fins', worn: true },
+  divingHelmet: { name: 'Diving helmet', worn: true },
+  glowLantern: { name: 'Glow lantern', worn: true },
+  pearl: { name: 'Pearl', stack: true, plural: 'pearls' },
+  deepPearl: { name: 'Pearl of the Deep', stack: true, plural: 'pearls of the deep' },
+  seashell: { name: 'Seashell', stack: true, plural: 'seashells' },
   string: { name: 'String', stack: true, plural: 'lengths of string' },
   feather: { name: 'Feather', stack: true, plural: 'feathers' },
   arrow: { name: 'Arrow', stack: true, plural: 'arrows', worn: true },
@@ -95,7 +102,7 @@ const TOOLS = ['axe', 'pickaxe', 'hoe', 'sword', 'spear', 'bow', 'rod', 'waterin
 const inPack = (id) => ITEMS[id] && !ITEMS[id].worn && !ITEMS[id].tool;
 const FOODS = ['apple', 'pear', 'banana', 'pineapple'];
 // Milestones the quest journal and the save keep track of; `rabbit`, `deer` and `boar` count the hunt.
-const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0, torLanded: 0, torSeen: 0, torBuzz: 0, torTouch: 0, torRods: 0, iceHoles: 0, maelstrom: 0, jetRides: 0, skyRises: 0, skyIsle: 0, prisms: 0, rainbow: 0, tilled: 0, planted: 0, ripened: 0, harvested: 0 };
+const stats = { cooked: 0, ate: 0, ore: 0, gold: 0, sold: 0, bought: 0, fletched: 0, caves: 0, shots: 0, hunted: 0, rabbit: 0, deer: 0, boar: 0, sealion: 0, escaped: 0, roasted: 0, gored: 0, sandCave: 0, treasure: 0, tinkered: 0, hooked: 0, swept: 0, hawkTop: 0, hawkAcross: 0, summits: 0, bitten: 0, snake: 0, lava: 0, saddled: 0, laid: 0, flown: 0, chiefEgg: 0, hermitEgg: 0, jacketAsked: 0, pitched: 0, torLanded: 0, torSeen: 0, torBuzz: 0, torTouch: 0, torRods: 0, iceHoles: 0, maelstrom: 0, jetRides: 0, skyRises: 0, skyIsle: 0, prisms: 0, rainbow: 0, tilled: 0, planted: 0, ripened: 0, harvested: 0, dives: 0, pearls: 0, shells: 0, sunkChests: 0, orcaFed: 0, orcaRides: 0, bellDives: 0, trench: 0 };
 
 // `words` is what the player has to mention in chat; the maker forges it at the anvil from `needs`.
 const RECIPES = [
@@ -444,7 +451,7 @@ const AUTO_REACH = 16;
 let autoPick = localStorage.getItem('hw-autopick') === '1';
 
 function autoPickUp() {
-  if (!autoPick || !started || fade || flight || sail || hop || player.swimming) return;
+  if (!autoPick || !started || fade || flight || sail || hop || deep.on) return;
   for (const d of [...drops]) {
     const dist = Math.hypot(d.x - player.x, d.y - 2 - player.y);
     if (d.left) {

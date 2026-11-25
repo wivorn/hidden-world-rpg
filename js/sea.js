@@ -546,6 +546,7 @@ const orcaUp = (m) => (time + m.phase) % ORCA_CYCLE < ORCA_UP;
 const busy = (p, m) => (p.breach && p.breach.m === m) || (p.spy && p.spy.m === m);
 
 function updateOrcas(p, dt) {
+  if (!p.members.length) return;
   const near = earshot(p.x, p.y);
   const spying = updateSpyHop(p, near, dt);
   if (!spying) {
@@ -595,7 +596,7 @@ function updateSpyHop(p, near, dt) {
     }
     return true;
   }
-  if (p.breach || (p.spyT = (p.spyT ?? 8 + Math.random() * 20) - dt) > 0) return false;
+  if (p.breach || (p.spyT = (p.spyT ?? 8 + Math.random() * 20) - dt * (orcaCurious(p) ? 5 : 1)) > 0) return false;
   p.spyT = 14 + Math.random() * 24;
   if (near <= 0) return false;
   const m = p.members[Math.floor(Math.random() * p.members.length)];
@@ -617,7 +618,7 @@ function updateShark(s, dt) {
   const dx = player.x - s.x;
   const dy = player.y - s.y;
   const d = Math.hypot(dx, dy);
-  s.rush = player.swimming && !indoors && !sail && !flight && !(s.restT > 0) && d < SHARK_SCENT && depthAt(player.x, player.y) >= 2;
+  s.rush = player.swimming && !deep.on && !indoors && !sail && !flight && !(s.restT > 0) && d < SHARK_SCENT && depthAt(player.x, player.y) >= 2;
   const ox = s.x;
   if (s.rush) {
     const turn = Math.atan2(dy, dx) - s.heading;
@@ -795,6 +796,7 @@ function drawSeaUnder(cx, cy) {
       ellipse(ctx, Math.round(p.x + m.ox - cx), Math.round(p.y + m.oy - cy), 12, 3, '#16304f');
     }
   }
+  drawPalUnder(cx, cy);
   ctx.globalAlpha = 0.26;
   for (const m of seaLife.mantas) if (onScreen(m.x, m.y, cx, cy)) drawManta(m, cx, cy);
   ctx.globalAlpha = 0.32;
@@ -987,6 +989,7 @@ function seaSprites(cx, cy) {
   for (const s of seaLife.sharks) {
     if (onScreen(s.x, s.y, cx, cy)) out.push({ y: s.y, draw: () => drawSharkFin(s, cx, cy) });
   }
+  out.push(...palSprites(cx, cy));
   return out;
 }
 

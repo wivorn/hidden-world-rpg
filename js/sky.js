@@ -163,7 +163,7 @@ const splashes = [];
 let precipCam = null;
 
 function updatePrecip(dt) {
-  const p = started && !indoors && !aloft() ? precipitation() : 0;
+  const p = started && !indoors && !aloft() && !deep.on ? precipitation() : 0;
   const want = Math.round(p * (snowy ? 150 : 240) * (viewW * viewH) / (320 * 240));
   const wind = (snowy ? 6 : 30) + weatherNow('wind') * (snowy ? 20 : 70);
   const dcx = precipCam ? cam.x - precipCam.x : 0;
@@ -239,7 +239,7 @@ function drawDrifting(cx, cy, img, n, drift, alpha, seed) {
 
 // Rain, snow, fog and the grey of a cloudy sky, over the world but under the night.
 function drawWeather(cx, cy) {
-  if (indoors || aloft()) return;
+  if (indoors || aloft() || deep.on) return;
   const clouds = weatherNow('clouds');
   if (clouds > 0) drawDrifting(cx, cy, blob(110, '20,28,40'), 5, 9, 0.13 * clouds, 1);
   const grey = weatherNow('grey');
@@ -299,6 +299,7 @@ function lightCut(r) {
 
 // Everything that pushes back the dark: `r` is how far, `k` how strongly, and `glow` adds warm light on top.
 function nightLights(cx, cy, visible) {
+  if (deep.on) return deepLights();
   if (aloft()) return [...playerLights(flight.x, flight.y - flight.alt - 10), ...skyLights(), ...trailLights()];
   const out = [];
   for (const o of visible) {
@@ -334,7 +335,7 @@ function nightLights(cx, cy, visible) {
 
 // Darkens the world, cuts holes round every light, then lays warm glows, fireflies and lightning on top.
 // How strongly the low sun of sunrise or sunset lights things, 0 to 1; cloud cover all but puts it out.
-const lowSun = () => (indoors ? 0 : Math.max(0, golden() * (1 - weatherNow('grey') * 2)));
+const lowSun = () => (indoors || deep.on ? 0 : Math.max(0, golden() * (1 - weatherNow('grey') * 2)));
 // Which way across the view the low sun lies: east, off the right, as it comes up; west, off the left, going down.
 const sunSide = () => (clock < 0.5 ? 1 : -1);
 
@@ -369,7 +370,7 @@ function drawLowSun() {
 
 function drawNight(cx, cy, visible) {
   const cave = inCave();
-  const n = cave ? 1 : indoors ? 0 : nightness();
+  const n = cave ? 1 : indoors ? 0 : deep.on ? deepShade() : nightness();
   drawLowSun();
   if (n > 0.01) {
     if (nightLayer.width !== viewW || nightLayer.height !== viewH) {
@@ -379,7 +380,7 @@ function drawNight(cx, cy, visible) {
     const g = nightLayer.getContext('2d');
     g.globalCompositeOperation = 'source-over';
     g.clearRect(0, 0, viewW, viewH);
-    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : indoors.fire ? 'rgba(18,4,0,0.7)' : indoors.sea ? 'rgba(1,10,20,0.7)' : 'rgba(2,4,10,0.96)') : `rgba(6,10,36,${0.7 * n})`;
+    g.fillStyle = cave ? (indoors.sand ? 'rgba(14,7,2,0.9)' : indoors.fire ? 'rgba(18,4,0,0.7)' : indoors.sea ? 'rgba(1,10,20,0.7)' : 'rgba(2,4,10,0.96)') : deep.on ? `rgba(2,12,30,${n})` : `rgba(6,10,36,${0.7 * n})`;
     g.fillRect(0, 0, viewW, viewH);
     g.globalCompositeOperation = 'destination-out';
     const lights = nightLights(cx, cy, visible);
@@ -395,7 +396,7 @@ function drawNight(cx, cy, visible) {
       ctx.globalAlpha = 0.7 * n;
       ctx.drawImage(glowSprite(L.glow, L.color || '#ffb050'), Math.round(L.x - L.glow - cx), Math.round(L.y - L.glow - cy));
     }
-    const flies = aloft() || worldScale() < 1 ? [] : fireflies;
+    const flies = aloft() || deep.on || worldScale() < 1 ? [] : fireflies;
     for (const f of flies) {
       const k = fireflyGlow(f);
       if (k <= 0.05) continue;
@@ -417,7 +418,7 @@ function drawNight(cx, cy, visible) {
 const lampBoost = () => 1 + (inCave() ? 0.6 : indoors ? 0 : nightness() * 0.6);
 
 function drawLightning() {
-  if (weather.flash <= 0) return;
+  if (weather.flash <= 0 || deep.on) return;
   ctx.fillStyle = `rgba(235,242,255,${weather.flash * (indoors ? 0.12 : aloft() ? 0.22 : 0.55)})`;
   ctx.fillRect(0, 0, viewW, viewH);
 }

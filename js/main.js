@@ -456,7 +456,7 @@ function updateSwim(dt) {
     player.frame = 0;
     return;
   }
-  const speed = (player.sprinting ? 62 : 42) * fedBoost() * dt;
+  const speed = (player.sprinting ? 62 : 42) * fedBoost() * (has('swimFins') ? 1.35 : 1) * dt;
   move(player, ix * speed, iy * speed);
   faceToward(player, ix, iy);
   const prev = Math.floor(player.anim);
@@ -1084,6 +1084,7 @@ function headPos() {
     return [d.x, shipObj.y - d.lift - 20];
   }
   if (hop) return [player.x, player.y - 24 - hop.lift0 - (hop.lift1 - hop.lift0) * hop.t - Math.sin(hop.t * Math.PI) * (hop.arc ?? 16)];
+  if (deep.on) return diverTop();
   if (player.swimming && inWater(player.x, player.y)) return [player.x, player.y - 18];
   return [player.x, player.y - 24 - jumpLift(player)];
 }
@@ -3386,6 +3387,7 @@ function maskRoom(cx, cy) {
 
 function action() {
   if (hop || fade || player.downT > 0) return;
+  if (deep.on) return deepAct();
   if (flight) {
     if (flight.mode !== 'fly' || sky.shift) return;
     if (aloft()) {
@@ -3399,8 +3401,9 @@ function action() {
     else splashDive();
     return;
   }
-  if (sail) disembark();
+  if (sail) shipAct();
   else if (nearMount() === 'ship' && !treasureFirst()) board();
+  else if (swimAct()) swimAct()[1]();
   else if (feedTarget()) feedByHand(feedTarget());
   else if (roostLeave()) leaveAtRoost(roostLeave());
   else if (nurseryLeave()) leaveAtNursery(nurseryLeave());
@@ -3570,8 +3573,8 @@ function updateAmbience(dt) {
   }
   const air = flight ? Math.min(1, clamp01(flight.alt / FLY_ALT) * (0.35 + 0.65 * Math.min(1, Math.hypot(flight.vx, flight.vy) / 250)) + Math.abs(sky.rush || 0) * 0.8) : 0;
   if (indoors) Sfx.ambience(indoors.sea ? 0.6 : 0.04, 0);
-  else Sfx.ambience(sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
-  Sfx.music(started ? musicArea() : null, indoors ? 0.6 : 1);
+  else Sfx.ambience(deep.on ? 0.3 : sail || player.swimming ? 1 : 0.15 + seaShare * 0.85, air);
+  Sfx.music(started ? musicArea() : null, indoors || deep.on ? 0.6 : 1);
 }
 
 // The tune for where the player is: the village's on its island and in its houses, the sea's out on open water,
@@ -3588,6 +3591,7 @@ function musicArea() {
     return musicHere;
   }
   if (aloft()) return 'sky';
+  if (deep.on) return 'sea';
   const at = flight || (sail && shipObj) || player;
   const tx = Math.floor(at.x / TILE);
   const ty = Math.floor(at.y / TILE);
@@ -3615,6 +3619,7 @@ function update(dt) {
   else if (sail) updateSail(dt);
   else if (flight) updateFlight(dt);
   else if (fade) player.anim = player.frame = 0;
+  else if (deep.on) updateDeep(dt);
   else updatePlayer(dt);
   for (const n of npcs) updateNpc(n, dt);
   for (const s of sheep) updateSheep(s, dt);
@@ -3635,6 +3640,7 @@ function update(dt) {
   updateTor(dt);
   updateWhirlpool(dt);
   updateSkyIsle(dt);
+  updateUnderwater(dt);
   updateDunes(dt);
   updatePeak(dt);
   updateTinker();
@@ -4161,17 +4167,8 @@ function setPrompt(text) {
   promptEl.classList.toggle('show', !!promptEl.textContent && hintsOn);
 }
 
-function render() {
-  if (!started) {
-    drawTitle(time);
-    screenCtx.drawImage(buffer, 0, 0, viewW, viewH, 0, 0, viewW * zoom * dpr, viewH * zoom * dpr);
-    return;
-  }
-  const [sx, sy] = rushShake();
-  const camX = Math.round(cam.x) + sx;
-  const camY = Math.round(cam.y) + sy;
-  // the world below is drawn shrunk away when the dragon is high over it; everything from the clouds up isn't
-  let [cx, cy] = beginWorldView(camX, camY);
+// The world from above, drawn under the clouds; underwater drawDeep stands in for it.
+function drawWorld(cx, cy) {
   ctx.fillStyle = PAL.ocean;
   ctx.fillRect(0, 0, viewW, viewH);
   drawGround(ctx, cx, cy, viewW, viewH);
@@ -4235,6 +4232,21 @@ function render() {
   }
   for (const d of highDragons) drawBaby(d, cx, cy);
   drawSeaSky(cx, cy);
+  return { visible, flock, skyBaby };
+}
+
+function render() {
+  if (!started) {
+    drawTitle(time);
+    screenCtx.drawImage(buffer, 0, 0, viewW, viewH, 0, 0, viewW * zoom * dpr, viewH * zoom * dpr);
+    return;
+  }
+  const [sx, sy] = rushShake();
+  const camX = Math.round(cam.x) + sx;
+  const camY = Math.round(cam.y) + sy;
+  // the world below is drawn shrunk away when the dragon is high over it; everything from the clouds up isn't
+  let [cx, cy] = beginWorldView(camX, camY);
+  const { visible, flock, skyBaby } = deep.on ? drawDeep(cx, cy) : drawWorld(cx, cy);
   endWorldView();
   [cx, cy] = [camX, camY];
   drawSkyLayer(cx, cy);
@@ -4255,7 +4267,7 @@ function render() {
   drawParticles(cx, cy, 'sky');
   drawWeather(cx, cy);
   drawNight(cx, cy, visible);
-  if (!aloft()) {
+  if (!aloft() && !deep.on) {
     const [wx, wy] = beginWorldView(camX, camY);
     drawCurrents(wx, wy);
     drawLights(wx, wy, visible);
@@ -4263,10 +4275,11 @@ function render() {
     endWorldView();
   }
   drawLightning();
+  drawDeepHud(cx, cy);
   if (indoors) maskRoom(cx, cy);
 
   for (const n of npcs) {
-    const seen = sameSpace(n) && !aloft() && worldScale() === 1;
+    const seen = sameSpace(n) && !aloft() && !deep.on && worldScale() === 1;
     if (n.bubble) n.bubble.hidden = !seen;
     if (!seen) continue;
     if (n.talkT > 0) {
@@ -4280,20 +4293,22 @@ function render() {
   }
   drawSphinxBubble(cx, cy);
   for (const d of dragons) {
-    if (d.emoteT <= 0 || (flight && flight.dragon === d) || aloft()) continue;
+    if (d.emoteT <= 0 || (flight && flight.dragon === d) || aloft() || deep.on) continue;
     const h = d.stage === GROWN ? (d.perched ? 44 + (d.obj.lift || 0) - DRAGON_POSES[d.obj.pose || 'stand'].sink * 2 : 52) : SPR.babyDragon[d.species][d.stage].top + 4;
     drawEmote(d, cx, cy, h + babyLift(d));
   }
   for (const s of flock) if (s.emoteT > 0 && !aloft()) drawEmote(s, cx, cy, 24);
-  if (!indoors && !aloft()) for (const a of animals) if (a.emoteT > 0 && alive(a)) drawEmote(a, cx, cy, SPR.wild[a.look][a.dir][0].height + 4 + a.lift);
-  if (dog.emoteT > 0 && dog.state !== 'carried' && !indoors && !aloft()) drawEmote(dog, cx, cy, 20);
+  if (!indoors && !aloft() && !deep.on) for (const a of animals) if (a.emoteT > 0 && alive(a)) drawEmote(a, cx, cy, SPR.wild[a.look][a.dir][0].height + 4 + a.lift);
+  if (dog.emoteT > 0 && dog.state !== 'carried' && !indoors && !aloft() && !deep.on) drawEmote(dog, cx, cy, 20);
   if (playerSayT > 0) {
     const [hx, hy] = playerHead();
     playerBubble.style.left = `${(Math.round(hx) - cx) * zoom}px`;
     playerBubble.style.top = `${(Math.round(hy) - cy) * zoom}px`;
   }
 
-  if (flight && flight.mode === 'fly' && sky.shift) {
+  if (deep.on) {
+    setPrompt(deepPrompt());
+  } else if (flight && flight.mode === 'fly' && sky.shift) {
     setPrompt(sky.shift.up ? 'Climbing up through the clouds...' : 'Dropping down through the clouds...');
   } else if (flight && flight.mode === 'fly') {
     const space = aloft() ? skySpacePrompt()
@@ -4310,14 +4325,16 @@ function render() {
   } else if (sail && player.fishing) {
     setPrompt(toolHint());
   } else if (sail) {
-    const shore = sail.shore ? 'SPACE  Go ashore' : 'Sail close to land to go ashore';
+    const shore = [shipSpaceHint(), diveAct() && `U  ${diveAct()[0]}`].filter(Boolean).join('   ·   ') || 'Sail close to land to go ashore';
     const rod = toolHint();
     const fish = !rod && follower && follower.stage < GROWN && has('rod') ? `   ·   Stop the ship and fish to feed ${follower.name}` : '';
-    setPrompt(`${shore}   ·   SHIFT  Full sail${rod ? `   ·   ${rod}` : ''}${fish}`);
+    setPrompt(`${shore}   ·   SHIFT  Full sail${bellHint()}${rod ? `   ·   ${rod}` : ''}${fish}`);
   } else if (player.fishing) {
     setPrompt(toolHint());
   } else if (nearMount() === 'ship' && !treasureFirst()) {
-    setPrompt('SPACE  Board the ship');
+    setPrompt(`SPACE  Board the ship${diveHint()}`);
+  } else if (swimAct()) {
+    setPrompt(`SPACE  ${swimAct()[0]}${diveHint()}`);
   } else if (feedTarget()) {
     setPrompt(withPat(`SPACE  Feed the ${itemName(carriedOut())} to ${feedTarget().name}   ·   ${toolHint()}`));
   } else if (roostLeave()) {
@@ -4422,7 +4439,7 @@ function render() {
   } else if (toolHint() || takeHint()) {
     setPrompt(withPat([toolHint(), takeHint()].filter(Boolean).join('   ·   ')));
   } else if (player.swimming) {
-    setPrompt('Swim to a beach or low shore to climb out');
+    setPrompt(swimHint());
   } else if (carried) {
     setPrompt('Carry the egg up through the fire mountain\'s cave and throw it into the lava   ·   F  Set it down');
   } else if (dog.state === 'carried') {
@@ -4607,6 +4624,7 @@ window.addEventListener('keydown', (e) => {
 
 // What a key does going down, from the keyboard or from a touch screen's action buttons.
 function pressKey(code, shift) {
+  if (deep.on && /^(KeyF|KeyT|KeyR|KeyX|KeyG|KeyC|Digit\d)$/.test(code)) return;
   if (code === 'Space') action();
   if (code === 'KeyF') {
     if (flight) chargeBreath();
@@ -4617,14 +4635,19 @@ function pressKey(code, shift) {
   }
   if (code === 'KeyT' && !hop && !fade && !(player.downT > 0)) patNear();
   if (code === 'KeyR') loopTrick();
-  if (code === 'KeyU') toggleAloft();
+  if (code === 'KeyU') {
+    if (deep.on) swimUp();
+    else if (diveAct()) diveAct()[1]();
+    else toggleAloft();
+  }
   if (code === 'KeyP') toggleSound();
   if (code === 'KeyH') toggleHints();
   if (code === 'Slash') toggleAutoPick();
   if (code === 'KeyM') toggleMap(true);
   if (code === 'KeyJ') toggleJournal(true);
   if (code === 'KeyE') toggleBag(true);
-  if (code === 'KeyB' && has('backpack')) toggleTray();
+  if (code === 'KeyB' && canLowerBell()) lowerBell();
+  else if (code === 'KeyB' && has('backpack')) toggleTray();
   if (code === 'KeyL') toggleFishLog(true);
   if (code === 'KeyK') toggleDragonLog(true);
   if (code === 'KeyC') toggleTinker(true);
@@ -4686,12 +4709,12 @@ let stickOn = localStorage.getItem('hw-stick') !== '0';
 let actionsShown = '';
 
 // The key a prompt names, as pressed: its code and whether with SHIFT. SHIFT on its own is the RUN button's.
-const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], U: ['KeyU'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], X: ['KeyX'], ENTER: ['Enter'] };
+const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], U: ['KeyU'], B: ['KeyB'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], X: ['KeyX'], ENTER: ['Enter'] };
 // A button's name is the verb of what it does, and the little word after it, or after "it", if there is one: "Climb
 // up the ladder" is CLIMB UP, "Take it down" TAKE DOWN. These read better by another name.
 const ACT_NAMES = [[/^Ride\b/, 'MOUNT'], [/^Put the saddle\b/, 'SADDLE'], [/^See what\b/, 'SHOP'], [/^Splash dive\b/, 'DIVE'],
   [/^Open your equipments\b/, 'GEAR'], [/alight\b|^Light your torch\b/, 'BURN'], [/^Pick from\b/, 'PICK UP'], [/^Throw all\b/, 'THROW ALL'],
-  [/^Sleep\b/, 'SLEEP']];
+  [/^Sleep\b/, 'SLEEP'], [/^Let go\b/, 'LET GO'], [/^Toss a fish\b/, 'FEED'], [/^Prise open\b/, 'OPEN'], [/^Reach into\b/, 'TAKE']];
 const ACT_PARTICLES = new Set(['up', 'down', 'in', 'into', 'out', 'over', 'on', 'off', 'back', 'ashore', 'again']);
 
 function actName(label) {

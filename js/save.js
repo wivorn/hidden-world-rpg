@@ -73,7 +73,9 @@ function movedRooms(s) {
 }
 
 function snapshot() {
-  const spot = sail || onFirmGround() || !safeSpot ? { x: player.x, y: player.y, room: roomId() } : safeSpot;
+  // underwater off the ship, the game picks up again aboard it
+  const aboard = !!sail || (deep.on && deep.ship);
+  const spot = aboard && !sail ? { x: shipObj.x, y: shipObj.y, room: null } : sail || onFirmGround() || !safeSpot ? { x: player.x, y: player.y, room: roomId() } : safeSpot;
   const things = { ...bag };
   if (player.cook) things[player.cook.id] = (things[player.cook.id] || 0) + 1;
   return {
@@ -81,7 +83,7 @@ function snapshot() {
     world: [MAP_W, MAP_H],
     hero: { name: player.name, look: player.look.id },
     clock, dayCount, weather: weather.want,
-    player: { ...spot, dir: player.dir, sail: !!sail, fedT: Math.max(0, player.fedT || 0), flight: flightSave() },
+    player: { ...spot, dir: player.dir, fedT: Math.max(0, player.fedT || 0), flight: flightSave(), sail: aboard },
     ship: { x: shipObj.x, y: shipObj.y, facing: shipObj.facing, dir: shipObj.dir },
     bag: things, pack: packSlots, hand, outfit, stats: { ...stats }, journal,
     npcs: npcs.map((n) => ({ gaveAxe: n.gaveAxe, gaveRod: n.gaveRod, scrapGiven: n.scrapGiven, tipTold: n.tipTold })),
@@ -107,6 +109,7 @@ function snapshot() {
     ruin: { solved: ruin.solved },
     dunes: saveDunes(),
     sky: saveSkyIsle(),
+    deep: saveDeep(),
     tinker: saveTinker(),
     build: saveBuild(),
     ice: saveIce(),
@@ -194,6 +197,7 @@ function restore(s) {
   syncRuin();
   restoreDunes(s.dunes);
   restoreSkyIsle(s.sky);
+  restoreDeep(s.deep);
   restoreDragons(s.dragons);
   restoreFlight(s.player.flight);
 

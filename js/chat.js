@@ -20,6 +20,7 @@ const TOPICS = [
   ['roost', /\b(roost\w*|breed\w*|mate|mating)\b/],
   ['tor', /\b(stormcrown|tor|lightning|thunder|storms?|strikers?)\b/],
   ['eel', /\b(fire ?eels?|eels?)\b/],
+  ['dive', /\b(div(e|es|ing|er)|underwater|under the (sea|water|waves)|sea ?(bed|floor)|snorkel\w*|flippers?|swim fins|pearls?|clams?|orcas?|killer whales?|wrecks?|shipwrecks?|sunken|kelp|abyss|trench|coral|reefs?)\b/],
   ['hatch', /\b(hatch\w*|crater|lava|incubat\w*)\b/],
   ['egg', /\b(eggs?|ruins?|ancient|towers?|nest|baby)\b/],
   ['dragon', /\b(dragons?|wyvern|fly|flying)\b/],
@@ -96,6 +97,12 @@ const REPLIES = {
     grown: ['That dragon is enormous!', 'Is it true you can ride it?', 'Please ask it not to eat my sheep.'],
     dragon: ['Dragons? Haven\'t seen one in years.', 'The old hermit tells tales of dragons.'],
     eel: ['Fire eels? The fisher down at the harbour knows where they bite.', 'Eels that swim in boiling water... ask the fisher. He\'s caught one.'],
+    dive: [
+      'Ottar the merchant sells diving gear, they say. A mask, fins, even a brass helmet!',
+      'Pearls grow in the giant clams out on the reef. Ottar pays a silver and more for one.',
+      'There\'s a kelp forest just off the harbour, swaying under the water like trees in a wind.',
+      'A longship went down south of the bay, years back. Nobody\'s ever been down to the wreck.',
+    ],
     tor: ['Stormcrown Tor? Way out east, past the hermit\'s isle. A storm sits on it and never leaves.', 'Sailors keep clear of the Tor. Lightning strikes it twice a day, they say.'],
     places: [
       'The forest is out past the west gate. There\'s a woodcutter\'s clearing in the middle of it.',
@@ -373,6 +380,12 @@ const REPLIES = {
     wares: ['I can lend you the longship. She\'s at the dock, ready to sail.', 'Fish, mostly. And sailing tips: hold Shift for full sail!'],
     greet: ['Ahoy!', 'Ahoy there, {name}!'],
     ship: ['She\'s yours to sail. Fair winds!', 'Hold Shift for full sail!'],
+    dive: [
+      'The orcas are clever. Toss one a fish when it pokes its head up to look at you, and it may take a liking to you.',
+      'A longship went down south of the bay when I was a boy. Her treasure\'s still on the bottom, in the wreck.',
+      'Out past the reef the sea goes black. The abyss, we call it. Only a diving bell goes down that far.',
+      'Dive in the shallows by the beach to start. You\'ll want a mask from Ottar before you try the reef.',
+    ],
     fish: ['Biggest catch? A fish as long as the longship!', 'Different waters, different fish: shallows, deep sea, the lake, the hot sea by the volcano. Fill your log!', 'There\'s a golden fish out there somewhere. Worth a fortune to the merchant.'],
     shop: ['Ottar the merchant buys fish for good coin. Cod and eels fetch the best price, and a golden fish... a fortune!'],
     eel: [
@@ -451,7 +464,14 @@ const REPLIES = {
   },
   merchant: {
     name: ['Ottar, merchant of the seven seas!', 'Ottar. I buy, I sell, I sail on.'],
-    wares: ['Torches, arrows, a golden lure, silk for your sail, and a frame pack that\'s crossed every mountain in Numina. Talk to me and have a look!', 'I buy fish, meat, wool, iron, gold and glowcaps. Fair prices, mostly.'],
+    wares: ['Torches, arrows, a golden lure, silk for your sail, diving gear, a diving bell, and a frame pack that\'s crossed every mountain in Numina. Talk to me and have a look!', 'I buy fish, meat, wool, iron, gold, glowcaps and pearls. Fair prices, mostly.'],
+    dive: [
+      'Masks, fins, a brass helmet, a lantern that burns underwater... Ottar has it all!',
+      'A diving bell for your longship, friend! Lower it anywhere, even over the abyss, and breathe at the bottom of the sea.',
+      'Pearls! Bring me pearls from the giant clams and I\'ll pay a silver and two apiece.',
+      'An orca followed my ship a whole summer once. All for a mackerel I tossed it while it was looking.',
+      'They say something glows at the bottom of the abyss trench, far out to the south-west. A pearl as big as your fist!',
+    ],
     greet: ['Welcome, friend! Coin in your pocket?', 'Ahoy! Ottar\'s open for business.'],
     fish: ['Cod and fire eels pay best. A golden fish? I\'d give two gold and five silver!'],
     eel: ['Fire eels! I\'ll pay well for them. Or have the seamstress sew them into a jacket, if you fancy the volcano.'],

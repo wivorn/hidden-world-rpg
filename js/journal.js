@@ -183,6 +183,16 @@ const QUESTS = [
       { id: 'skyEgg', text: 'Scoop up the egg from the nest the rainbow uncovers', done: () => skyEgg().state !== 'wild' },
     ],
   },
+  {
+    id: 'deep', title: 'The World Beneath the Waves', start: () => stats.dives > 0 || stats.orcaFed > 0 || POIS.some((p) => DEEP_SITES[p.id] && p.learned),
+    steps: [
+      { id: 'deepDive', text: 'Swim out from a beach and dive beneath the waves (U)', done: () => stats.dives > 0 },
+      { id: 'deepPearl', text: 'Prise a pearl from a giant clam out on the reef. A diving mask from Ottar lets you dive that deep', done: () => stats.pearls > 0 },
+      { id: 'deepOrca', text: 'Make friends with an orca: toss it a fish while it pokes its head up to look at you', done: () => pal.friend },
+      { id: 'deepWreck', text: 'Find the longship that sank south of the bay, down in the deep water, and open its treasure chest', done: () => seabed().chests.some((c) => c.wreck && c.opened) },
+      { id: 'deepTrench', text: 'Get down into the abyss trench, far out to the south-west, and find what glows at the bottom', done: () => stats.trench > 0 },
+    ],
+  },
 ];
 
 const questDone = (q) => q.steps.every((s) => journal.done[s.id]);

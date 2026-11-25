@@ -911,6 +911,110 @@ function buildFramePack() {
   ], { F: '#c49a62', R: '#3d6a8a', r: '#5a8aaa', B: '#9a6a3a', G: '#ffd36b', D: '#6a4422' });
 }
 
+// Ottar's diving gear, the diving bell he fits to a longship, and what turns up on the seabed.
+function buildDivingMask() {
+  return pixmap([
+    '..........RR',
+    '..........R.',
+    '.SSSSSSSSSR.',
+    'SGGGGSSGGGGS',
+    'SGgGGSSGgGGS',
+    'SGGGGSSGGGGS',
+    'SGGGSSSSGGGS',
+    '.SSS....SSS.',
+  ], { S: '#3a3f48', G: '#7ad0f0', g: '#e8faff', R: '#e8a43a' });
+}
+
+function buildSwimFins() {
+  return pixmap([
+    '.DD.....DD..',
+    '.DD.....DD..',
+    '.FF.....FF..',
+    'FFFF...FFFF.',
+    'FfFF...FfFF.',
+    'FFFF...FFFF.',
+    'FFFFF.FFFFF.',
+    'FfFfF.FfFfF.',
+    'FFFFF.FFFFF.',
+  ], { F: '#2f8a6a', f: '#56b890', D: '#1e5a46' });
+}
+
+function buildDivingHelmet() {
+  return pixmap([
+    '....BBBB....',
+    '..BBbbbbBB..',
+    '.BbbBBBBbbB.',
+    '.BBGGGGGGBB.',
+    'BBGGgGGGGGBB',
+    'BBGgGGGGGGBB',
+    'BBGGGGGGGGBB',
+    '.BBGGGGGGBB.',
+    '.BBBBBBBBBB.',
+    'BDDDDDDDDDDB',
+    'BDdDDdDDdDDB',
+    '.BBBBBBBBBB.',
+  ], { B: '#c98a2e', b: '#f2c46a', G: '#3a6a8a', g: '#bfe8ff', D: '#8a5a1e', d: '#f2c46a' });
+}
+
+function buildGlowLantern() {
+  return pixmap([
+    '...KKKK...',
+    '...K..K...',
+    '..KKKKKK..',
+    '..GGGGGG..',
+    '.KGgCCGGK.',
+    '.KGCCCCGK.',
+    '.KGCCCCGK.',
+    '.KGGCCGGK.',
+    '..GGGGGG..',
+    '..KKKKKK..',
+    '...KKKK...',
+  ], { K: '#4a5560', G: '#9fe8f0', g: '#ffffff', C: '#5ff0d8' });
+}
+
+function buildDivingBellIcon() {
+  return pixmap([
+    '.....RR.....',
+    '.....RR.....',
+    '....BBBB....',
+    '...BbbBBB...',
+    '..BbBBBBBB..',
+    '..BbBGGBBB..',
+    '..BbBGGBBB..',
+    '.BBbBBBBBBB.',
+    '.BbBBBBBBBB.',
+    'BBBBBBBBBBBB',
+    'DDDDDDDDDDDD',
+    '.D.D....D.D.',
+  ], { R: '#c4a46a', B: '#b87a2a', b: '#f0c060', G: '#ffe68a', D: '#6a4418' });
+}
+
+function buildPearl(colors) {
+  return pixmap([
+    '..PPPP..',
+    '.PPwwPP.',
+    'PPwPPPPp',
+    'PPPPPPPp',
+    'PPPPPPpp',
+    '.PPPPpp.',
+    '..pppp..',
+  ], colors);
+}
+
+function buildSeashell() {
+  return pixmap([
+    '....SS....',
+    '..SSsSSS..',
+    '.SsSSsSSS.',
+    'SsSSsSSsSS',
+    'SSsSSsSSsS',
+    '.SSsSSsSS.',
+    '..SSSSSS..',
+    '...DDDD...',
+    '....DD....',
+  ], { S: '#f4b8a0', s: '#d8846a', D: '#c06a50' });
+}
+
 // A leather strap with a brass buckle and two tool loops.
 // What the seamstress's coats look like on the hero (see drawCharacter): the fur coat for the frozen isle, and the
 // fire eel skin jacket for the volcano.
@@ -5354,6 +5458,8 @@ function buildSprites() {
     lure: buildLure(), sail: buildSailIcon(), silver: buildCoin(), goldCoin: buildCoin(['#b07a1e', '#f2c94a', '#fff6c8']), copper: buildCoin(['#7a3e1c', '#c97a42', '#f4c8a0']), meat: buildMeat(false), roast: buildMeat(true),
     hide: buildHide(), satchel: buildSatchel(), pouch: buildPouch(), toolBelt: buildToolBelt(), saddle: buildSaddleIcon(),
     haversack: buildHaversack(), pocketVest: buildPocketVest(), kitbag: buildKitBag(), harvestBasket: buildHarvestBasket(), framePack: buildFramePack(),
+    divingMask: buildDivingMask(), swimFins: buildSwimFins(), divingHelmet: buildDivingHelmet(), glowLantern: buildGlowLantern(), divingBell: buildDivingBellIcon(),
+    pearl: buildPearl({ P: '#f4eee4', w: '#ffffff', p: '#cfc4d8' }), deepPearl: buildPearl({ P: '#9fc0ff', w: '#ffffff', p: '#6a78d0' }), seashell: buildSeashell(),
     ruby: buildGem('#d8322a', '#ff7a6a', '#8a1a14'), emerald: buildGem('#2fae5a', '#7ae89a', '#1a6a34'),
     goblet: buildGoblet(), crown: buildCrown(),
     plank: buildPlank(), rope: buildRope(), ladder: buildLadderIcon(), bridge: buildBridgeKit(), lightningRod: buildRodIcon(),
