@@ -174,6 +174,15 @@ const QUESTS = [
       { id: 'jetOut', text: 'Find a way back up to the sea', done: () => stats.jetRides > 0 },
     ],
   },
+  {
+    id: 'skyIsle', title: 'Above the Clouds', start: () => POIS.find((p) => p.id === 'skyIsle').learned || stats.skyRises > 0,
+    steps: [
+      { id: 'skyRise', text: 'On dragonback, fly up above the clouds (U)', done: () => stats.skyRises > 0 },
+      { id: 'skyIsleFound', text: 'Find the island floating on the clouds, high over the eastern sea', done: () => stats.skyIsle > 0 },
+      { id: 'skyRainbow', text: 'Turn the prisms with dragon breath and bring the sunbeam to the great prism', done: () => stats.rainbow > 0 },
+      { id: 'skyEgg', text: 'Scoop up the egg from the nest the rainbow uncovers', done: () => skyEgg().state !== 'wild' },
+    ],
+  },
 ];
 
 const questDone = (q) => q.steps.every((s) => journal.done[s.id]);

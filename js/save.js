@@ -106,6 +106,7 @@ function snapshot() {
     archery: { stage: archery.stage, active: archery.active, intro: archery.intro },
     ruin: { solved: ruin.solved },
     dunes: saveDunes(),
+    sky: saveSkyIsle(),
     tinker: saveTinker(),
     build: saveBuild(),
     ice: saveIce(),
@@ -190,6 +191,7 @@ function restore(s) {
   ruinNight = isNight();
   syncRuin();
   restoreDunes(s.dunes);
+  restoreSkyIsle(s.sky);
   restoreDragons(s.dragons);
   restoreFlight(s.player.flight);
 

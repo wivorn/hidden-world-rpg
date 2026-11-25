@@ -7,10 +7,13 @@
 // out, the Thunderdrum's roar is a wall of sound that knocks things flat and shakes the fruit off trees, and the
 // Skrill's lightning strikes the moment it's breathed, setting trees alight and blasting the rest. The Tide Glider's
 // water puts fires out, cools lava to a crust, washes the snow off trees and bowls animals over, and its beam is a
-// long jet like a fire-hose's. Bred dragons inherit theirs as a gene (see genes.js), and some pairs of genes fuse
-// into breaths no wild dragon has: Steam leaves a scalding cloud hanging where it lands, Thunder cracks lightning and
-// a wall of sound at once, and Moonbeam leaves pools of silver light that glow in the dark and lull animals to sleep.
-const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning', tideGlider: 'water' };
+// long jet like a fire-hose's. The Cloud Dragon's rainbow harms nothing: it leaves a shimmer of colour that glows in
+// the dark and charms animals into standing still. Bred dragons inherit theirs as a gene (see genes.js), and some
+// pairs of genes fuse into breaths no wild dragon has: Steam leaves a scalding cloud hanging where it lands, Thunder
+// cracks lightning and a wall of sound at once, and Moonbeam leaves pools of silver light that glow in the dark and
+// lull animals to sleep.
+const ELEMENT_OF = { nightFury: 'plasma', lightFury: 'frost', thunderdrum: 'sonic', terribleTerror: 'fire', skrill: 'lightning', tideGlider: 'water', cloudDragon: 'rainbow' };
+const RAINBOW = ['#ff5a5a', '#ffa03a', '#ffe24a', '#5ad86a', '#4aa8ff', '#5a5aff', '#b65aff'];
 
 // `reach`, `speed` and `size` scale the fireball, and `radius` is how far its blast reaches. A beam runs out to
 // `len`, strikes the ground every `step` along its sweep from `tilt[0]` to `tilt[1]` radians below level over
@@ -22,6 +25,7 @@ const BREATHS = {
   frost: { reach: 1.25, speed: 1.3, size: 0.85, radius: 22, beam: { len: 380, step: 14, time: 1.3, tilt: [0.6, -0.15], width: 0.7 } },
   sonic: { reach: 1, speed: 1.15, size: 1.1, radius: 34, beam: { len: 260, step: 24, time: 0.9, tilt: [0.75, -0.2], width: 2.2 } },
   water: { reach: 1.1, speed: 1.05, size: 1.1, radius: 28, beam: { len: 320, step: 16, time: 1.2, tilt: [0.7, -0.15], width: 1.2 } },
+  rainbow: { reach: 1.15, speed: 1.1, size: 1, radius: 30, beam: { len: 340, step: 16, time: 1.3, tilt: [0.65, -0.15], width: 1.4 } },
   // no beam: a tap strikes `bolt.tap` ahead, nearer to farther with the charge; let go at the full, the storm's
   // ring spans from halfway to the farthest tap, `bolt.lift` up the screen, striking up to `bolt.targets` things
   // in it and `bolt.strikes` more round it.
@@ -124,7 +128,9 @@ function stormBolt(f) {
   const r = far / 4;
   const x = x0 + dx * (far - r);
   const y = y0 + dy * (far - r) - B.lift;
-  shockWater(x, y, SHOCK_REACH, r);
+  // above the clouds, nothing below is in reach
+  const below = !aloft();
+  if (below) shockWater(x, y, SHOCK_REACH, r);
   const main = strikeBolt({ x0, y0, h0, face }, x, y, PLASMA, true, 1.6);
   main.ring = r;
   main.life = STORM_TIME;
@@ -133,15 +139,15 @@ function stormBolt(f) {
     const a = turn + (i / B.strikes) * Math.PI * 2;
     return { x: x + Math.cos(a) * r * 0.7, y: y + Math.sin(a) * r * 0.7 };
   });
-  const inside = [...prey().filter((a) => alive(a)), ...hittables.filter((o) => kindOf(o))]
+  const inside = !below ? [] : [...prey().filter((a) => alive(a)), ...hittables.filter((o) => kindOf(o))]
     .filter((o) => Math.hypot(o.x - x, o.y - y) < r)
     .slice(0, B.targets);
   for (const to of [...inside, ...spread]) {
     main.forks.push([to.x, to.y]);
     breathHit(to.x, to.y, 'lightning', PLASMA, false);
   }
-  for (const a of prey()) if (alive(a) && huntable(a) && Math.hypot(a.x - x, a.y - y) < r) hurtAnimal(a, 99);
-  for (let i = 0; i < 2; i++) particles.push({ type: 'ring', layer: 'water', x, y, vx: 0, vy: 0, r: r * 0.4, grow: r * 1.4, flat: 1, pal: [PLASMA[0]], life: -i * 0.12, max: 0.5 });
+  if (below) for (const a of prey()) if (alive(a) && huntable(a) && Math.hypot(a.x - x, a.y - y) < r) hurtAnimal(a, 99);
+  if (below) for (let i = 0; i < 2; i++) particles.push({ type: 'ring', layer: 'water', x, y, vx: 0, vy: 0, r: r * 0.4, grow: r * 1.4, flat: 1, pal: [PLASMA[0]], life: -i * 0.12, max: 0.5 });
   weather.flash = Math.max(weather.flash, 0.7);
   Sfx.strike(0.7);
 }
@@ -340,6 +346,9 @@ function trail(el, pal, x, y, spread) {
   } else if (el === 'moonbeam') {
     if (Math.random() < 0.5) particles.push({ type: 'spark', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 14, vy: 4 + Math.random() * 8, c: '#ffffff', c2: pal[1], life: 0, max: 0.5 + Math.random() * 0.3 });
     else particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 10, vy: 2 + Math.random() * 6, pal, life: 0, max: 0.4 });
+  } else if (el === 'rainbow') {
+    const c = RAINBOW[Math.floor(Math.random() * RAINBOW.length)];
+    particles.push({ type: 'spark', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 20, vy: -6 + Math.random() * 14, c, c2: '#ffffff', life: 0, max: 0.4 + Math.random() * 0.3 });
   } else {
     particles.push({ type: 'plasma', layer: 'sky', x, y, vx: (Math.random() - 0.5) * 30, vy: -10 - Math.random() * 20, pal, life: 0, max: 0.3 + Math.random() * 0.2 });
   }
@@ -394,11 +403,15 @@ function updateFireballs(dt) {
 const tileUnder = (x, y) => tileAt(Math.floor(x / TILE), Math.floor((y - 1) / TILE));
 
 // `big` for a fireball, or where a beam strikes and lifts off; the beam's steps in between are lesser hits.
+// Above the clouds it lands on cloud, not on the world below (see skyHit).
 function breathHit(x, y, el, pal, big, beam = false) {
+  if (aloft()) return skyHit(x, y, el, pal, big);
   const tile = tileUnder(x, y);
   const near = earshot(x, y);
   particles.push({ type: 'flash', layer: 'sky', x, y: y - 4, vx: 0, vy: 0, c: pal[0], life: 0, max: big ? 0.3 : 0.2 });
-  if (FUSED_HITS[el]) {
+  if (el === 'rainbow') {
+    rainbowHit(x, y, big, isWet(tile));
+  } else if (FUSED_HITS[el]) {
     FUSED_HITS[el](x, y, pal, big, isWet(tile), tile);
   } else if (isWet(tile)) {
     hitWater(x, y, el, big, near, beam);
@@ -764,6 +777,27 @@ function drawSteam(cx, cy) {
   ctx.globalAlpha = 1;
 }
 
+// ---------- the rainbow ----------
+
+// A rainbow leaves a shimmer of colour where it lands, and any animal it catches stands spellbound for CHARM_TIME
+// with a heart over its head (see updateAnimal).
+const CHARM_TIME = 5;
+
+function rainbowHit(x, y, big, wet) {
+  addMark('rainbow', x, y, big ? 16 : 10);
+  for (let i = 0; i < (big ? 14 : 4); i++) {
+    const a = Math.random() * Math.PI * 2;
+    particles.push({ type: 'spark', layer: 'sky', x, y: y - 3, vx: Math.cos(a) * 34, vy: Math.sin(a) * 20 - 18, c: RAINBOW[i % RAINBOW.length], c2: '#ffffff', life: 0, max: 0.5 + Math.random() * 0.3 });
+  }
+  if (wet) seaSplash(x, y - 2, big ? 0.8 : 0.3);
+  for (const a of wildNear(x, y, BREATHS.rainbow.radius * (big ? 1 : 0.7))) charm(a);
+}
+
+function charm(a) {
+  if (a.frozenT > 0) return;
+  Object.assign(a, { charmT: CHARM_TIME, sleepT: 0, lift: 0, emote: 'heart', emoteT: 1.8 });
+}
+
 // Moonlight lulls an animal to sleep where it stands, for SLEEP_TIME (see updateAnimal).
 const SLEEP_TIME = 6;
 
@@ -775,7 +809,7 @@ function lull(a) {
 
 // ---------- marks left on the ground ----------
 
-const MARK_LIFE = { scorch: 30, melt: 20, crust: 10, flames: 1.6, moon: 40 };
+const MARK_LIFE = { scorch: 30, melt: 20, crust: 10, flames: 1.6, moon: 40, rainbow: 25 };
 const marks = [];
 
 // Flames landing on grass creep on across it: partway through burning each patch may light one more beside it, up
@@ -791,11 +825,12 @@ function addMark(kind, x, y, r, gen = 0) {
   return m;
 }
 
-// Pools of moonlight light up the dark round them (see nightLights).
+// Pools of moonlight and rainbow shimmers light up the dark round them (see nightLights).
 function breathLights() {
-  return marks.filter((m) => m.kind === 'moon').map((m) => {
+  return marks.filter((m) => m.kind === 'moon' || m.kind === 'rainbow').map((m) => {
     const k = Math.min(1, (m.max - m.t) / 6);
-    return { x: m.x, y: m.y - 2, r: Math.round(m.r * 3), k: 0.8 * k, glow: Math.round(m.r * 0.8), color: m.c };
+    const color = m.kind === 'rainbow' ? RAINBOW[Math.floor(time * 2 + m.seed) % RAINBOW.length] : m.c;
+    return { x: m.x, y: m.y - 2, r: Math.round(m.r * 3), k: 0.8 * k, glow: Math.round(m.r * 0.8), color };
   });
 }
 
@@ -1025,6 +1060,22 @@ function drawMarks(cx, cy) {
         if (Math.sin(time * 4 + m.seed + i * 2.1) < 0.6) continue;
         px(ctx, x + Math.round(Math.cos(m.seed + i * 2.3) * r * 0.6), y + Math.round(Math.sin(m.seed + i * 2.3) * r * 0.3), '#ffffff');
       }
+    } else if (m.kind === 'rainbow') {
+      // rings of colour, red outermost, turning slowly through the spectrum
+      const shimmer = 0.85 + 0.15 * Math.sin(time * 3 + m.seed);
+      const turn = Math.floor(time * 3 + m.seed);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < RAINBOW.length; i++) {
+        const k = 1 - i / RAINBOW.length;
+        ctx.globalAlpha = 0.16 * fade * shimmer;
+        ellipse(ctx, x, y, r * k, r * k * 0.5, RAINBOW[(i + turn) % RAINBOW.length]);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = fade;
+      for (let i = 0; i < 3; i++) {
+        if (Math.sin(time * 5 + m.seed + i * 2.1) < 0.5) continue;
+        px(ctx, x + Math.round(Math.cos(m.seed + i * 2.3) * r * 0.6), y + Math.round(Math.sin(m.seed + i * 2.3) * r * 0.3), RAINBOW[(i * 2 + turn) % RAINBOW.length]);
+      }
     } else {
       const k = Math.sin(Math.PI * Math.min(1, m.t / m.max));
       ctx.globalAlpha = 0.5;
@@ -1165,6 +1216,12 @@ function drawBall(b, x, y) {
     ellipse(ctx, x, y, 4.5 * s, 4.5 * s, pal[1]);
     ellipse(ctx, x + ux * 1.6 * s - uy * 1.6 * s, y + uy * 1.6 * s + ux * 1.6 * s, 3.6 * s, 3.6 * s, pal[2]);
     px(ctx, x - 2, y - 2, '#ffffff');
+  } else if (b.el === 'rainbow') {
+    // a pearl banded with every colour in turn, a streak of the spectrum trailing behind it
+    for (let i = RAINBOW.length - 1; i >= 0; i--) ellipse(ctx, x - ux * (i + 1) * 2 * s, y - uy * (i + 1) * 2 * s, (3.4 - i * 0.3) * s, (3.4 - i * 0.3) * s, RAINBOW[i]);
+    const turn = Math.floor(time * 12);
+    for (let i = 0; i < 3; i++) ellipse(ctx, x, y, (5 - i * 1.4) * s, (5 - i * 1.4) * s, RAINBOW[(turn + i * 2) % RAINBOW.length]);
+    ellipse(ctx, x, y, 1.6 * s, 1.6 * s, '#ffffff');
   } else {
     ellipse(ctx, x, y, 5 * s + pulse, 5 * s + pulse, pal[2]);
     ellipse(ctx, x, y, 4 * s, 4 * s, pal[0]);
@@ -1191,6 +1248,7 @@ function drawBeams(cx, cy) {
     if (b.el === 'fire' || b.el === 'steam') drawFlameBeam(b, pts, fade);
     else if (b.el === 'sonic') drawSoundBeam(b, pts, fade);
     else if (b.el === 'thunder') drawThunderBeam(b, pts, fade);
+    else if (b.el === 'rainbow') drawRainbowBeam(pts, fade, p.ground, B.width);
     else drawRayBeam(b, pts, fade, w, p.ground, B.width);
   }
   ctx.globalAlpha = 1;
@@ -1244,6 +1302,27 @@ function drawWaterBeam(b, pts, fade, ground, k) {
   if (ground) {
     ellipse(ctx, x1, y1, 7, 4, b.pal[0]);
     ellipse(ctx, x1, y1, 4, 2, '#ffffff');
+  }
+}
+
+// Rainbow: seven bands side by side, red on the outside, widening a little as they go, with a white core.
+function drawRainbowBeam(pts, fade, ground, k) {
+  const [[x0, y0], [x1, y1]] = pts;
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const nx = -(y1 - y0) / len;
+  const ny = (x1 - x0) / len;
+  const band = 1.4 * k;
+  ctx.globalAlpha = fade;
+  RAINBOW.forEach((c, i) => {
+    const off = (i - (RAINBOW.length - 1) / 2) * band;
+    const wob = Math.sin(time * 20 + i) * 0.4;
+    strokePath([[x0 + nx * off * 0.5, y0 + ny * off * 0.5], [x1 + nx * (off * 1.6 + wob), y1 + ny * (off * 1.6 + wob)]], band + 0.6, c);
+  });
+  strokePath(pts, 1, '#ffffff');
+  ctx.globalAlpha = 1;
+  if (ground) {
+    for (let i = 0; i < RAINBOW.length; i += 2) ellipse(ctx, x1, y1, 8 - i, 4 - i * 0.5, RAINBOW[i]);
+    ellipse(ctx, x1, y1, 2, 1, '#ffffff');
   }
 }
 

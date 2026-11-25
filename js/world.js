@@ -153,6 +153,28 @@ const TOR_AT = {
 // The maelstrom's eye, in tiles, out in the open sea to the far south-east.
 const MAELSTROM = { x: 520, y: 395 };
 
+// The sky island, in tiles: the middle of its maze, high over the open sea east of the jungle isle (see skyisle.js).
+const SKY_ISLE = { x: 520, y: 250 };
+// Its maze of cloud banks, `cell` pixels to a square: `#` is cloud bank, `S` the gap the sun shines in through,
+// `P` a prism, `G` the great prism and `i` the island round it. The sunbeam comes in through `S` heading south.
+// `facings` are where the prisms start, in reading order. Each prism turns the beam between two sides: facing 0
+// joins north and east, 1 east and south, 2 south and west, 3 west and north.
+const SKY_MAZE = {
+  cell: 56,
+  rows: [
+    '#####S#####',
+    '#P...P...P#',
+    '#.##.#.##.#',
+    '#.#.....#.#',
+    '#P..iGi..P#',
+    '#.#.iii.#.#',
+    '#.#..#..#.#',
+    '#....#....#',
+    '####...####',
+  ],
+  facings: [3, 1, 2, 1, 2],
+};
+
 // The dragon roost's ground point on the hermit's isle, and the box of tiles cleared around it.
 const ROOST_AT = { x: isle('hermit').x + 14, y: isle('hermit').y - 1 };
 const inRoostSite = (x, y) => Math.abs(x - ROOST_AT.x) < 7 && y > ROOST_AT.y - 3.5 && y < ROOST_AT.y + 6.5;
@@ -2365,6 +2387,10 @@ function placeIslands() {
   // the drowned grotto under the maelstrom: a tide glider's nest on the islet, ringed with glowing crystals
   nest('tideGlider', ...grottoSpot(...GROTTO.egg));
   for (const [x, y] of [[-3, -1], [3.2, -0.6], [-2.2, 1.6], [2.6, 1.5]]) addAbs('caveCrystal', ...grottoSpot(GROTTO.egg[0] + x, GROTTO.egg[1] + y));
+
+  // high over the eastern sea, a cloud dragon's egg on the sky island; only the sky layer draws it (see skyisle.js)
+  // pushed rather than added so it claims no tile of the sea below
+  objects.push({ key: 'egg_cloudDragon', x: SKY_ISLE.x * TILE, y: SKY_ISLE.y * TILE + SKY_MAZE.cell, phase: 0, species: 'cloudDragon' });
 }
 
 const colliders = [];

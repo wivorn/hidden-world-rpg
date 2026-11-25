@@ -16,7 +16,7 @@ const GENES = {
   wings: ['mid', 'short', 'big'],
   tailLen: ['mid', 'short', 'long'],
   build: ['mid', 'stocky', 'lean'],
-  breath: ['fire', 'sonic', 'frost', 'plasma', 'lightning', 'water'],
+  breath: ['fire', 'sonic', 'frost', 'plasma', 'lightning', 'water', 'rainbow'],
 };
 // What each shape gene's alleles multiply in drawDragon's proportions (see DRAGON_AGES).
 const SHAPE_GENES = {
@@ -37,6 +37,7 @@ const WILD_CARRIES = {
   terribleTerror: { head: 'big', build: 'lean', tail: 'fan' },
   skrill: { wings: 'big', snout: 'long' },
   tideGlider: { horns: 'frill', wings: 'big' },
+  cloudDragon: { wings: 'big', horns: 'fins', tailLen: 'long' },
 };
 // Pairs of breath alleles that, carried together, show neither: they fuse into a breath of their own. Neither
 // copy is hidden, so a fused breath doesn't breed true: two Steam dragons have fire, steam and water young.
@@ -46,10 +47,10 @@ const fusedBreath = ([a, b]) => BREATH_FUSIONS[[a, b].sort().join('+')] || null;
 // Breath colours bred dragons get for each element: a hue range round the wheel, and how strong the colour is.
 const BREATH_HUES = {
   fire: [345, 45], sonic: [70, 165], frost: [180, 240], plasma: [255, 320], lightning: [190, 215], water: [195, 220],
-  steam: [190, 215], thunder: [42, 58], moonbeam: [215, 255],
+  rainbow: [0, 359], steam: [190, 215], thunder: [42, 58], moonbeam: [215, 255],
 };
 // The saturation and lightness of a breath's main colour, for the breaths paler than a vivid 0.9 and 0.58.
-const BREATH_TONE = { steam: [0.2, 0.8], moonbeam: [0.45, 0.74] };
+const BREATH_TONE = { steam: [0.2, 0.8], moonbeam: [0.45, 0.74], rainbow: [0.8, 0.76] };
 
 const shownAllele = (gene, [a, b]) => (GENES[gene].indexOf(a) <= GENES[gene].indexOf(b) ? a : b);
 const hiddenAllele = (gene, pair) => (pair[0] === shownAllele(gene, pair) ? pair[1] : pair[0]);

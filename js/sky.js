@@ -150,7 +150,7 @@ function updateWeather(dt) {
     Sfx.thunder(indoors ? 0.5 : 1, 0.3 + Math.random() * 1.2);
   }
   const wet = snowy ? 0 : weatherNow('rain');
-  Sfx.weather(started ? wet * (indoors ? 0.4 : 1) : 0, started && !indoors ? weatherNow('wind') * (weather.kind === 'storm' ? 1 : 0.3) : 0);
+  Sfx.weather(started ? wet * (indoors ? 0.4 : aloft() ? 0.2 : 1) : 0, started && !indoors ? weatherNow('wind') * (weather.kind === 'storm' ? 1 : 0.3) : 0);
   updatePrecip(dt);
   updateFireflies(dt);
 }
@@ -163,7 +163,7 @@ const splashes = [];
 let precipCam = null;
 
 function updatePrecip(dt) {
-  const p = started && !indoors ? precipitation() : 0;
+  const p = started && !indoors && !aloft() ? precipitation() : 0;
   const want = Math.round(p * (snowy ? 150 : 240) * (viewW * viewH) / (320 * 240));
   const wind = (snowy ? 6 : 30) + weatherNow('wind') * (snowy ? 20 : 70);
   const dcx = precipCam ? cam.x - precipCam.x : 0;
@@ -239,7 +239,7 @@ function drawDrifting(cx, cy, img, n, drift, alpha, seed) {
 
 // Rain, snow, fog and the grey of a cloudy sky, over the world but under the night.
 function drawWeather(cx, cy) {
-  if (indoors) return;
+  if (indoors || aloft()) return;
   const clouds = weatherNow('clouds');
   if (clouds > 0) drawDrifting(cx, cy, blob(110, '20,28,40'), 5, 9, 0.13 * clouds, 1);
   const grey = weatherNow('grey');
@@ -299,6 +299,7 @@ function lightCut(r) {
 
 // Everything that pushes back the dark: `r` is how far, `k` how strongly, and `glow` adds warm light on top.
 function nightLights(cx, cy, visible) {
+  if (aloft()) return [...playerLights(flight.x, flight.y - flight.alt - 10), ...skyLights()];
   const out = [];
   for (const o of visible) {
     const l = SPR[o.key].light;
@@ -365,14 +366,14 @@ function drawNight(cx, cy, visible) {
       ctx.globalAlpha = 0.7 * n;
       ctx.drawImage(glowSprite(L.glow, L.color || '#ffb050'), Math.round(L.x - L.glow - cx), Math.round(L.y - L.glow - cy));
     }
-    for (const f of fireflies) {
+    for (const f of aloft() ? [] : fireflies) {
       const k = fireflyGlow(f);
       if (k <= 0.05) continue;
       ctx.globalAlpha = k * n;
       ctx.drawImage(glowSprite(5, '#d8ff6a'), Math.round(f.x - 5 - cx), Math.round(f.y - 5 - cy));
     }
     ctx.globalCompositeOperation = 'source-over';
-    for (const f of fireflies) {
+    for (const f of aloft() ? [] : fireflies) {
       const k = fireflyGlow(f);
       if (k <= 0.2) continue;
       ctx.globalAlpha = k * n;
@@ -398,7 +399,7 @@ const fireflies = [];
 const fireflyGlow = (f) => Math.max(0, Math.sin(time * 2.2 + f.phase)) * Math.min(1, f.life, (f.max - f.life) * 0.8);
 
 function updateFireflies(dt) {
-  const want = started && !indoors && !sail && nightness() > 0.6 && weatherNow('rain') < 0.2 && !snowy ? 14 : 0;
+  const want = started && !indoors && !sail && !aloft() && nightness() > 0.6 && weatherNow('rain') < 0.2 && !snowy ? 14 : 0;
   for (let i = fireflies.length - 1; i >= 0; i--) {
     const f = fireflies[i];
     f.life += dt;

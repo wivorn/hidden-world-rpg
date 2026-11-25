@@ -121,6 +121,7 @@ initTinker();
 initBuild();
 initIce();
 initPeak();
+initSkyIsle();
 initRoost();
 initNursery();
 initWildlife();
@@ -926,6 +927,7 @@ const SPECIES_NAMES = {
   terribleTerror: /\b(dune ?)?sparks?\b/i,
   skrill: /\b(storm ?)?strikers?\b/i,
   tideGlider: /\b(tide ?)?gliders?\b/i,
+  cloudDragon: /\bcloud ?dragons?\b/i,
 };
 
 const calledBy = (d, text) => new RegExp(`\\b${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
@@ -1208,6 +1210,7 @@ function updateRescue(b, dt) {
 }
 
 function landingSpot() {
+  if (aloft() || sky.shift) return null;
   const x = Math.round(flight.x);
   const y = Math.round(flight.y);
   if (blocked(x - 23, y - 12, x + 23, y, player)) return null;
@@ -1285,7 +1288,9 @@ function updateFlight(dt) {
     const k = 1 - Math.exp(-dt * (steer && (ix || iy) ? 2.5 : 1.8));
     f.vx += ((steer ? ix * max : 0) - f.vx) * k;
     f.vy += ((steer ? iy * max : 0) - f.vy) * k;
+    if (skyBlocked(f.x + f.vx * dt, f.y)) f.vx = 0;
     f.x += f.vx * dt;
+    if (skyBlocked(f.x, f.y + f.vy * dt)) f.vy = 0;
     f.y += f.vy * dt;
     const minX = 20;
     const maxX = MAP_W * TILE - 20;
@@ -2152,6 +2157,7 @@ function settleLeader(b) {
 // Flies over the ship or a swimming player; on land it touches down beside the player and waits.
 function grownLeader(b) {
   if (inGrotto()) return maelstromWait();
+  if (aloft()) return skyWait();
   if (sail) {
     const [sx, sy] = sternPos();
     return { x: sx, y: sy, alt: 52 };
@@ -3319,7 +3325,11 @@ function maskRoom(cx, cy) {
 function action() {
   if (hop || fade || player.downT > 0) return;
   if (flight) {
-    if (flight.mode !== 'fly') return;
+    if (flight.mode !== 'fly' || sky.shift) return;
+    if (aloft()) {
+      if (nearSkyEgg()) scoopSkyEgg(nearSkyEgg());
+      return;
+    }
     if (overCrater()) dropInCrater();
     else if (floatersNear(flight).length && overWater(flight)) splashDive();
     else if (landingSpot()) land();
@@ -3513,6 +3523,7 @@ function musicArea() {
     else if (!indoors.cave) musicHere = 'village';
     return musicHere;
   }
+  if (aloft()) return 'sky';
   const at = flight || (sail && shipObj) || player;
   const tx = Math.floor(at.x / TILE);
   const ty = Math.floor(at.y / TILE);
@@ -3558,6 +3569,7 @@ function update(dt) {
   updateRuin();
   updateTor(dt);
   updateWhirlpool(dt);
+  updateSkyIsle(dt);
   updateDunes(dt);
   updatePeak(dt);
   updateTinker();
@@ -4096,7 +4108,7 @@ function render() {
     drawShadow(Math.round(e.x) - cx, Math.round(e.y) - cy, 5 - k * 2, 2 - k * 0.5);
   }
   if (hop && !hop.climb) drawShadow(Math.round(player.x) - cx, Math.round(player.y) - cy, 5, 2);
-  if (flight) {
+  if (flight && !aloft()) {
     const k = flight.alt / FLY_ALT;
     drawShadow(Math.round(flight.x) - cx, Math.round(flight.y) - cy, 18 - k * 6, 5 - k * 1.5, 0.28 - k * 0.08);
   }
@@ -4135,23 +4147,28 @@ function render() {
   }
   for (const d of highDragons) drawBaby(d, cx, cy);
   drawSeaSky(cx, cy);
+  drawSkyLayer(cx, cy);
   if (flight) drawFlight(cx, cy);
   drawFireballs(cx, cy);
   drawArrows(cx, cy);
   drawDrawMeter(cx, cy);
   drawCooking(cx, cy);
+  drawSkyHint(cx, cy);
   drawSky(cx, cy);
   drawParticles(cx, cy, 'sky');
   drawWeather(cx, cy);
   drawNight(cx, cy, visible);
-  drawCurrents(cx, cy);
-  drawLights(cx, cy, visible);
-  drawTorBolts(cx, cy);
+  if (!aloft()) {
+    drawCurrents(cx, cy);
+    drawLights(cx, cy, visible);
+    drawTorBolts(cx, cy);
+  }
   drawLightning();
   if (indoors) maskRoom(cx, cy);
+  drawSkyWhiteout();
 
   for (const n of npcs) {
-    const seen = sameSpace(n);
+    const seen = sameSpace(n) && !aloft();
     if (n.bubble) n.bubble.hidden = !seen;
     if (!seen) continue;
     if (n.talkT > 0) {
@@ -4165,23 +4182,27 @@ function render() {
   }
   drawSphinxBubble(cx, cy);
   for (const d of dragons) {
-    if (d.emoteT <= 0 || (flight && flight.dragon === d)) continue;
+    if (d.emoteT <= 0 || (flight && flight.dragon === d) || aloft()) continue;
     const h = d.stage === GROWN ? (d.perched ? 44 + (d.obj.lift || 0) - DRAGON_POSES[d.obj.pose || 'stand'].sink * 2 : 52) : SPR.babyDragon[d.species][d.stage].top + 4;
     drawEmote(d, cx, cy, h + babyLift(d));
   }
-  for (const s of flock) if (s.emoteT > 0) drawEmote(s, cx, cy, 24);
-  if (!indoors) for (const a of animals) if (a.emoteT > 0 && alive(a)) drawEmote(a, cx, cy, SPR.wild[a.look][a.dir][0].height + 4 + a.lift);
-  if (dog.emoteT > 0 && dog.state !== 'carried' && !indoors) drawEmote(dog, cx, cy, 20);
+  for (const s of flock) if (s.emoteT > 0 && !aloft()) drawEmote(s, cx, cy, 24);
+  if (!indoors && !aloft()) for (const a of animals) if (a.emoteT > 0 && alive(a)) drawEmote(a, cx, cy, SPR.wild[a.look][a.dir][0].height + 4 + a.lift);
+  if (dog.emoteT > 0 && dog.state !== 'carried' && !indoors && !aloft()) drawEmote(dog, cx, cy, 20);
   if (playerSayT > 0) {
     const [hx, hy] = playerHead();
     playerBubble.style.left = `${(Math.round(hx) - cx) * zoom}px`;
     playerBubble.style.top = `${(Math.round(hy) - cy) * zoom}px`;
   }
 
-  if (flight && flight.mode === 'fly') {
-    const space = floatersNear(flight).length && overWater(flight) ? 'SPACE  Swoop down for the fish'
+  if (flight && flight.mode === 'fly' && sky.shift) {
+    setPrompt(sky.shift.up ? 'Climbing up through the clouds...' : 'Dropping down through the clouds...');
+  } else if (flight && flight.mode === 'fly') {
+    const space = aloft() ? skySpacePrompt()
+      : floatersNear(flight).length && overWater(flight) ? 'SPACE  Swoop down for the fish'
       : landingSpot() ? 'SPACE  Land' : overWater(flight) ? 'SPACE  Splash dive' : 'Find open ground to land';
-    const egg = carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '';
+    const up = aloft() ? '  ·  U  Drop below the clouds' : canRise() ? '  ·  U  Fly up above the clouds' : '';
+    const egg = (carried && !overCrater() ? '  ·  Fly over the volcano to drop the egg in' : '') + up;
     const breath = BREATH === 'lightning'
       ? (flight.charge == null ? 'F  Beam (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to strike' : 'Full charge! Let go of F for a storm')
       : flight.charge == null ? 'F  Beam (hold to charge)' : flight.charge < 1 ? 'Charging...   ·   Let go of F to fire' : 'Full charge! Let go of F for a beam';
@@ -4496,6 +4517,7 @@ function pressKey(code, shift) {
   }
   if (code === 'KeyT' && !hop && !fade && !(player.downT > 0)) patNear();
   if (code === 'KeyR') loopTrick();
+  if (code === 'KeyU') toggleAloft();
   if (code === 'KeyP') toggleSound();
   if (code === 'KeyH') toggleHints();
   if (code === 'Slash') toggleAutoPick();
@@ -4564,7 +4586,7 @@ let stickOn = localStorage.getItem('hw-stick') !== '0';
 let actionsShown = '';
 
 // The key a prompt names, as pressed: its code and whether with SHIFT. SHIFT on its own is the RUN button's.
-const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], X: ['KeyX'], ENTER: ['Enter'] };
+const ACT_KEYS = { SPACE: ['Space'], 'SPACE or F': ['Space'], F: ['KeyF'], E: ['KeyE'], R: ['KeyR'], T: ['KeyT'], U: ['KeyU'], 'SHIFT+F': ['KeyF', true], G: ['KeyG'], X: ['KeyX'], ENTER: ['Enter'] };
 // A button's name is the verb of what it does, and the little word after it, or after "it", if there is one: "Climb
 // up the ladder" is CLIMB UP, "Take it down" TAKE DOWN. These read better by another name.
 const ACT_NAMES = [[/^Ride\b/, 'MOUNT'], [/^Put the saddle\b/, 'SADDLE'], [/^See what\b/, 'SHOP'], [/^Splash dive\b/, 'DIVE'],
@@ -4586,13 +4608,15 @@ function flightActions() {
   const f = flight;
   const free = f.mode === 'fly' && f.loop < 0;
   const act = (code, name, label, on) => ({ code, shift: false, name, label, off: !on });
-  const space = overCrater() ? ['DROP EGG', 'Drop the egg into the volcano']
+  const space = aloft() ? (nearSkyEgg() ? ['SCOOP', 'Scoop up the egg'] : null)
+    : overCrater() ? ['DROP EGG', 'Drop the egg into the volcano']
     : floatersNear(f).length && overWater(f) ? ['SWOOP', 'Swoop down for the fish']
     : landingSpot() ? ['LAND', 'Land'] : overWater(f) ? ['DIVE', 'Splash dive'] : null;
   return [
-    act('Space', ...(space || ['LAND', 'Find open ground to land']), free && !!space),
+    act('Space', ...(space || ['LAND', aloft() ? 'Nothing to land on up here' : 'Find open ground to land']), free && !!space && !sky.shift),
     act('KeyF', 'BEAM', 'Breathe (hold to charge)', canBreathe(f) && (f.fireCd <= 0 || f.charge != null)),
     act('KeyR', 'LOOP', 'Loop', free),
+    act('KeyU', aloft() ? 'DOWN' : 'UP', aloft() ? 'Drop below the clouds' : 'Fly up above the clouds', canRise()),
   ];
 }
 

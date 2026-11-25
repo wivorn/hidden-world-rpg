@@ -21,7 +21,7 @@ const craterSpot = () => ({ x: volcanoObj.x, y: volcanoObj.y + SPR.volcano.light
 
 // Riding with the egg, with the dragon right over the crater or a little above it.
 function overCrater() {
-  if (!flight || flight.mode !== 'fly' || !carried || eggDrop) return false;
+  if (!flight || flight.mode !== 'fly' || !carried || eggDrop || aloft() || sky.shift) return false;
   const [x, y] = dragonBody(flight);
   const c = craterSpot();
   return Math.hypot((x - c.x) / 40, (y - c.y + 20) / 50) < 1;

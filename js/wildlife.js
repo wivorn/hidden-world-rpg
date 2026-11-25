@@ -293,6 +293,11 @@ function updateAnimal(a, dt) {
     if ((a.sleepT -= dt) <= 0) startle(a);
     return;
   }
+  if (a.charmT > 0) {
+    a.charmT -= dt;
+    if (a.emoteT <= 0 && a.charmT > 1) Object.assign(a, { emote: 'heart', emoteT: 1.8 });
+    return;
+  }
   ambientCall(a, dt);
   const dist = Math.hypot(player.x - a.x, player.y - a.y);
   const near = playerAbout() && !player.swimming;

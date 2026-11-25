@@ -33,9 +33,14 @@ const DRAGON_LORE = {
     where: 'On an islet in a grotto under the maelstrom, through a maze of currents.',
     about: 'Swims as well as it flies. Its breath is a jet of water: it puts out fires, cools lava and bowls animals over.',
   },
+  cloudDragon: {
+    rumour: 'On clear days a knot of cloud hangs over the eastern sea and never drifts. Fly high enough, the old songs say, and there\'s land up there.',
+    where: 'On the sky island above the clouds, behind a maze of cloud banks and a lock of crystal light.',
+    about: 'Light as a cloud and twice as gentle. Its rainbow breath harms nothing: it glows in the dark and charms animals still.',
+  },
 };
 const BREATH_NAMES = {
-  plasma: 'Plasma blast', fire: 'Fire', frost: 'Frost', sonic: 'Sonic roar', lightning: 'Lightning', water: 'Water jet',
+  plasma: 'Plasma blast', fire: 'Fire', frost: 'Frost', sonic: 'Sonic roar', lightning: 'Lightning', water: 'Water jet', rainbow: 'Rainbow',
   steam: 'Steam', thunder: 'Thunder', moonbeam: 'Moonbeam',
 };
 const AGE_NAMES = ['HATCHLING', 'YOUNGLING', 'JUVENILE', 'GROWN'];

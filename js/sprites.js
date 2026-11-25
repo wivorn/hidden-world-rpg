@@ -1807,7 +1807,17 @@ const DRAGON_SPECIES = {
     egg: { base: '#2a6f94', light: '#3f8fb4', speck: '#bff4ec', speckDark: '#174a66', shine: '#ffffff', gloss: '#7fd0e8', glow: '#7ff0ff' },
     breath: ['#4fb8ff', '#e8f8ff', '#1f6fd0'],
   },
+  cloudDragon: {
+    name: 'Cloud Dragon', defaultName: 'Nimbus',
+    body: '#f2eefa', dark: '#c4bcdc', light: '#ffffff', wing: '#e2dcf4', eye: '#ff7ab8', fin: '#b8a8ec', glint: '#ffffff',
+    belly: '#fff6fc', spot: '#d8ccf4', shape: { neck: 1.2, tail: 1.2, chub: 0.95 },
+    look: { horns: 'frill', spines: 'nubs', tail: 'fan', marks: 'bubbles', tips: true },
+    // `specks` paints the shell's flecks in turn, one colour after another
+    egg: { base: '#e4def4', light: '#fbf8ff', speck: '#ff8ab0', specks: ['#ff6a6a', '#ffb04a', '#ffe85a', '#6adc7a', '#5ab8ff', '#8a7aff', '#d07aff'], speckDark: '#b4aad0', shine: '#ffffff', gloss: '#ffffff', glow: '#ffd0f0' },
+    breath: ['#ff9ad0', '#ffffff', '#8a7aff'],
+  },
 };
+const speckOf = (ep, i) => (ep.specks ? ep.specks[i % ep.specks.length] : ep.speck);
 
 // The tanner's dragon saddle: leather on a red blanket, buckled on with a girth strap.
 const SADDLE = { blanket: '#b83a2a', blanketDark: '#7e2218', seat: '#7a4a24', seatLight: '#a8703a', strap: '#4a2c14', metal: '#e8d890' };
@@ -1817,11 +1827,11 @@ function buildDragonEgg(ep, cracks = 0) {
   const egg = sprite(13, 16, (g) => {
     ellipse(g, 6, 9, 5.5, 7, ep.base);
     ellipse(g, 5, 8, 3.5, 5.5, ep.light);
-    for (const [x, y] of [[3, 6], [7, 5], [2, 10], [6, 9], [9, 11], [4, 13], [8, 14]]) {
-      px(g, x, y, ep.speck);
-      px(g, x + 1, y, ep.speck);
+    [[3, 6], [7, 5], [2, 10], [6, 9], [9, 11], [4, 13], [8, 14]].forEach(([x, y], i) => {
+      px(g, x, y, speckOf(ep, i));
+      px(g, x + 1, y, speckOf(ep, i));
       px(g, x + 1, y + 1, ep.speckDark);
-    }
+    });
     for (const [x, y] of [[5, 4], [9, 8], [3, 12], [7, 12]]) px(g, x, y, ep.shine);
     rect(g, 3, 4, 1, 3, ep.gloss);
     px(g, 4, 3, ep.gloss);
@@ -1848,10 +1858,10 @@ function buildHeldEgg(ep) {
   return sprite(12, 14, (g) => {
     ellipse(g, 6, 7, 4, 5, ep.base);
     ellipse(g, 5, 6, 2.5, 3.5, ep.light);
-    for (const [x, y] of [[4, 4], [7, 6], [3, 8], [6, 10]]) {
-      px(g, x, y, ep.speck);
+    [[4, 4], [7, 6], [3, 8], [6, 10]].forEach(([x, y], i) => {
+      px(g, x, y, speckOf(ep, i * 2));
       px(g, x + 1, y + 1, ep.speckDark);
-    }
+    });
     px(g, 4, 3, ep.shine);
     px(g, 8, 9, ep.shine);
     rect(g, 3, 4, 1, 2, ep.gloss);

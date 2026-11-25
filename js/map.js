@@ -28,6 +28,7 @@ const POIS = [
   { id: 'hawk', name: 'Hawk Rock', icon: 'mountain', x: 60, y: 178, r: 12, words: /\b(hawk rock|bjorn)\b/i },
   { id: 'tor', name: 'Stormcrown Tor', icon: 'storm', x: TOR_AT.x, y: TOR_AT.y, r: 14, words: /\b(stormcrown|the tor)\b/i },
   { id: 'maelstrom', name: 'The Maelstrom', icon: 'whirl', x: MAELSTROM.x, y: MAELSTROM.y, r: 18, words: /\b(maelstrom|whirlpool)\b/i },
+  { id: 'skyIsle', name: 'Sky Island', icon: 'cloud', x: SKY_ISLE.x, y: SKY_ISLE.y, words: /\b(sky (island|isle)|knot of cloud)\b/i },
   ...[['isletNorth', 'Frost Skerry'], ['isletEast', 'Pine Skerry'], ['isletWest', 'Oak Skerry'], ['isletSouth', 'Palm Skerry'], ['isletFar', 'Far Skerry']].map(([id, name]) => {
     const i = isle(id);
     return { id, name, icon: 'isle', x: i.x, y: i.y, words: /\bskerr(y|ies)\b/i };
@@ -257,6 +258,7 @@ const MAP_ICONS = {
   frozen: (g) => { poly(g, [[1, 9], [4, 3], [7, 9]], '#c3d0e3'); poly(g, [[5, 9], [8, 1], [11, 9]], '#e6edf6'); rect(g, 2, 9, 9, 2, '#bfe2f2'); px(g, 8, 1, '#ffffff'); },
   storm: (g) => { ellipse(g, 4, 4, 3, 2, '#5a6070'); ellipse(g, 7, 3, 4, 3, '#6a7080'); rect(g, 1, 5, 10, 1, '#4a5060'); poly(g, [[6, 6], [4, 9], [6, 9], [5, 12], [8, 8], [6, 8], [7, 6]], '#ffd23a'); },
   whirl: (g) => { ellipse(g, 6, 6, 5.5, 4.5, '#3f8fb4'); ellipse(g, 6, 6, 3.5, 2.8, '#2a6f94'); for (const [x, y] of [[2, 4], [3, 3], [5, 2], [8, 3], [9, 5], [9, 7], [7, 9], [4, 8], [5, 5], [7, 6]]) px(g, x, y, '#e8faff'); ellipse(g, 6, 6, 1.2, 1, '#0d2a3a'); },
+  cloud: (g) => { ['#e8443a', '#f4b43a', '#4fa648', '#3a7ad8'].forEach((c, i) => { for (let x = 1 + i; x <= 11 - i; x++) px(g, x, 1 + i + Math.round(Math.abs(x - 6) ** 2 / (8 - i)), c); }); ellipse(g, 4, 8, 3, 2, '#f4f6ff'); ellipse(g, 8, 8, 3.5, 2.5, '#ffffff'); rect(g, 1, 10, 10, 1, '#b8c4dc'); },
   jungle: (g) => { ellipse(g, 6, 9, 5, 2, '#e8d49a'); rect(g, 6, 3, 1, 6, '#8a5a3a'); poly(g, [[1, 4], [6, 1], [11, 4], [6, 3]], '#2f7d3a'); poly(g, [[2, 6], [6, 2], [10, 6], [6, 4]], '#4fa648'); },
 };
 let mapIcons = null;
@@ -390,12 +392,64 @@ function drawMap() {
   g.beginPath();
   g.arc(mx, my, r - 1, 0, Math.PI * 2);
   g.fill();
+  drawCompass(g, W, H);
   const tip = (touchScreen.matches ? [canFlyTo() ? 'TAP A PLACE TO FLY THERE' : '']
     : [canFlyTo() ? 'CLICK A PLACE TO FLY THERE' : '', 'SCROLL OR +/- TO ZOOM', mapView.z > 1 ? 'ARROWS TO MOVE' : '', 'ESC TO CLOSE']).filter(Boolean).join('\n');
   if (mapTip.textContent !== tip) mapTip.textContent = tip;
   mapCanvas.classList.toggle('fly', canFlyTo() && !!flyHit);
 
   mapCanvas.setAttribute('aria-label', `World map. Known places: ${POIS.filter((p) => p.learned && onMap(p)).map((p) => p.name).join(', ')}.`);
+}
+
+// A compass rose in the bottom right corner, held still while the map pans and zooms under it: north is up.
+function drawCompass(g, W, H) {
+  const R = Math.round(Math.max(20, Math.min(36, W * 0.04)));
+  const fontPx = Math.max(8, Math.round(R * 0.36));
+  const cx = W - R - fontPx - 14;
+  const cy = H - R - fontPx - 14;
+  const point = (a, len, half, c) => {
+    const dx = Math.cos(a);
+    const dy = Math.sin(a);
+    g.fillStyle = c;
+    g.beginPath();
+    g.moveTo(cx + dx * len, cy + dy * len);
+    g.lineTo(cx - dy * half, cy + dx * half);
+    g.lineTo(cx, cy);
+    g.closePath();
+    g.fill();
+    g.fillStyle = shade(c, -0.35);
+    g.beginPath();
+    g.moveTo(cx + dx * len, cy + dy * len);
+    g.lineTo(cx + dy * half, cy - dx * half);
+    g.lineTo(cx, cy);
+    g.closePath();
+    g.fill();
+  };
+  g.globalAlpha = 0.85;
+  g.fillStyle = '#f4e6c0';
+  g.beginPath();
+  g.arc(cx, cy, R + fontPx + 8, 0, Math.PI * 2);
+  g.fill();
+  g.globalAlpha = 1;
+  g.strokeStyle = MAP_INK;
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.arc(cx, cy, R * 0.72, 0, Math.PI * 2);
+  g.stroke();
+  for (let i = 0; i < 4; i++) point(Math.PI / 4 + (i * Math.PI) / 2, R * 0.55, R * 0.12, '#a08a62');
+  [-Math.PI / 2, 0, Math.PI / 2, Math.PI].forEach((a, i) => point(a, R, R * 0.2, i === 0 ? '#c8322a' : '#6a4a2a'));
+  g.fillStyle = MAP_INK;
+  g.beginPath();
+  g.arc(cx, cy, Math.max(1.5, R * 0.08), 0, Math.PI * 2);
+  g.fill();
+  g.font = `${fontPx}px 'Press Start 2P', monospace`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const far = R + fontPx * 0.5 + 4;
+  for (const [text, dx, dy] of [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]]) {
+    g.fillStyle = text === 'N' ? '#c8322a' : MAP_INK;
+    g.fillText(text, cx + dx * far, cy + dy * far + 1);
+  }
 }
 
 // A dragon seen from above in its own colours, wings spread.
@@ -433,7 +487,7 @@ function drawX(g, x, y, r) {
 // Where the icons were last drawn, for clicks.
 const mapHits = [];
 let flyHit = null;
-const canFlyTo = () => !!flight && flight.mode === 'fly';
+const canFlyTo = () => !!flight && flight.mode === 'fly' && !aloft() && !sky.shift;
 
 function hitAt(e) {
   const b = mapCanvas.getBoundingClientRect();
