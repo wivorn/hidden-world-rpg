@@ -471,7 +471,7 @@ function scoopSkyEgg(e) {
 // Prompt for SPACE up here, where there's nowhere to land.
 function skySpacePrompt() {
   if (nearSkyEgg()) return 'SPACE  Scoop up the egg  ·  U  Drop below the clouds';
-  const down = 'SPACE or U  Drop below the clouds';
+  const down = 'U  Drop below the clouds';
   return skyPrisms.some((p) => Math.hypot(flight.x - p.x, flight.y - p.y) < 70) ? `Breathe on a prism to turn it  ·  ${down}` : down;
 }
 

@@ -2538,6 +2538,122 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
     whisker(4 * sn, 4.5, -0.3, 1);
     return H(1 + 5 * sn, 4);
   }
+  // The views in between, each halfway between the two either side of it: turned a little toward the viewer from
+  // side on (ese) or from head on (sse), and a little away from side on (ene) or from tail on (nne).
+  if (view === 'ese') {
+    const c = a.chub;
+    fins(tail(-8, -1.5, [[-8, -2.5 + sw], [-6.5, -4 - 1.5 * sw], [-4, -4.5 + 0.5 * sw]]), [[0, 0.5], [-4, -4], [1, 1]], [[0, 0.5], [-3, 3], [3, 1.5]]);
+    wing(2, -3.5, [0.3, -0.62], [-0.8, -0.25], [-0.9, -0.3]);
+    legs(-4.5, 5);
+    ell(0, 0, 10, 6.5 * c, B);
+    belly(1.5, 3 * c, 7, 2.6 * c);
+    ell(-1, -2.5 * c, 6.5, 2.5, M);
+    marks([[-6, -4.5 * c, -4.5, -0.75], [-1.5, -5.7 * c, 0, -1.5], [3.25, -5.3 * c, 4.75, -1]], [[-6.5, -3], [-2.5, -4.75], [2, -3.25], [5, -1.75], [-1, -1.25]]);
+    spines([[-7.25, -4.4 * c], [-3.5, -5.8 * c], [0.5, -6.2 * c], [4.25, -5.5 * c]], [0, -1]);
+    saddle(-0.5, -4.75 * c, 4.75, 2.4, [3.6, -0.5], [-0.5, -2.5, -0.5, 5.7 * c]);
+    wing(0, 2.5, [-0.4, 0.58], [0.45, 0.85], [-0.9, -0.3], 0.4);
+    front();
+    const up = stand && fold;
+    const neck = up ? P(7.5 + 5 * a.neck, -2.5 - 1.5 * a.neck) : P(7.5 + 6 * a.neck, -0.5 - 0.5 * a.neck);
+    line(g, ...P(7, -0.5), ...neck, B, T(5));
+    head(neck, 3.5, (up ? 0 : 0.5) - lift);
+    ear([[-3.5, -2.5], [-10.5 + young, -7.5 - 0.75 * young], [-1.5, -2.5]]);
+    ear([[0.5, -3.5], [-3.5, -9], [2.5, -3]]);
+    hell(0, 0, 6, 4.5, B);
+    hpoly([[1.5, -1.5], [1.5 + 7.5 * sn, 1], [0.5 + 7 * sn, 4], [0.5, 4]], B);
+    hell(-1, -2, 3, 1.5, M);
+    ears();
+    eye(-0.5 - (1 - sn), -0.5 - (a.eye - 2));
+    nostril(1.5 + 6 * sn, 1.5);
+    whisker(1 + 5.5 * sn, 3.25, -1, 0.85);
+    whisker(0.5 + 5.5 * sn, 3.25, -0.65, 0.65);
+    return H(1.5 + 6.5 * sn, 3);
+  }
+  if (view === 'sse') {
+    const c = a.chub;
+    fins(tail(-3, -5, [[-3 + 0.5 * sw, -6.5 + 0.5 * sw], [-2.5 - sw, -5.5 - 0.5 * sw], [-2 + 0.5 * sw, -4]]), [[0, 1], [-5, -2], [-1, 4]], [[0, 1], [2, -3.5], [2, 2]]);
+    wing(1, -3, [0.9, -0.22], [-0.35, -0.85], [-0.4, -0.8]);
+    legs(-4.5, 5);
+    ell(0, 0, 4.5 + 3.5 * c, 5 + 3.5 * c, B);
+    belly(1, 2 + 1.5 * c, 3 + 2.25 * c, 2.5 + 1.5 * c);
+    ell(-1, -2.5, 4.5, 4.5, M);
+    marks([[-3 - 1.5 * c, -3 - 2 * c, -2 + 1.5 * c, -3.25], [-1 - 2.25 * c, -1 - 2.8 * c, 2.25 * c, -1.75], [1.25 - 2 * c, 1 - 2.7 * c, 2.25 + 2 * c, 0.5]],
+      [[-4.5, -4.5], [0, -4.5], [0, -2], [1, 0], [4, -1]]);
+    spines([[-3.25, -6.2], [-1.5, -5.25], [0.5, -3.7]], [0, -1]);
+    saddle(-0.5, -3.25, 4.5, 3.6, [1.8, 2.3], [-4, -2, 3, 2]);
+    wing(-1, 0, [-0.9, 0.22], [0.1, 0.95], [-0.4, -0.8], 0.75);
+    front();
+    const up = stand && fold;
+    const neck = up ? P(3 + 2.5 * a.neck, -0.5 + 2 * a.neck) : P(3 + 2.5 * a.neck, 3.5 + 4 * a.neck);
+    line(g, ...P(3, 0.5), ...neck, B, T(5));
+    head(neck, 1.5, (up ? -1.5 : 3.5) - lift);
+    ear([[-3.5, -2], [-9.5 - 0.5 * young, -7 + 0.5 * young], [-2, -4]]);
+    ear([[3.5, -2.5], [3.5 + 0.5 * young, -8.5 + 0.5 * young], [1.5, -4]]);
+    hell(0, 0, 6, 5, B);
+    hpoly([[0.5, 0], [0.5 + 3.5 * sn, 2.5], [3 * sn, 4.5], [-0.5, 4]], B);
+    hell(-0.5, -2, 3.5, 2, M);
+    ears();
+    const ey = -(a.eye - 2) * (0.5 + 0.5 / HS);
+    eye(-3.5 - (a.ew - 2) / (2 * HS), ey);
+    eye(2, ey - 1);
+    nostril(-1 + 1.5 * sn, 2 + sn);
+    nostril(0.5 + 3 * sn, 2.5);
+    whisker(-1 + 2 * sn, 3.5 + 0.5 * sn, -1, 0.85);
+    whisker(2 + 2 * sn, 3.5, 0.35, 1);
+    return H(0.5 + 2.5 * sn, 4);
+  }
+  if (view === 'ene') {
+    const c = a.chub;
+    fins(tail(-7.5, 2, [[-8.5, 2 + sw], [-7, 0.5 - 1.5 * sw], [-4, -0.5 + 0.5 * sw]]), [[0, 0.5], [-4, -2], [0.5, -2]], [[0, 0.5], [-1, 5], [3, 2.5]]);
+    wing(0, -3, [-0.35, -0.62], [-0.85, 0.25], [-0.9, 0.3]);
+    legs(-4.5, 4.5);
+    ell(0, 0, 10, 6.5 * c, B);
+    belly(1, 3.2 * c, 6, 1.6 * c);
+    ell(-0.5, -2 * c, 6.5, 3, M);
+    marks([[-6, -4 * c, -4.5, 0], [-1.5, -5.4 * c, 0, -0.75], [3.25, -5.1 * c, 4.75, -0.5]], [[-6, -2.5], [-2, -4.25], [2.5, -3.25], [3, -0.75], [-2.5, 0.25]]);
+    spines([[-6.75, -4.7 * c], [-3, -5.9 * c], [1, -6.1 * c], [4.75, -5.1 * c]], [0, -1]);
+    saddle(-0.5, -4.75 * c, 4.75, 2.4, [3.6, -1.7], [-0.5, -2.5, -0.5, 5.7 * c]);
+    const up = stand && fold;
+    const neck = up ? P(7.5 + 5 * a.neck, -4.5 - 6.5 * a.neck) : P(7.5 + 6 * a.neck, -2.5 - 5.5 * a.neck);
+    line(g, ...P(7, -2.5), ...neck, B, T(5));
+    if (look.spines) spines([up ? [8 + 2.5 * a.neck, -4.5 - 4 * a.neck] : [8 + 3 * a.neck, -3.5 - 3 * a.neck]], [-0.5, -1]);
+    head(neck, 3.5, (up ? -2.5 : -2) - lift);
+    ear([[-3.5, -1], [-10 + young, -1 - 0.75 * young], [-1, 1]]);
+    hell(0, 0, 6, 4.5, B);
+    hpoly([[1.5, -2], [2 + 7 * sn, -1 - 2.5 * sn], [2.5 + 7 * sn, 1.5 - 2.5 * sn], [3, 2.5]], B);
+    hell(-1.5, -2, 3, 1.25, M);
+    ears();
+    eye(2.5 - (1 - sn), -1 - (a.eye - 2));
+    nostril(1.5 + 6 * sn, 0.5 - 1.5 * sn);
+    whisker(2 + 6 * sn, 1 - 1.5 * sn, -0.9, 0.9);
+    wing(2, 2, [0.4, 0.58], [-0.78, 0.63], [-0.9, 0.3], 0.4);
+    return H(2.5 + 7 * sn, 1 - 2 * sn);
+  }
+  if (view === 'nne') {
+    const c = a.chub;
+    wing(-1, -2.5, [-0.9, -0.22], [-0.37, 0.93], [-0.6, 0.8]);
+    const neck = P(3 + 2.5 * a.neck, -4.5 - 5 * a.neck);
+    line(g, ...P(3, -3.5), ...neck, B, T(5));
+    head(neck, 1.5, -4.5 - lift);
+    hpoly([[1, -2], [1.5 + 3 * sn, -2 - 3 * sn], [3 + 3 * sn, -3 * sn], [3, 0]], B);
+    hell(0, 0, 6, 5, B);
+    ear([[-3.5, 0.5], [-9, 6], [-1.5, 3]]);
+    ear([[2.5, 0.5], [4, 6.5], [2.5, 2.5]]);
+    hell(-1, -1.5, 3.5, 1.75, M);
+    ears();
+    whisker(-4, -2, -0.6, 1);
+    whisker(4 + 2.5 * sn, -1 - 2 * sn, 0.2, 1);
+    legs(-4.5, 4.5);
+    ell(0, 0, 4.5 + 3.5 * c, 5 + 3.5 * c, B);
+    ell(-0.5, 0.5, 4.5, 5, M);
+    marks([[-3 - 1.5 * c, 2.5 - 1.5 * c, -2 + 1.5 * c, 3], [-1 - 2.25 * c, 0.5 - 2.5 * c, 2.25 * c, 0.5], [1.25 - 2 * c, -1.5 - 2.5 * c, 2.25 + 2 * c, -1.5]],
+      [[-4, -3], [0.5, -3], [0.5, -0.5], [1.5, 3], [-4, 2]]);
+    spines([[-2.75, 1], [-1, -1.35], [1, -3.1]], [-0.6, -0.4]);
+    saddle(-0.5, -3.25, 4.5, 3.6, [1.8, -2.9], [-4, -2, 3, 2]);
+    wing(1, -0.5, [0.9, 0.22], [-0.1, 0.95], [-0.2, 0.8], 0.75);
+    fins(tail(-2.5, 5.5, [[-3.5 + 0.5 * sw, 6 + 0.5 * sw], [-3 - sw, 5 - 0.5 * sw], [-2 + 0.5 * sw, 4]]), [[0, -0.5], [-5, 2], [-1.5, -3.5]], [[0, -0.5], [3, 4], [-1, -1]]);
+    return null;
+  }
   wing(-2, -3, [-0.75, -0.45], [-0.6, 0.5], [-0.8, 0.6]);
   const neck = P(6 + 5 * a.neck, -3 - 6 * a.neck);
   line(g, ...P(6, -3), ...neck, B, T(5));
@@ -2562,10 +2678,12 @@ function drawDragon(g, pal, a, view, f, stand, gx, gy, opts = {}) {
   return null;
 }
 
-const DRAGON_VIEWS = ['down', 'up', 'right', 'se', 'ne'];
-const DRAGON_MIRRORS = [['right', 'left'], ['se', 'sw'], ['ne', 'nw']];
+const DRAGON_VIEWS = ['down', 'up', 'right', 'se', 'ne', 'ese', 'sse', 'ene', 'nne'];
+const DRAGON_MIRRORS = [['right', 'left'], ['se', 'sw'], ['ne', 'nw'], ['ese', 'wsw'], ['sse', 'ssw'], ['ene', 'wnw'], ['nne', 'nnw']];
+// All sixteen views round from facing right, a sixteenth of a turn apart clockwise on screen.
+const DRAGON_RING = ['right', 'ese', 'se', 'sse', 'down', 'ssw', 'sw', 'wsw', 'left', 'wnw', 'nw', 'nnw', 'up', 'nne', 'ne', 'ene'];
 
-// Mouth positions relative to the ground point for each of the eight facings (null: facing away).
+// Mouth positions relative to the ground point for each of the sixteen views (null: facing away).
 function dragonMouths(pal, a, stand) {
   const g = makeCanvas(1, 1).getContext('2d');
   const m = {};
@@ -4756,9 +4874,23 @@ function buildDragonFrame(pal, { saddle, pose, step, eyes, breath, wag }) {
 
 // The landed dragon's frame for `o` at time `t`: its pose (`o.pose`), striding while it walks, breathing, blinking,
 // eyes as its mood has them (`o.eyes`) or smiling shut while it's being fussed over (`o.patT`), and its tail
-// swinging if `o.wag`. Each is drawn the first time it's wanted, then kept.
+// swinging if `o.wag`. Turning round while standing, it swings through the views facing the viewer rather than
+// flipping (`o.turnK` going from 0 facing left to 1 facing right). Each is drawn the first time it's wanted, then kept.
+const DRAGON_LAND_TURN = 2.8;
 function dragonPicker(pal) {
   const kept = new Map();
+  const turning = (saddle, view, eyes) => {
+    const key = `${+saddle}${view}${eyes}`;
+    let img = kept.get(key);
+    if (!img) {
+      const a = DRAGON_AGES[DRAGON_AGES.length - 1];
+      const from = DRAGON_MIRRORS.find(([, to]) => to === view)?.[0];
+      img = from ? mirror(turning(saddle, from, eyes))
+        : sprite(100, 58, (g) => drawDragon(g, pal, a, view, -1, true, 50, PERCH_Y, { saddle, eyes, blink: eyes === 'blink' }));
+      kept.set(key, img);
+    }
+    return img;
+  };
   const frame = (saddle, right, pose, step, eyes, breath, wag) => {
     const key = `${+saddle}${+right}${pose}${step}${eyes}${breath}${wag}`;
     let img = kept.get(key);
@@ -4776,15 +4908,23 @@ function dragonPicker(pal) {
     const eyes = o.patT > 0 ? 'happy' : o.eyes === 'shut' ? 'shut' : blink ? 'blink' : o.eyes || 'open';
     const breath = walk ? 0 : Math.floor(t * (o.eyes === 'shut' ? 0.8 : 1.4)) % 2;
     const wag = o.wag ? (Math.floor(t * 5) % 2 ? 1 : -1) : 0;
+    const goal = o.faceRight ? 1 : 0;
+    const dt = Math.max(0, Math.min(0.1, t - (o.turnAt ?? t)));
+    o.turnAt = t;
+    o.turnK = pose !== 'stand' || o.turnK == null ? goal : o.turnK + Math.sign(goal - o.turnK) * Math.min(Math.abs(goal - o.turnK), DRAGON_LAND_TURN * dt);
+    const i = Math.round((1 - o.turnK) * 8);
+    if (i > 0 && i < 8) return turning(!!o.saddled, DRAGON_RING[i], o.patT > 0 ? 'happy' : blink ? 'blink' : 'open');
     return frame(!!o.saddled, !!o.faceRight, pose, step, eyes, breath, wag);
   };
   return { pick, still: frame(false, false, 'stand', 0, 'open', 0, 0) };
 }
 
 // Where the rider sits on the flying dragon's back in each view, from the middle of its body.
-const DRAGON_SEATS = { down: [0, -2], up: [0, -2], right: [1, -4], se: [-1, -3], ne: [-1, -4] };
+const DRAGON_SEATS = {
+  down: [0, -2], up: [0, -2], right: [1, -4], se: [-1, -3], ne: [-1, -4], ese: [0, -4], sse: [-1, -3], ene: [0, -4], nne: [-1, -3],
+};
 // Views whose head comes round in front of the rider, and so goes on a separate `over` layer.
-const DRAGON_FRONTS = new Set(['down', 'se']);
+const DRAGON_FRONTS = new Set(['down', 'se', 'ese', 'sse']);
 
 // The grown dragon in the air, 72x60 with the ground point at (36, 40), in all eight facings and four wing
 // beats, drawn onto canvases FLY_PAD bigger all round so raised wingtips and bred kinds' big wings and long tails

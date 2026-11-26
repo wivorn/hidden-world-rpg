@@ -1900,6 +1900,20 @@ function octantFace(vx, vy, face) {
 // The grown dragon's flying frames, with its saddle on once it has one.
 const flySet = (d) => (d.saddled ? SPR.flyDragonSaddled : SPR.flyDragon)[d.species];
 
+// Which of the sixteen views `o` is drawn in: its heading swung round toward `face` a little each frame, so it
+// turns through the views in between rather than snapping to the new one. Turning right round, it comes round
+// through the views facing the viewer.
+const DRAGON_TURN = 9;
+function dragonView(o, face) {
+  const to = DRAGON_OCTANTS.indexOf(face) * Math.PI / 4;
+  const dt = Math.max(0, Math.min(0.1, time - (o.turnAt ?? time)));
+  o.turnAt = time;
+  if (o.turn == null) o.turn = to;
+  const d = Math.atan2(Math.sin(to - o.turn), Math.cos(to - o.turn));
+  o.turn += Math.sign(d) * Math.min(Math.abs(d), DRAGON_TURN * dt);
+  return DRAGON_RING[(Math.round(o.turn / (Math.PI / 8)) % 16 + 16) % 16];
+}
+
 function babyLift(b) {
   if (b.stage === GROWN) return b.alt + Math.sin(time * 3) * 1.5;
   if (b.flying) return b.alt + 2 + Math.sin(time * 6) * 1.5;
@@ -1912,7 +1926,7 @@ const babyShown = (b) => !(b.stage === GROWN && (b.perched || (flight && flight.
 function drawBaby(b, cx, cy) {
   const x = Math.round(b.x) - cx;
   const y = Math.round(b.y - babyLift(b)) - cy;
-  const face = b.face || b.dir;
+  const face = dragonView(b, b.face || b.dir);
   if (b.stage === GROWN) {
     const set = flySet(b);
     const fr = set[face][Math.floor(b.flap) % 4];
@@ -3393,7 +3407,6 @@ function action() {
     if (flight.mode !== 'fly' || sky.shift) return;
     if (aloft()) {
       if (nearSkyEgg()) scoopSkyEgg(nearSkyEgg());
-      else toggleAloft();
       return;
     }
     if (overCrater()) dropInCrater();
@@ -3929,16 +3942,19 @@ function drawFallen(e, cx, cy) {
 function flightLook(f) {
   const pose = skyPose();
   const face = pose?.face || f.face || f.dir;
-  return { pose, face, fr: flySet(f.dragon)[face][pose?.glide ? 1 : Math.floor(f.flap) % 4] };
+  if (pose) f.turn = null;
+  const view = dragonView(f, face);
+  return { pose, face, view, fr: flySet(f.dragon)[view][pose?.glide ? 1 : Math.floor(f.flap) % 4] };
 }
 
 // Dragon, rider and anything carried, about the dragon's body centre.
-function paintFlight(g, { pose, face, fr }) {
+function paintFlight(g, { view, fr }) {
   g.drawImage(fr.under, -36 - FLY_PAD, -29 - FLY_PAD);
   const carry = carrying();
   if (carry) g.drawImage(heldImg(), fr.seat[0] - 42, fr.seat[1] - 52);
-  // on a diagonal the rider is seen side on
-  const rider = charSprite(player.look, DRAGON_FACE_SIDES[face]?.[1] || (pose ? face : flight.dir), 0, carry);
+  // on anything but straight toward or away the rider is seen side on
+  const side = view === 'right' || view.endsWith('e') ? 'right' : view === 'left' || view.endsWith('w') ? 'left' : view;
+  const rider = charSprite(player.look, side, 0, carry);
   g.drawImage(rider, 0, 0, 16, 15, fr.seat[0] - 44, fr.seat[1] - 41, 16, 15);
   if (fr.over) g.drawImage(fr.over, -36 - FLY_PAD, -29 - FLY_PAD);
 }
@@ -4734,12 +4750,12 @@ function flightActions() {
   const f = flight;
   const free = f.mode === 'fly' && f.loop < 0;
   const act = (code, name, label, on) => ({ code, shift: false, name, label, off: !on });
-  const space = aloft() ? (nearSkyEgg() ? ['SCOOP', 'Scoop up the egg'] : ['DOWN', 'Drop below the clouds'])
+  const space = aloft() ? (nearSkyEgg() ? ['SCOOP', 'Scoop up the egg'] : null)
     : overCrater() ? ['DROP EGG', 'Drop the egg into the volcano']
     : floatersNear(f).length && overWater(f) ? ['SWOOP', 'Swoop down for the fish']
     : landingSpot() ? ['LAND', 'Land'] : overWater(f) ? ['DIVE', 'Splash dive'] : null;
   return [
-    act('Space', ...(space || ['LAND', 'Find open ground to land']), free && !!space && !sky.shift),
+    act('Space', ...(space || (aloft() ? ['SCOOP', 'Nothing to scoop up here'] : ['LAND', 'Find open ground to land'])), free && !!space && !sky.shift),
     act('KeyF', 'BEAM', 'Breathe (hold to charge)', canBreathe(f) && (f.fireCd <= 0 || f.charge != null)),
     act('KeyR', ...(BREATH === 'rainbow' ? ['ARC', 'Rainbow arc'] : ['LOOP', 'Loop']), free),
     act('KeyU', aloft() ? 'DOWN' : 'UP', aloft() ? 'Drop below the clouds' : 'Fly up above the clouds', canRise()),
